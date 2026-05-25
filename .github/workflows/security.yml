@@ -67,7 +67,7 @@ jobs:
           mkdir -p release
           cp build/bin/llamaware-agent README.md LICENSE CHANGELOG.md release/
           tar -czf llamaware-${{ github.event.release.tag_name }}.tar.gz -C release .
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: llamaware-${{ github.event.release.tag_name }}.tar.gz
 
