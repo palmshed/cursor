@@ -139,7 +139,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: post health report
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const report = `${{ steps.report.outputs.report }}`;
@@ -166,7 +166,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: process todos
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const todos = [...context.payload.issue.body.matchAll(/TODO:\s*(.+)/gi)];
@@ -203,7 +203,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: assign milestone
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const content = `${context.payload.pull_request.title} ${
