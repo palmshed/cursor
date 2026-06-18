@@ -172,6 +172,43 @@ bool self_update() {
   return true;
 }
 
+void check_for_updates_background() {
+  CURL *curl = curl_easy_init();
+  if (!curl)
+    return;
+
+  std::string response;
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   "https://api.github.com/repos/bniladridas/cursor/releases/"
+                   "latest");
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, "cursor-agent");
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+
+  CURLcode res = curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+
+  if (res != CURLE_OK)
+    return;
+
+  auto tag_pos = response.find("\"tag_name\":\"");
+  if (tag_pos == std::string::npos)
+    return;
+  tag_pos += 13;
+  auto tag_end = response.find("\"", tag_pos);
+  std::string latest = response.substr(tag_pos, tag_end - tag_pos);
+
+  std::string current = Version::get_version();
+  if (latest != current) {
+    std::cout << Utils::Color::YELLOW << "\nUpdate available: v" << current
+              << " -> v" << latest << "\n"
+              << "Run 'cursor --update' to update.\n"
+              << Utils::Color::RESET;
+  }
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -197,6 +234,7 @@ int main(int argc, char *argv[]) {
   try {
     Utils::Config::load_environment();
     Utils::UI::print_logo();
+    check_for_updates_background();
     Core::Agent agent;
     agent.run();
     std::cout << "Agent run completed" << std::endl;
