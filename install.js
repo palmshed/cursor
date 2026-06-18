@@ -1,0 +1,49 @@
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+
+const pkg = require('./package.json');
+const version = pkg.version;
+const binaryDir = path.join(__dirname, 'binary');
+
+const platformMap = {
+  darwin: 'cursor-macos.tar.gz',
+  linux: 'cursor-linux.tar.gz',
+  win32: 'cursor-windows.zip',
+};
+
+const archive = platformMap[process.platform];
+if (!archive) {
+  console.error(`unsupported platform: ${process.platform}`);
+  process.exit(1);
+}
+
+const url = `https://github.com/harpertoken/cursor/releases/download/v${version}/${archive}`;
+
+fs.mkdirSync(binaryDir, { recursive: true });
+
+console.log(`downloading cursor v${version}...`);
+
+const file = fs.createWriteStream(path.join(binaryDir, archive));
+https.get(url, (res) => {
+  if (res.statusCode !== 200) {
+    console.error(`download failed (${res.statusCode}): ${url}`);
+    process.exit(1);
+  }
+  res.pipe(file);
+  file.on('finish', () => {
+    file.close();
+    console.log('extracting...');
+    if (process.platform === 'win32') {
+      execSync(`tar -xf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+    } else {
+      execSync(`tar -xzf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+    }
+    fs.unlinkSync(path.join(binaryDir, archive));
+    console.log('done');
+  });
+}).on('error', (err) => {
+  console.error(`download failed: ${err.message}`);
+  process.exit(1);
+});
