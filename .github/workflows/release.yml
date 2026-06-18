@@ -157,7 +157,7 @@ jobs:
           npm version "$version" --no-git-tag-version --allow-same-version
 
       - name: Publish npm
-        if: env.NPM_TOKEN != ''
+        if: secrets.NPM_TOKEN != ''
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
