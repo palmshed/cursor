@@ -137,7 +137,7 @@ jobs:
 
       - name: Publish release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             $(find release -name '*.tar.gz' -o -name '*.zip' | sed 's|^|  |') \
