@@ -100,8 +100,8 @@ jobs:
 
       - name: Download artifacts
         run: |
-          gh release download $GITHUB_REF_NAME --pattern '*.tar.gz' --pattern '*.zip' --dir release/ || true
-          ls -la release/
+          mkdir -p release
+          gh release download "$GITHUB_REF_NAME" --pattern '*.tar.gz' --pattern '*.zip' --dir release/ || true
 
       - name: Compute checksums
         run: |
