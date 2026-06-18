@@ -121,8 +121,7 @@ jobs:
 
       - name: Compute checksums
         run: |
-          cd release
-          shasum -a 256 * > checksums.txt || sha256sum * > checksums.txt
+          find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec shasum -a 256 {} + > checksums.txt || find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec sha256sum {} + > checksums.txt
 
       - name: Compute source SHA
         run: |
