@@ -3,7 +3,9 @@
 #include <iostream>
 #include <string>
 
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -73,7 +75,9 @@ int main(int argc, char *argv[]) {
         if (Version::download_and_install(latest)) {
           std::string exe = get_exe_path();
           if (!exe.empty()) {
+#ifndef _WIN32
             execl(exe.c_str(), exe.c_str(), (char *)NULL);
+#endif
           }
         }
         return 0;
