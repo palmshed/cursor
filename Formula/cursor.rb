@@ -10,7 +10,7 @@ class Cursor < Formula
   depends_on "nlohmann-json"
 
   def install
-    system "cmake", "-S", ".", "-B", "build", *std_cmake_args
+    system "cmake", "-S", ".", "-B", "build", "-DBUILD_TESTING=OFF", *std_cmake_args
     system "cmake", "--build", "build"
     bin.install "build/bin/cursor-agent"
 

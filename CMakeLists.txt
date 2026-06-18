@@ -317,43 +317,38 @@ if(NOT CPR_FOUND)
         message(FATAL_ERROR "Failed to find or build CPR. Please install it manually or check your network connection.")
     endif()
 endif()
-# Enable testing
-enable_testing()
+option(BUILD_TESTING "Build tests" ON)
 
-# Fetch Google Test
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+if(BUILD_TESTING)
+    enable_testing()
 
-# Only fetch and build gtest if not already found
-if(NOT TARGET gtest)
-    message(STATUS "Downloading and building Google Test...")
-    FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG v1.14.0
-        GIT_SHALLOW TRUE
-    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-     # For Windows: Prevent overriding the parent project's compiler/linker settings
-     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-
-     # Build static libraries to avoid runtime dependencies
-     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-     # Make sure we're not overriding compiler flags
-     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-     set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
-     set(BUILD_GTEST ON CACHE BOOL "" FORCE)
-
-     FetchContent_MakeAvailable(googletest)
-
-    # Create an interface library for gtest to make it easier to link
-    if(NOT TARGET gtest_all_tests)
-        add_library(gtest_all_tests INTERFACE)
-        target_link_libraries(gtest_all_tests
-            INTERFACE
-                GTest::GTest
-                GTest::Main
+    if(NOT TARGET gtest)
+        message(STATUS "Downloading and building Google Test...")
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG v1.14.0
+            GIT_SHALLOW TRUE
         )
+
+         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+         set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+         set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+         set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
+         set(BUILD_GTEST ON CACHE BOOL "" FORCE)
+
+         FetchContent_MakeAvailable(googletest)
+
+        if(NOT TARGET gtest_all_tests)
+            add_library(gtest_all_tests INTERFACE)
+            target_link_libraries(gtest_all_tests
+                INTERFACE
+                    GTest::GTest
+                    GTest::Main
+            )
+        endif()
     endif()
 endif()
 
