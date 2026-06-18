@@ -2,8 +2,8 @@
 #include <iostream>
 #include <string>
 
-#include "core/agent.h"
-#include "data/memory_manager.h"
+#include "agent.h"
+#include "memory_manager.h"
 #include "services/ai_service.h"
 #include "utils/config.h"
 #include "utils/ui.h"

@@ -419,7 +419,7 @@ include_directories(include)
 
 # Source files organized by modules
 set(CORE_SOURCES
-    src/core/agent.cpp
+    src/agent.cpp
 )
 
 set(SERVICE_SOURCES
@@ -450,7 +450,7 @@ set(UTILS_SOURCES
 )
 
 set(DATA_SOURCES
-    src/data/memory_manager.cpp
+    src/memory_manager.cpp
 )
 
 set(ALL_SOURCES

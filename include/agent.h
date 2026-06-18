@@ -1,5 +1,5 @@
 #pragma once
-#include "core/agent_mode.h"
+#include "agent_mode.h"
 #include "utils/config.h" // For CURSOR_API
 #include <memory>
 #include <string>

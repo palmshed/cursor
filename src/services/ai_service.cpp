@@ -1,5 +1,5 @@
 #include "services/ai_service.h"
-#include "core/agent_mode.h"
+#include "agent_mode.h"
 #include "services/web_service.h"
 #include "utils/config.h"
 #include <curl/curl.h>
