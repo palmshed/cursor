@@ -105,14 +105,17 @@ jobs:
   release:
     needs: [linux, macos, windows]
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-
     steps:
       - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
+
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.CURSOR_BOT_PRIVATE_KEY }}
 
       - name: Download artifacts
         uses: actions/download-artifact@v6
@@ -133,6 +136,8 @@ jobs:
           echo "SOURCE_SHA=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
 
       - name: Publish release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             $(find release -name '*.tar.gz' -o -name '*.zip' | sed 's|^|  |') \
@@ -158,12 +163,6 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           npm publish --access public --provenance 2>&1 || echo "already published"
-
-      - uses: actions/create-github-app-token@v3
-        id: app-token
-        with:
-          client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.CURSOR_BOT_PRIVATE_KEY }}
 
       - name: Create version update PR
         uses: peter-evans/create-pull-request@v8
