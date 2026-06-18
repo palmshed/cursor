@@ -13,9 +13,9 @@ cmake -S . -B build && cmake --build build
 
 - C++20: `starts_with()`, `std::optional`, structured bindings
 - `snake_case` for functions, `PascalCase` for classes
-- Static service methods — no state (except `AIService`, `DatabaseService`)
-- No exceptions in hot paths — return `std::optional` or error codes
-- No raw pointers — RAII wrappers or `unique_ptr`
+- Static service methods - no state (except `AIService`, `DatabaseService`)
+- No exceptions in hot paths - return `std::optional` or error codes
+- No raw pointers - RAII wrappers or `unique_ptr`
 - `#pragma once` in headers, `#ifdef _WIN32` for platform code
 
 ## Workflow
@@ -26,8 +26,8 @@ Detect stale, duplicated, or dead code as you go. Fix warnings and failing tests
 
 ## Technical Debt
 
-- `agent.cpp` (76KB) — God class, main refactoring target
-- 2 unit tests — far below where we need to be
+- `agent.cpp` (76KB) - God class, main refactoring target
+- 2 unit tests - far below where we need to be
 
 ## Hard Rules
 
