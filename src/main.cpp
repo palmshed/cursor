@@ -58,10 +58,10 @@ int main(int argc, char *argv[]) {
 
   try {
     Utils::Config::load_environment();
+    Utils::UI::print_logo();
 
     std::string latest = Version::check_update();
     if (!latest.empty()) {
-      Utils::UI::print_logo();
       std::cout << Utils::Color::YELLOW
                 << "Update available: v" << Version::get_version() << " -> v"
                 << latest << "\n"
@@ -80,7 +80,6 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    Utils::UI::print_logo();
     Core::Agent agent;
     agent.run();
     std::cout << "Agent run completed" << std::endl;
