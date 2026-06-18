@@ -1,46 +1,32 @@
 # Cursor
 
-Cursor is a terminal-based agent for macOS, Linux, and containerized environments.
+[![CI](https://github.com/bniladridas/cursor/actions/workflows/ci.yml/badge.svg)](https://github.com/bniladridas/cursor/actions/workflows/ci.yml)
+[![Release](https://github.com/bniladridas/cursor/actions/workflows/release.yml/badge.svg)](https://github.com/bniladridas/cursor/actions/workflows/release.yml)
+[![npm](https://img.shields.io/npm/v/@bniladridas/cursor)](https://www.npmjs.com/package/@bniladridas/cursor)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-It works with codebases, files, commands, and repositories through a CLI interface.
+Cursor is a cross-platform AI coding agent that works with codebases, files, commands, and repositories through a CLI interface.
 
-Homebrew:
+## Install
 
-```bash
-brew install cursor
-```
-
-npm:
-
+**npm** (binary: `cursor`):
 ```bash
 npm i -g @bniladridas/cursor
 ```
 
-Build from source:
-
+**Homebrew** (binary: `cursor-agent`):
 ```bash
-cmake -S . -B build
-cmake --build build
-./build/cursor-tests
+brew install bniladridas/cursor/cursor
 ```
 
-The project is written in C++20 and uses CMake for building and testing.
-
-Source layout:
-
-```text
-src/
-  agent.cpp
-  memory_manager.cpp
-  services/
-  utils/
-
-include/
-  agent.h
-  services/
-  utils/
+**From source** (binary: `cursor`):
+```bash
+cmake -S . -B build && cmake --build build
+./build/cursor-tests   # run tests
 ```
 
-License: Apache 2.0
+## Platforms
 
-![Cursor](.github/packaging/brand-cursor.png)
+Pre-built binaries for Linux (amd64), macOS (arm64), and Windows (amd64) are available on the [releases page](https://github.com/bniladridas/cursor/releases).
+
+[![Cursor](.github/packaging/brand-cursor.png)](https://github.com/bniladridas/cursor/releases)
