@@ -7,10 +7,11 @@ const pkg = require('./package.json');
 const version = pkg.version;
 const binaryDir = path.join(__dirname, 'binary');
 
+const arch = process.arch === 'x64' ? 'amd64' : process.arch;
 const platformMap = {
-  darwin: 'cursor-macos.tar.gz',
-  linux: 'cursor-linux.tar.gz',
-  win32: 'cursor-windows.zip',
+  darwin: `cursor_v${version}_darwin_arm64.tar.gz`,
+  linux: `cursor_v${version}_linux_amd64.tar.gz`,
+  win32: `cursor_v${version}_windows_amd64.zip`,
 };
 
 const archive = platformMap[process.platform];
