@@ -19,6 +19,19 @@
 #include <unistd.h> // for getlogin_r
 #endif
 
+struct EvpCipherCtx {
+  EVP_CIPHER_CTX *ctx;
+  EvpCipherCtx() : ctx(EVP_CIPHER_CTX_new()) {}
+  ~EvpCipherCtx() {
+    if (ctx)
+      EVP_CIPHER_CTX_free(ctx);
+  }
+  EvpCipherCtx(const EvpCipherCtx &) = delete;
+  EvpCipherCtx &operator=(const EvpCipherCtx &) = delete;
+  EVP_CIPHER_CTX *get() const { return ctx; }
+  explicit operator bool() const { return ctx != nullptr; }
+};
+
 // Initialize static members
 namespace Services {
 std::map<std::string, AuthProvider> AuthService::providers;
@@ -120,37 +133,32 @@ bool Services::AuthService::save_encryption_key() {
   int len = 0;
   int ciphertext_len = 0;
 
-  EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+  EvpCipherCtx ctx;
   if (!ctx) {
     return false;
   }
 
-  if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, derived_key.data(),
-                         iv.data()) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr,
+                         derived_key.data(), iv.data()) != 1) {
     return false;
   }
 
-  if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, encryption_key.data(),
+  if (EVP_EncryptUpdate(ctx.get(), ciphertext.data(), &len,
+                        encryption_key.data(),
                         static_cast<int>(encryption_key.size())) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
     return false;
   }
   ciphertext_len = len;
 
-  if (EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, &len) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_EncryptFinal_ex(ctx.get(), ciphertext.data() + len, &len) != 1) {
     return false;
   }
   ciphertext_len += len;
 
-  if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, AuthService::tag_size,
-                          tag.data()) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_GET_TAG,
+                          AuthService::tag_size, tag.data()) != 1) {
     return false;
   }
-
-  EVP_CIPHER_CTX_free(ctx);
 
   // Write salt, IV, tag, and ciphertext to file
   key_file.write(reinterpret_cast<const char *>(salt.data()), salt.size());
@@ -209,33 +217,29 @@ bool Services::AuthService::load_or_generate_key() {
     int len;
     int plaintext_len;
 
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EvpCipherCtx ctx;
     if (!ctx)
       return false;
 
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, derived_key.data(),
-                           iv.data()) != 1) {
-      EVP_CIPHER_CTX_free(ctx);
+    if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr,
+                           derived_key.data(), iv.data()) != 1) {
       return false;
     }
 
-    if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data(),
+    if (EVP_DecryptUpdate(ctx.get(), plaintext.data(), &len, ciphertext.data(),
                           static_cast<int>(ciphertext.size())) != 1) {
-      EVP_CIPHER_CTX_free(ctx);
       return false;
     }
     plaintext_len = len;
 
     // Set expected tag value
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag_size, tag.data()) !=
-        1) {
-      EVP_CIPHER_CTX_free(ctx);
+    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, tag_size,
+                            tag.data()) != 1) {
       return false;
     }
 
     // Finalize decryption and check authentication tag
-    int ret = EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len);
-    EVP_CIPHER_CTX_free(ctx);
+    int ret = EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + len, &len);
 
     if (ret <= 0) {
       // Authentication failed
@@ -279,42 +283,36 @@ Services::AuthService::encrypt_credential(const std::string &credential) {
   int ciphertext_len;
 
   // Create and initialize the encryption context
-  EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+  EvpCipherCtx ctx;
   if (!ctx)
     throw std::runtime_error("Failed to create encryption context");
 
   // Initialize the encryption operation with AES-256-GCM
-  if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, encryption_key.data(),
-                         iv.data()) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr,
+                         encryption_key.data(), iv.data()) != 1) {
     throw std::runtime_error("Encryption initialization failed");
   }
 
   // Encrypt the plaintext
   if (EVP_EncryptUpdate(
-          ctx, ciphertext.data(), &len,
+          ctx.get(), ciphertext.data(), &len,
           reinterpret_cast<const unsigned char *>(credential.c_str()),
           static_cast<int>(credential.length())) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
     throw std::runtime_error("Encryption update failed");
   }
   ciphertext_len = len;
 
   // Finalize the encryption
-  if (EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, &len) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_EncryptFinal_ex(ctx.get(), ciphertext.data() + len, &len) != 1) {
     throw std::runtime_error("Encryption finalization failed");
   }
   ciphertext_len += len;
 
   // Get the authentication tag
-  if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, AuthService::tag_size,
-                          tag.data()) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_GET_TAG,
+                          AuthService::tag_size, tag.data()) != 1) {
     throw std::runtime_error("Failed to get authentication tag");
   }
-
-  EVP_CIPHER_CTX_free(ctx);
 
   // Resize the ciphertext to actual size
   ciphertext.resize(ciphertext_len);
@@ -356,35 +354,31 @@ Services::AuthService::decrypt_credential(const std::string &encrypted_hex) {
   int plaintext_len;
 
   // Create and initialize the decryption context
-  EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+  EvpCipherCtx ctx;
   if (!ctx)
     throw std::runtime_error("Failed to create decryption context");
 
   // Initialize the decryption operation with AES-256-GCM
-  if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, encryption_key.data(),
-                         iv.data()) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr,
+                         encryption_key.data(), iv.data()) != 1) {
     throw std::runtime_error("Decryption initialization failed");
   }
 
   // Provide the message to be decrypted and obtain the plaintext output
-  if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data(),
+  if (EVP_DecryptUpdate(ctx.get(), plaintext.data(), &len, ciphertext.data(),
                         static_cast<int>(ciphertext.size())) != 1) {
-    EVP_CIPHER_CTX_free(ctx);
     throw std::runtime_error("Decryption update failed");
   }
   plaintext_len = len;
 
   // Set the expected tag value
-  if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag_size, tag.data()) !=
-      1) {
-    EVP_CIPHER_CTX_free(ctx);
+  if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, tag_size,
+                          tag.data()) != 1) {
     throw std::runtime_error("Failed to set authentication tag");
   }
 
   // Finalize the decryption and check the authentication tag
-  int ret = EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len);
-  EVP_CIPHER_CTX_free(ctx);
+  int ret = EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + len, &len);
 
   if (ret <= 0) {
     // Authentication failed

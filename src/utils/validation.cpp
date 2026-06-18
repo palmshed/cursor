@@ -260,11 +260,7 @@ bool Validator::is_safe_path(const std::string &path) {
 }
 
 bool Validator::is_text_file_extension(const std::string &extension) {
-  static const std::vector<std::string> text_extensions = {
-      ".txt", ".md",   ".cpp", ".h",   ".hpp",  ".c",    ".cc",
-      ".cxx", ".py",   ".js",  ".ts",  ".html", ".css",  ".json",
-      ".xml", ".yaml", ".yml", ".ini", ".cfg",  ".conf", ".log",
-      ".sh",  ".bat",  ".ps1", ".sql", ".csv",  ".tsv"};
+  const auto &text_extensions = get_text_extensions();
 
   std::string lower_ext = extension;
   std::transform(lower_ext.begin(), lower_ext.end(), lower_ext.begin(),
@@ -272,6 +268,21 @@ bool Validator::is_text_file_extension(const std::string &extension) {
 
   return std::find(text_extensions.begin(), text_extensions.end(), lower_ext) !=
          text_extensions.end();
+}
+
+const std::vector<std::string> &Validator::get_text_extensions() {
+  static const std::vector<std::string> text_extensions = {
+      ".txt",   ".md",     ".rst",   ".log",  ".cfg",        ".conf",
+      ".ini",   ".yaml",   ".yml",   ".json", ".xml",        ".html",
+      ".htm",   ".css",    ".js",    ".ts",   ".jsx",        ".tsx",
+      ".c",     ".cpp",    ".cc",    ".cxx",  ".h",          ".hpp",
+      ".hxx",   ".java",   ".py",    ".rb",   ".go",         ".rs",
+      ".php",   ".pl",     ".sh",    ".bash", ".zsh",        ".fish",
+      ".ps1",   ".sql",    ".r",     ".m",    ".swift",      ".kt",
+      ".scala", ".clj",    ".hs",    ".ml",   ".dockerfile", ".makefile",
+      ".cmake", ".gradle", ".maven", ".sbt",  ".bat",        ".csv",
+      ".tsv"};
+  return text_extensions;
 }
 
 std::string Validator::sanitize_input(const std::string &input) {

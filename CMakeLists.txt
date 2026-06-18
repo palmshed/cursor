@@ -498,10 +498,13 @@ else()
 endif()
 
 # Link dependencies as PRIVATE to avoid exposing them
+target_link_libraries(llamaware_lib PUBLIC
+    nlohmann_json::nlohmann_json
+)
+
 target_link_libraries(llamaware_lib PRIVATE
     ${CURL_LIBRARIES}
     cpr::cpr
-    nlohmann_json::nlohmann_json
     OpenSSL::SSL
     OpenSSL::Crypto
     ${ZLIB_TARGET}

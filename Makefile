@@ -32,7 +32,7 @@ test-e2e: build
 # Run E2E tests in Docker
 test-e2e-docker:
 	@echo "Running E2E tests in Docker..."
-	@docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+	@docker-compose -f tests/e2e/docker-compose.yml up --build --abort-on-container-exit
 
 # Create distribution package
 package: build

@@ -245,13 +245,13 @@ void Agent::process_user_input(const std::string &input) {
   }
 
   // Handle ! shell commands
-  if (trimmed_input.rfind("!", 0) == 0) {
+  if (trimmed_input.starts_with("!")) {
     handle_shell_command(trimmed_input);
     return;
   }
 
   // Handle / meta commands
-  if (trimmed_input.rfind("/", 0) == 0) {
+  if (trimmed_input.starts_with("/")) {
     handle_meta_command(trimmed_input);
     return;
   }
@@ -267,7 +267,7 @@ void Agent::process_user_input(const std::string &input) {
 void Agent::handle_direct_command(const std::string &input) {
   std::string result;
 
-  if (input.rfind("search:", 0) == 0) {
+  if (input.starts_with("search:")) {
     std::string query = trim_copy(input.substr(7));
     auto validation = Utils::Validator::validate_search_query(query);
     if (!validation.is_valid) {
@@ -281,7 +281,7 @@ void Agent::handle_direct_command(const std::string &input) {
       result = Services::WebService::search(query);
       memory_->save_interaction("search:" + query, result);
     }
-  } else if (input.rfind("cmd:", 0) == 0) {
+  } else if (input.starts_with("cmd:")) {
     std::string command = trim_copy(input.substr(4));
     auto validation = Utils::Validator::validate_command_safe(command);
     if (!validation.warnings.empty()) {
@@ -300,7 +300,7 @@ void Agent::handle_direct_command(const std::string &input) {
     }
     result = Services::CommandService::execute(command);
     memory_->save_interaction("cmd:" + command, result);
-  } else if (input.rfind("read:", 0) == 0) {
+  } else if (input.starts_with("read:")) {
     std::string params = trim_copy(input.substr(5));
     // Check if it has range parameters: read:filename:start:count
     size_t first_colon = params.find(':');
@@ -332,7 +332,7 @@ void Agent::handle_direct_command(const std::string &input) {
       }
     }
     memory_->save_interaction("read:" + params, result);
-  } else if (input.rfind("write:", 0) == 0) {
+  } else if (input.starts_with("write:")) {
     // Format: write:filename content...
     size_t space_pos = input.find(' ', 6); // index 6 is safe for "write:"
     if (space_pos != std::string::npos) {
@@ -350,7 +350,7 @@ void Agent::handle_direct_command(const std::string &input) {
     } else {
       result = "Usage: write:filename content";
     }
-  } else if (input.rfind("replace:", 0) == 0) {
+  } else if (input.starts_with("replace:")) {
     // Format: replace:filename:old_text:new_text[:expected_count]
     std::string params = input.substr(8);
     std::vector<std::string> parts;
@@ -378,7 +378,7 @@ void Agent::handle_direct_command(const std::string &input) {
     } else {
       result = "Usage: replace:filename:old_text:new_text[:expected_count]";
     }
-  } else if (input.rfind("grep:", 0) == 0) {
+  } else if (input.starts_with("grep:")) {
     // Format: grep:pattern[:directory[:file_filter]]
     std::string params = input.substr(5);
     std::vector<std::string> parts;
@@ -409,35 +409,35 @@ void Agent::handle_direct_command(const std::string &input) {
       }
     }
     memory_->save_interaction("grep:" + pattern, result);
-  } else if (input.rfind("remember:", 0) == 0) {
+  } else if (input.starts_with("remember:")) {
     std::string fact = trim_copy(input.substr(9));
     memory_->save_global_fact(fact);
     result = "Remembered: " + fact;
-  } else if (input.rfind("forget", 0) == 0) {
+  } else if (input.starts_with("forget")) {
     memory_->clear_global_memory();
     result = "Global memory cleared";
-  } else if (input.rfind("memory", 0) == 0) {
+  } else if (input.starts_with("memory")) {
     std::string global_context = memory_->get_global_context();
     result =
         global_context.empty() ? "No global memories stored" : global_context;
-  } else if (input.rfind("clear", 0) == 0) {
+  } else if (input.starts_with("clear")) {
     memory_->clear_memory();
     result = "Session memory cleared";
-  } else if (input.rfind("analyze:", 0) == 0) {
+  } else if (input.starts_with("analyze:")) {
     std::string path = trim_copy(input.substr(8));
     if (path.empty()) {
       path = "."; // Current directory
     }
     result = Services::CodebaseService::analyze_structure(path);
     memory_->save_interaction("analyze:" + path, result);
-  } else if (input.rfind("components:", 0) == 0) {
+  } else if (input.starts_with("components:")) {
     std::string path = trim_copy(input.substr(11));
     if (path.empty()) {
       path = "."; // Current directory
     }
     result = Services::CodebaseService::find_main_components(path);
     memory_->save_interaction("components:" + path, result);
-  } else if (input.rfind("todos:", 0) == 0) {
+  } else if (input.starts_with("todos:")) {
     std::string path = trim_copy(input.substr(6));
     if (path.empty()) {
       path = "."; // Current directory
@@ -452,7 +452,7 @@ void Agent::handle_direct_command(const std::string &input) {
       }
     }
     memory_->save_interaction("todos:" + path, result);
-  } else if (input.rfind("git:", 0) == 0) {
+  } else if (input.starts_with("git:")) {
     std::string params = trim_copy(input.substr(4));
     std::string path = "."; // Default to current directory
 
@@ -466,14 +466,14 @@ void Agent::handle_direct_command(const std::string &input) {
       result = "Usage: git:log, git:status, git:analyze";
     }
     memory_->save_interaction("git:" + params, result);
-  } else if (input.rfind("tree:", 0) == 0) {
+  } else if (input.starts_with("tree:")) {
     std::string path = trim_copy(input.substr(5));
     if (path.empty()) {
       path = "."; // Current directory
     }
     result = Services::CodebaseService::get_directory_tree(path, 3);
     memory_->save_interaction("tree:" + path, result);
-  } else if (input.rfind("github:", 0) == 0) {
+  } else if (input.starts_with("github:")) {
     std::string params = trim_copy(input.substr(7));
     auto parse_repo_spec = [](const std::string &repo_spec, std::string &owner,
                               std::string &repo) -> bool {
@@ -485,7 +485,7 @@ void Agent::handle_direct_command(const std::string &input) {
       }
       return false;
     };
-    if (params.rfind("repo:", 0) == 0) {
+    if (params.starts_with("repo:")) {
       std::string repo_spec = trim_copy(params.substr(5));
       std::string owner, repo;
       if (parse_repo_spec(repo_spec, owner, repo)) {
@@ -493,7 +493,7 @@ void Agent::handle_direct_command(const std::string &input) {
       } else {
         result = "Usage: github:repo:owner/repo";
       }
-    } else if (params.rfind("issues:", 0) == 0) {
+    } else if (params.starts_with("issues:")) {
       std::string repo_spec = trim_copy(params.substr(7));
       std::string owner, repo;
       if (parse_repo_spec(repo_spec, owner, repo)) {
@@ -510,7 +510,7 @@ void Agent::handle_direct_command(const std::string &input) {
       } else {
         result = "Usage: github:issues:owner/repo";
       }
-    } else if (params.rfind("health:", 0) == 0) {
+    } else if (params.starts_with("health:")) {
       std::string repo_spec = trim_copy(params.substr(7));
       std::string owner, repo;
       if (parse_repo_spec(repo_spec, owner, repo)) {
@@ -615,39 +615,39 @@ void Agent::handle_meta_command(const std::string &input) {
     show_meta_help();
   } else if (command == "clear") {
     clear_screen();
-  } else if (command.rfind("chat ", 0) == 0) {
+  } else if (command.starts_with("chat ")) {
     handle_chat_management(command.substr(5));
   } else if (command == "tools") {
     show_available_tools();
   } else if (command == "memory show") {
     show_memory_context();
-  } else if (command.rfind("memory add ", 0) == 0) {
+  } else if (command.starts_with("memory add ")) {
     add_to_memory(command.substr(11));
   } else if (command == "compress") {
     compress_context();
   } else if (command == "stats") {
     show_session_stats();
-  } else if (command.rfind("context ", 0) == 0) {
+  } else if (command.starts_with("context ")) {
     handle_context_management(command.substr(8));
-  } else if (command.rfind("files ", 0) == 0) {
+  } else if (command.starts_with("files ")) {
     handle_multi_file_command(command.substr(6));
-  } else if (command.rfind("fetch ", 0) == 0) {
+  } else if (command.starts_with("fetch ")) {
     handle_web_fetch_command(command.substr(6));
-  } else if (command.rfind("checkpoint ", 0) == 0) {
+  } else if (command.starts_with("checkpoint ")) {
     handle_checkpoint_command(command.substr(11));
   } else if (command == "restore") {
     handle_checkpoint_command("list");
-  } else if (command.rfind("restore ", 0) == 0) {
+  } else if (command.starts_with("restore ")) {
     handle_checkpoint_command("restore " + command.substr(8));
-  } else if (command.rfind("mcp ", 0) == 0) {
+  } else if (command.starts_with("mcp ")) {
     handle_mcp_command(command.substr(4));
-  } else if (command.rfind("theme ", 0) == 0) {
+  } else if (command.starts_with("theme ")) {
     handle_theme_command(command.substr(6));
-  } else if (command.rfind("auth ", 0) == 0) {
+  } else if (command.starts_with("auth ")) {
     handle_auth_command(command.substr(5));
-  } else if (command.rfind("sandbox ", 0) == 0) {
+  } else if (command.starts_with("sandbox ")) {
     handle_sandbox_command(command.substr(8));
-  } else if (command.rfind("error ", 0) == 0) {
+  } else if (command.starts_with("error ")) {
     handle_error_command(command.substr(6));
   } else if (command == "quit" || command == "exit") {
     std::cout << "Goodbye!" << std::endl;
@@ -854,7 +854,7 @@ void Agent::clear_screen() {
 }
 
 void Agent::handle_chat_management(const std::string &command) {
-  if (command.rfind("save ", 0) == 0) {
+  if (command.starts_with("save ")) {
     std::string tag = trim_copy(command.substr(5));
     if (tag.empty()) {
       std::cout << "Usage: /chat save <tag>" << std::endl;
@@ -862,7 +862,7 @@ void Agent::handle_chat_management(const std::string &command) {
     }
     memory_->save_conversation_state(tag);
     std::cout << "Conversation saved as: " << tag << std::endl;
-  } else if (command.rfind("resume ", 0) == 0) {
+  } else if (command.starts_with("resume ")) {
     std::string tag = trim_copy(command.substr(7));
     if (tag.empty()) {
       std::cout << "Usage: /chat resume <tag>" << std::endl;
@@ -999,6 +999,13 @@ void Agent::show_session_stats() {
   std::string mode_str =
       (mode_ == Agent::Mode::MODE_TOGETHER   ? "Together AI"
        : mode_ == Agent::Mode::MODE_CEREBRAS ? "Cerebras"
+       : mode_ == Agent::Mode::MODE_FIREWORKS ? "Fireworks"
+       : mode_ == Agent::Mode::MODE_GROQ ? "Groq"
+       : mode_ == Agent::Mode::MODE_DEEPSEEK ? "DeepSeek"
+       : mode_ == Agent::Mode::MODE_OPENAI ? "OpenAI"
+       : mode_ == Agent::Mode::MODE_LLAMA_3B ? "Llama 3B"
+       : mode_ == Agent::Mode::MODE_LLAMA_LATEST ? "Llama Latest"
+       : mode_ == Agent::Mode::MODE_LLAMA_31 ? "Llama 3.1"
                                              : "Local Ollama");
   std::cout << "Session Statistics:" << std::endl;
   std::cout << "  Mode: " << mode_str << std::endl;
@@ -1150,7 +1157,6 @@ void Agent::handle_web_fetch_command(const std::string &command) {
     }
   } else { // default to text
     result = Services::WebService::fetch_text(url);
-    return;
   }
 
   // Process the fetched content with AI if needed

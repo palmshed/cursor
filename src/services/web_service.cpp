@@ -6,7 +6,21 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#include <utility>
 #include <vector>
+
+struct CurlHandle {
+  CURL *handle;
+  CurlHandle() : handle(curl_easy_init()) {}
+  ~CurlHandle() {
+    if (handle)
+      curl_easy_cleanup(handle);
+  }
+  CurlHandle(const CurlHandle &) = delete;
+  CurlHandle &operator=(const CurlHandle &) = delete;
+  CURL *get() const { return handle; }
+  explicit operator bool() const { return handle != nullptr; }
+};
 
 const long kDefaultTimeoutSeconds = 30;
 const size_t kMaxContentLength = 8000;
@@ -50,17 +64,18 @@ std::string WebService::search(const std::string &query) {
 
     // URL encode the query
     std::string encoded_query;
-    CURL *curl = curl_easy_init();
-    if (curl) {
-      char *output = curl_easy_escape(curl, query.c_str(),
-                                      static_cast<int>(query.length()));
-      if (output) {
-        encoded_query = output;
-        curl_free(output);
+    {
+      CurlHandle curl;
+      if (curl) {
+        char *output = curl_easy_escape(curl.get(), query.c_str(),
+                                        static_cast<int>(query.length()));
+        if (output) {
+          encoded_query = output;
+          curl_free(output);
+        }
+      } else {
+        encoded_query = query;
       }
-      curl_easy_cleanup(curl);
-    } else {
-      encoded_query = query; // Fallback to unencoded query if curl init fails
     }
 
     std::string search_url = "https://api.duckduckgo.com/?q=" + encoded_query +
@@ -69,35 +84,35 @@ std::string WebService::search(const std::string &query) {
     std::string response_str;
     std::string response_headers;
 
-    CURL *search_curl = curl_easy_init();
-    if (search_curl) {
-      curl_easy_setopt(search_curl, CURLOPT_URL, search_url.c_str());
-      curl_easy_setopt(search_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-      curl_easy_setopt(search_curl, CURLOPT_WRITEDATA, &response_str);
-      curl_easy_setopt(search_curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-      curl_easy_setopt(search_curl, CURLOPT_HEADERDATA, &response_headers);
-      curl_easy_setopt(search_curl, CURLOPT_TIMEOUT, 5L); // 5s timeout
-      curl_easy_setopt(search_curl, CURLOPT_USERAGENT, "Llamaware-Agent/1.0");
+    {
+      CurlHandle search_curl;
+      if (search_curl) {
+        curl_easy_setopt(search_curl.get(), CURLOPT_URL, search_url.c_str());
+        curl_easy_setopt(search_curl.get(), CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(search_curl.get(), CURLOPT_WRITEDATA, &response_str);
+        curl_easy_setopt(search_curl.get(), CURLOPT_HEADERFUNCTION, HeaderCallback);
+        curl_easy_setopt(search_curl.get(), CURLOPT_HEADERDATA, &response_headers);
+        curl_easy_setopt(search_curl.get(), CURLOPT_TIMEOUT, 5L);
+        curl_easy_setopt(search_curl.get(), CURLOPT_USERAGENT, "Llamaware-Agent/1.0");
 
-      CURLcode res = curl_easy_perform(search_curl);
-      if (res != CURLE_OK) {
-        std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res)
-                  << std::endl;
-        return "Error: Failed to perform web search";
+        CURLcode res = curl_easy_perform(search_curl.get());
+        if (res != CURLE_OK) {
+          std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res)
+                    << std::endl;
+          return "Error: Failed to perform web search";
+        }
+
+        long http_code = 0;
+        curl_easy_getinfo(search_curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
+        if (http_code != 200) {
+          std::cerr << "HTTP request failed with code: " << http_code
+                    << std::endl;
+          return "Error: Failed to perform web search (HTTP " +
+                 std::to_string(http_code) + ")";
+        }
+      } else {
+        return "Error: Failed to initialize cURL";
       }
-
-      long http_code = 0;
-      curl_easy_getinfo(search_curl, CURLINFO_RESPONSE_CODE, &http_code);
-      if (http_code != 200) {
-        std::cerr << "HTTP request failed with code: " << http_code
-                  << std::endl;
-        return "Error: Failed to perform web search (HTTP " +
-               std::to_string(http_code) + ")";
-      }
-
-      curl_easy_cleanup(search_curl);
-    } else {
-      return "Error: Failed to initialize cURL";
     }
 
     // Parse JSON response
@@ -237,7 +252,7 @@ WebResponse WebService::fetch_url(const std::string &url) {
     return response;
   }
 
-  CURL *curl = curl_easy_init();
+  CurlHandle curl;
   if (!curl) {
     response.error_message = "Failed to initialize cURL";
     return response;
@@ -249,27 +264,26 @@ WebResponse WebService::fetch_url(const std::string &url) {
     long http_code = 0;
 
     // Set up curl options
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Llamaware-Agent/1.0");
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // 10s timeout
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_USERAGENT, "Llamaware-Agent/1.0");
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_body);
+    curl_easy_setopt(curl.get(), CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &response_headers);
 
     // Perform the request
-    CURLcode res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(curl.get());
 
     if (res != CURLE_OK) {
       response.error_message =
           "cURL error: " + std::string(curl_easy_strerror(res));
-      curl_easy_cleanup(curl);
       return response;
     }
 
     // Get HTTP status code
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
 
     // Process response
     response.status_code = static_cast<int>(http_code);
@@ -318,15 +332,11 @@ WebResponse WebService::fetch_url(const std::string &url) {
       response.error_message = "HTTP " + std::to_string(response.status_code);
     }
 
-    curl_easy_cleanup(curl);
-
   } catch (const std::exception &e) {
-    curl_easy_cleanup(curl);
     response.error_message = "Exception: " + std::string(e.what());
     response.success = false;
 
   } catch (...) {
-    curl_easy_cleanup(curl);
     response.error_message = "Unknown exception";
     response.success = false;
   }
@@ -387,7 +397,7 @@ std::string WebService::fetch_json(const std::string &url) {
 
 WebResponse WebService::fetch_with_headers(const std::string &url,
                                            const HeaderMap &headers) {
-  CURL *curl = curl_easy_init();
+  CurlHandle curl;
   WebResponse response;
 
   if (!curl) {
@@ -399,40 +409,39 @@ WebResponse WebService::fetch_with_headers(const std::string &url,
 
   std::string response_body;
   std::string response_headers;
-  struct curl_slist *header_list = nullptr;
 
   // Add custom headers to the request
+  struct curl_slist *header_list = nullptr;
   for (const auto &[key, value] : headers) {
     std::string header = key + ": " + value;
     header_list = curl_slist_append(header_list, header.c_str());
   }
 
   // Set CURL options
-  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-  curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT, kDefaultTimeoutSeconds);
+  curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, header_list);
+  curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, WriteCallback);
+  curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response_body);
+  curl_easy_setopt(curl.get(), CURLOPT_HEADERFUNCTION, HeaderCallback);
+  curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &response_headers);
+  curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT, kDefaultTimeoutSeconds);
 
   // Perform the request
-  CURLcode res = curl_easy_perform(curl);
+  CURLcode res = curl_easy_perform(curl.get());
 
   // Get the HTTP status code
   long http_code = 0;
-  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
 
   // Get content type if available
   char *content_type = nullptr;
-  curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type);
+  curl_easy_getinfo(curl.get(), CURLINFO_CONTENT_TYPE, &content_type);
 
   // Clean up
   if (header_list) {
     curl_slist_free_all(header_list);
   }
-  curl_easy_cleanup(curl);
 
   // Set response properties
   response.status_code = static_cast<int>(http_code);

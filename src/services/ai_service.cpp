@@ -204,7 +204,7 @@ std::string AIService::parse_cerebras_stream(const std::string &response) {
 
   while (std::getline(stream, line)) {
     // trim leading spaces
-    if (line.rfind("data: ", 0) == 0) {
+    if (line.starts_with("data: ")) {
       std::string json_str = line.substr(6);
       if (json_str == "[DONE]")
         break;

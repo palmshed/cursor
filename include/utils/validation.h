@@ -41,6 +41,7 @@ public:
   // Utility functions
   static bool is_safe_path(const std::string &path);
   static bool is_text_file_extension(const std::string &extension);
+  static const std::vector<std::string> &get_text_extensions();
   static std::string sanitize_input(const std::string &input);
 };
 

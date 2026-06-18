@@ -102,4 +102,4 @@ Cursor is a terminal-first agent that integrates system tools for development wo
 
 ## Support
 
-![Cursor logo](brand-cursor-1781728409747.png)
+![Cursor logo](package/brand-cursor.png)

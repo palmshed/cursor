@@ -1,7 +1,7 @@
 #include "services/file_service.h"
+#include "utils/validation.h"
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <sstream>
 
 #include <algorithm>
@@ -297,11 +297,8 @@ bool FileService::is_text_file(const std::string &filename) {
   std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
   // Common text file extensions
-  static const std::vector<std::string> text_extensions = {
-      ".txt", ".md",   ".cpp", ".h",   ".hpp",  ".c",    ".cc",
-      ".cxx", ".py",   ".js",  ".ts",  ".html", ".css",  ".json",
-      ".xml", ".yaml", ".yml", ".ini", ".cfg",  ".conf", ".log",
-      ".sh",  ".bat",  ".ps1", ".sql", ".csv",  ".tsv"};
+  static const std::vector<std::string> text_extensions =
+      Utils::Validator::get_text_extensions();
 
   return std::find(text_extensions.begin(), text_extensions.end(), ext) !=
          text_extensions.end();

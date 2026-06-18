@@ -476,16 +476,9 @@ bool MultiFileService::is_text_file(const std::string &file_path) {
   std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
   // Common text file extensions
-  std::set<std::string> text_extensions = {
-      ".txt",   ".md",     ".rst",   ".log",  ".cfg",        ".conf",
-      ".ini",   ".yaml",   ".yml",   ".json", ".xml",        ".html",
-      ".htm",   ".css",    ".js",    ".ts",   ".jsx",        ".tsx",
-      ".c",     ".cpp",    ".cc",    ".cxx",  ".h",          ".hpp",
-      ".hxx",   ".java",   ".py",    ".rb",   ".go",         ".rs",
-      ".php",   ".pl",     ".sh",    ".bash", ".zsh",        ".fish",
-      ".ps1",   ".sql",    ".r",     ".m",    ".swift",      ".kt",
-      ".scala", ".clj",    ".hs",    ".ml",   ".dockerfile", ".makefile",
-      ".cmake", ".gradle", ".maven", ".sbt"};
+  static const std::set<std::string> text_extensions(
+      Utils::Validator::get_text_extensions().begin(),
+      Utils::Validator::get_text_extensions().end());
 
   if (text_extensions.count(ext)) {
     return true;

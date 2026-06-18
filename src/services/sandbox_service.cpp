@@ -98,7 +98,7 @@ std::string SandboxService::generate_container_name() {
 }
 
 bool SandboxService::is_docker_available() {
-  FILE *pipe = popen("docker --version 2>&1", "r");
+  FILE *pipe = Utils::Platform::open_process("docker --version 2>&1", "r");
   if (!pipe)
     return false;
 
@@ -110,7 +110,7 @@ bool SandboxService::is_docker_available() {
       break;
     }
   }
-  pclose(pipe);
+  Utils::Platform::close_process(pipe);
   return success;
 }
 
@@ -326,7 +326,7 @@ bool SandboxService::copy_file_to_sandbox(const std::string &host_path,
                                           const std::string &container_name) {
   std::string command = "docker cp " + escape_shell_arg(host_path) + " " +
                         container_name + ":" + escape_shell_arg(container_path);
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (!pipe)
     return false;
 
@@ -335,7 +335,7 @@ bool SandboxService::copy_file_to_sandbox(const std::string &host_path,
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
   }
 
-  int status = pclose(pipe);
+  int status = Utils::Platform::close_process(pipe);
 #ifdef _WIN32
   return status == 0; // On Windows, pclose returns the exit status directly
 #else
@@ -349,7 +349,7 @@ bool SandboxService::copy_file_from_sandbox(const std::string &container_path,
   std::string command = "docker cp " + container_name + ":" +
                         escape_shell_arg(container_path) + " " +
                         escape_shell_arg(host_path);
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (!pipe)
     return false;
 
@@ -358,7 +358,7 @@ bool SandboxService::copy_file_from_sandbox(const std::string &container_path,
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
   }
 
-  int status = pclose(pipe);
+  int status = Utils::Platform::close_process(pipe);
 #ifdef _WIN32
   return status == 0; // On Windows, pclose returns the exit status directly
 #else
@@ -388,7 +388,7 @@ std::vector<std::string> SandboxService::list_active_containers() {
 
 bool SandboxService::stop_container(const std::string &container_name) {
   std::string command = "docker stop " + escape_shell_arg(container_name);
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (!pipe)
     return false;
 
@@ -397,7 +397,7 @@ bool SandboxService::stop_container(const std::string &container_name) {
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
   }
 
-  int status = pclose(pipe);
+  int status = Utils::Platform::close_process(pipe);
 #ifdef _WIN32
   return status == 0; // On Windows, pclose returns the exit status directly
 #else
@@ -407,7 +407,7 @@ bool SandboxService::stop_container(const std::string &container_name) {
 
 bool SandboxService::remove_container(const std::string &container_name) {
   std::string command = "docker rm -f " + escape_shell_arg(container_name);
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (!pipe)
     return false;
 
@@ -416,7 +416,7 @@ bool SandboxService::remove_container(const std::string &container_name) {
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
   }
 
-  int status = pclose(pipe);
+  int status = Utils::Platform::close_process(pipe);
 #ifdef _WIN32
   return status == 0; // On Windows, pclose returns the exit status directly
 #else
@@ -427,13 +427,13 @@ bool SandboxService::remove_container(const std::string &container_name) {
 void SandboxService::cleanup_old_containers() {
   std::string command =
       "docker container prune -f --filter label=llamaware_sandbox";
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (pipe) {
     // Read and discard output
     char buffer[128];
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     }
-    pclose(pipe);
+    Utils::Platform::close_process(pipe);
   }
 }
 
@@ -639,7 +639,7 @@ std::string SandboxService::get_docker_version() {
 
 bool SandboxService::pull_docker_image(const std::string &image) {
   std::string command = "docker pull " + escape_shell_arg(image);
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (!pipe)
     return false;
 
@@ -648,7 +648,7 @@ bool SandboxService::pull_docker_image(const std::string &image) {
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
   }
 
-  int status = pclose(pipe);
+  int status = Utils::Platform::close_process(pipe);
 #ifdef _WIN32
   return status == 0; // On Windows, pclose returns the exit status directly
 #else
