@@ -317,9 +317,9 @@ if(NOT CPR_FOUND)
         message(FATAL_ERROR "Failed to find or build CPR. Please install it manually or check your network connection.")
     endif()
 endif()
-option(BUILD_TESTING "Build tests" ON)
+option(CURSOR_BUILD_TESTS "Build tests" ON)
 
-if(BUILD_TESTING)
+if(CURSOR_BUILD_TESTS)
     enable_testing()
 
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
