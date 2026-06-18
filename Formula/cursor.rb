@@ -2,7 +2,7 @@ class Cursor < Formula
   desc "Professional AI agent with command execution and file operations"
   homepage "https://github.com/bniladridas/cursor"
   url "https://github.com/bniladridas/cursor/archive/refs/tags/v0.1.8.tar.gz"
-  sha256 "e83a977887421b3b85a5fa30c0bc4473d576ff155202aa3530fea60835d7aa7f"
+  sha256 "9e81b96a9aa490c63d60718549c0528229f4ba41b3ba04bc267714494f90a4f7"
   license "Apache-2.0"
 
   depends_on "cmake" => :build
