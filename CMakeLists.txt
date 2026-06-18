@@ -512,26 +512,26 @@ target_link_libraries(cursor-agent PRIVATE
     cursor_lib
 )
 
-# Test executable
-add_executable(cursor-tests tests/main_test.cpp src/utils/version.cpp)
-target_include_directories(cursor-tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-target_link_libraries(cursor-tests PRIVATE
-    cursor_lib
-    gtest_main
-    gtest
-)
-add_test(NAME basic_tests COMMAND cursor-tests)
+if(CURSOR_BUILD_TESTS)
+    add_executable(cursor-tests tests/main_test.cpp src/utils/version.cpp)
+    target_include_directories(cursor-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+    target_link_libraries(cursor-tests PRIVATE
+        cursor_lib
+        gtest_main
+        gtest
+    )
+    add_test(NAME basic_tests COMMAND cursor-tests)
 
-# Set target properties for test executable
-set_target_properties(cursor-tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-    MACOSX_RPATH ON
-    INSTALL_RPATH "@executable_path/lib"
-    BUILD_WITH_INSTALL_RPATH TRUE
-)
+    set_target_properties(cursor-tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+        MACOSX_RPATH ON
+        INSTALL_RPATH "@executable_path/lib"
+        BUILD_WITH_INSTALL_RPATH TRUE
+    )
+endif()
 
 # Set target properties
 set_target_properties(cursor-agent PROPERTIES
@@ -621,7 +621,7 @@ add_custom_target(test-quick
 # Code coverage target (requires lcov)
 find_program(LCOV_EXE lcov)
 find_program(GENHTML_EXE genhtml)
-if(LCOV_EXE)
+if(LCOV_EXE AND CURSOR_BUILD_TESTS)
     add_custom_target(coverage
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage
         COMMAND ctest --output-on-failure
