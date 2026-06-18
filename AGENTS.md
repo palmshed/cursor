@@ -35,3 +35,13 @@ Detect stale, duplicated, or dead code as you go. Fix warnings and failing tests
 - No comments in code unless necessary
 - No new dependencies
 - No documentation files unless asked
+
+## GitHub Secrets Required
+
+| Secret | Used By | Purpose |
+|--------|---------|---------|
+| `NPM_TOKEN` | release.yml | Publish @bniladridas/cursor |
+| `DOCKER_USERNAME` | ci.yml | Push Docker images |
+| `DOCKER_PASSWORD` | ci.yml | Push Docker images |
+| `CLA_BOT_TOKEN` | cla.yml | CLA comment bot |
+| `CLA_SIGNED_JSON` | cla.yml | Signed CLA storage path |

@@ -30,3 +30,5 @@ docker run -it cursor
 ## License
 
 Apache 2.0
+
+![Cursor](.github/packaging/brand-cursor.png)
