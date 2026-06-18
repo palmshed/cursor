@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Get version from git tag if available, fallback to 0.1.6
-find_package(Git)
+# Try to get version from git tag
+find_package(Git QUIET)
+set(PROJECT_VERSION "0.0.0")
 if(GIT_FOUND)
   execute_process(
     COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
@@ -12,11 +13,16 @@ if(GIT_FOUND)
   )
   if(GIT_TAG)
     string(REGEX REPLACE "^v" "" PROJECT_VERSION ${GIT_TAG})
-  else()
-    set(PROJECT_VERSION "0.1.6")
   endif()
-else()
-  set(PROJECT_VERSION "0.1.6")
+endif()
+
+# Fallback: extract from source dir name (e.g., cursor-0.1.8 from tarball)
+if(PROJECT_VERSION STREQUAL "0.0.0")
+  get_filename_component(SOURCE_DIR_NAME ${CMAKE_SOURCE_DIR} NAME)
+  string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" EXTRACTED_VERSION ${SOURCE_DIR_NAME})
+  if(EXTRACTED_VERSION)
+    set(PROJECT_VERSION ${EXTRACTED_VERSION})
+  endif()
 endif()
 
 project(cursor VERSION ${PROJECT_VERSION} LANGUAGES CXX)
