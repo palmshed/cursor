@@ -134,6 +134,9 @@ web/package-lock.json
 web/*.log
 web/.DS_Store
 
+# npm package
+binary/
+
 # OS files
 .DS_Store
 .AppleDouble
