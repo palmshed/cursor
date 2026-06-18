@@ -33,6 +33,11 @@ jobs:
           cp build/bin/cursor-agent release/cursor-linux
           tar -C release -czf cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz cursor-linux
 
+      - uses: actions/upload-artifact@v6
+        with:
+          name: cursor-linux
+          path: release/*.tar.gz
+
   macos:
     runs-on: macos-latest
 
@@ -53,6 +58,11 @@ jobs:
           mkdir -p release
           cp build/bin/cursor-agent release/cursor-macos
           tar -C release -czf cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz cursor-macos
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: cursor-macos
+          path: release/*.tar.gz
 
   windows:
     runs-on: windows-latest
@@ -84,6 +94,11 @@ jobs:
           cp build/bin/Release/cursor-agent.exe release/cursor-windows.exe
           cd release && 7z a -tzip ../cursor_${GITHUB_REF_NAME}_windows_amd64.zip cursor-windows.exe
 
+      - uses: actions/upload-artifact@v6
+        with:
+          name: cursor-windows
+          path: release/*.zip
+
   release:
     needs: [linux, macos, windows]
     runs-on: ubuntu-latest
@@ -95,39 +110,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-
       - name: Download artifacts
-        run: |
-          mkdir -p release
-          gh release download "$GITHUB_REF_NAME" --pattern '*.tar.gz' --pattern '*.zip' --dir release/ || true
+        uses: actions/download-artifact@v6
+        with:
+          path: release/
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
       - name: Compute checksums
         run: |
           cd release
-          if ls *.tar.gz *.zip >/dev/null 2>&1; then
-            shasum -a 256 *.tar.gz *.zip > checksums.txt || sha256sum *.tar.gz *.zip > checksums.txt
-          else
-            echo "No artifacts to checksum yet" > checksums.txt
-          fi
-
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            release/cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz \
-            release/cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz \
-            release/cursor_${GITHUB_REF_NAME}_windows_amd64.zip \
-            release/checksums.txt \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          shasum -a 256 * > checksums.txt || sha256sum * > checksums.txt
 
       - name: Compute source SHA
         run: |
           curl -sL "https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz" -o /tmp/source.tar.gz
           echo "SOURCE_SHA=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
+
+      - name: Publish release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            $(find release -name '*.tar.gz' -o -name '*.zip' | sed 's|^|  |') \
+            release/checksums.txt \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
 
       - name: Update Homebrew formula
         run: |
