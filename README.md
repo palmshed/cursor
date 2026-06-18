@@ -103,3 +103,7 @@ Cursor is a terminal-first agent that integrates system tools for development wo
 ## Support
 
 ![Cursor logo](package/brand-cursor.png)
+
+## Contributing
+
+Maintained by collaborators. External contributions not accepted. See `AGENTS.md` for workflow.

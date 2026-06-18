@@ -77,8 +77,12 @@ preflight-ci:
 
 # Run full check (clean, build, test, preflight-quick, preflight)
 full-check:
-	@echo "Running full check..."
-	@./scripts/full-check.sh
+	@set -e; \
+	echo "==> Full check..."; \
+	for step in clean build test preflight-quick preflight; do \
+	  echo "  $$step..."; \
+	  make "$$step"; \
+	done
 
 # Run CI locally (simulate GitHub Actions)
 ci:
