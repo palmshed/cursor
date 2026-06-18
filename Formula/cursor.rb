@@ -12,7 +12,7 @@ class Cursor < Formula
   def install
     system "cmake", "-S", ".", "-B", "build", *std_cmake_args
     system "cmake", "--build", "build"
-    bin.install "build/bin/cursor-agent"
+    bin.install "build/bin/cursor-agent" => "cursor"
 
     # Install configuration template
     (etc/"cursor").install ".env.example" => "config.env"
@@ -26,7 +26,7 @@ class Cursor < Formula
   end
 
   test do
-    system "#{bin}/cursor-agent", "--version"
+    system "#{bin}/cursor", "--version"
   end
 
   def caveats
