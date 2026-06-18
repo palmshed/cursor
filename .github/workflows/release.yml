@@ -10,41 +10,57 @@ permissions:
   pull-requests: write
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            artifact_name: cursor-linux
-            ext: ''
-          - os: macos-latest
-            artifact_name: cursor-macos
-            ext: ''
-          - os: windows-latest
-            artifact_name: cursor-windows
-            ext: .exe
+  linux:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y nlohmann-json3-dev cmake build-essential libcurl4-openssl-dev
 
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install cmake nlohmann-json curl
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Install dependencies (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/bin/cursor-agent release/cursor-linux
+          tar -C release -czf cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz cursor-linux
+
+  macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install cmake nlohmann-json curl
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/bin/cursor-agent release/cursor-macos
+          tar -C release -czf cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz cursor-macos
+
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
         run: |
           choco install cmake --yes
           choco install nlohmann-json --yes
@@ -57,25 +73,15 @@ jobs:
         run: cmake --build build --config Release
 
       - name: Package
-        shell: bash
         run: |
           mkdir -p release
-          cp build/bin/cursor-agent${{ matrix.ext }} release/${{ matrix.artifact_name }}${{ matrix.ext }}
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            7z a -tzip release-${{ matrix.artifact_name }}.zip release/*
-          else
-            tar -czvf release-${{ matrix.artifact_name }}.tar.gz release/*
-          fi
-
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          file: release-${{ matrix.artifact_name }}*
+          cp build/bin/cursor-agent.exe release/cursor-windows.exe
+          cd release && 7z a -tzip ../cursor_${GITHUB_REF_NAME}_windows_amd64.zip cursor-windows.exe
 
   release:
-    needs: build
+    needs: [linux, macos, windows]
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,23 +90,51 @@ jobs:
       - name: Get version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
-      - name: Compute SHA256
+      - name: Download artifacts
         run: |
-          curl -sL "https://github.com/bniladridas/cursor/archive/refs/tags/${{ github.ref_name }}.tar.gz" -o /tmp/source.tar.gz
-          echo "SHA256=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
+          gh release download $GITHUB_REF_NAME --pattern '*.tar.gz' --pattern '*.zip' --dir release/ || true
+          ls -la release/
+
+      - name: Compute checksums
+        run: |
+          cd release
+          shasum -a 256 *.tar.gz *.zip > checksums.txt || sha256sum *.tar.gz *.zip > checksums.txt
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz \
+            release/cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz \
+            release/cursor_${GITHUB_REF_NAME}_windows_amd64.zip \
+            release/checksums.txt \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
+
+      - name: Compute source SHA
+        run: |
+          curl -sL "https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz" -o /tmp/source.tar.gz
+          echo "SOURCE_SHA=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
 
       - name: Update Homebrew formula
         run: |
-          sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${{ github.ref_name }}.tar.gz\"|" Formula/cursor.rb
-          sed -i "s|sha256 \".*\"|sha256 \"${{ env.SHA256 }}\"|" Formula/cursor.rb
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor.rb
 
-      - name: Create Formula PR
+      - name: Create version update PR
         uses: peter-evans/create-pull-request@v7
         with:
-          branch: release/${{ github.ref_name }}
-          title: "chore: update formula for ${{ github.ref_name }}"
+          branch: release/${GITHUB_REF_NAME}
+          title: "chore: update formula and package for ${GITHUB_REF_NAME}"
           body: Auto-generated by release workflow.
-          add-paths: Formula/cursor.rb
+          add-paths: Formula/cursor.rb, package.json
+
+      - name: Update package version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          npm version "$version" --no-git-tag-version --allow-same-version
 
       - name: Publish npm
         if: env.NPM_TOKEN != ''
@@ -108,5 +142,4 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          npm publish --access public
-        continue-on-error: true
+          npm publish --access public --provenance 2>&1 || echo "already published"

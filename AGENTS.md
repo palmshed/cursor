@@ -45,3 +45,5 @@ Detect stale, duplicated, or dead code as you go. Fix warnings and failing tests
 | `DOCKER_PASSWORD` | ci.yml | Push Docker images |
 | `CLA_BOT_TOKEN` | cla.yml | CLA comment bot |
 | `CLA_SIGNED_JSON` | cla.yml | Signed CLA storage path |
+| `CURSOR_BOT_CLIENT_ID` | formula-sha.yml | GitHub App for PR creation |
+| `CURSOR_BOT_PRIVATE_KEY` | formula-sha.yml | GitHub App for PR creation |
