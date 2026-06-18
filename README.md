@@ -21,6 +21,20 @@ cmake -S . -B build && cmake --build build
 ./build/cursor-tests
 ```
 
+## Architecture
+
+```
+src/
+  agent.cpp           # main loop, command routing
+  memory_manager.cpp  # persistent conversation store
+  services/           # 16 stateless services
+  utils/              # config, validation, platform
+include/
+  agent.h
+  services/
+  utils/
+```
+
 ## License
 
 Apache 2.0
