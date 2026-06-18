@@ -143,7 +143,9 @@ void UI::print_help() {
   // System
   std::cout << "\n" << Color::GREEN << "System\n" << Color::RESET;
   std::cout << Color::CYAN << "  cmd:<command>" << Color::RESET
-            << "             - Run command\n";
+            << "            - Execute shell command\n";
+  std::cout << Color::CYAN << "  /update" << Color::RESET
+            << "                  - Check for updates\n";
   std::cout << Color::CYAN << "  /tools" << Color::RESET
             << "                   - Show tools\n";
   std::cout << Color::CYAN << "  !" << Color::RESET
@@ -262,6 +264,7 @@ void UI::print_quick_help() {
   std::cout << Color::CYAN << "quit" << Color::RESET << "\n";
 
   std::cout << Color::CYAN << "version" << Color::RESET << " | ";
+  std::cout << Color::CYAN << "update" << Color::RESET << " | ";
   std::cout << Color::CYAN << "search:query" << Color::RESET << " | ";
   std::cout << Color::CYAN << "cmd:command" << Color::RESET << " | ";
   std::cout << Color::CYAN << "read:file" << Color::RESET << " | ";

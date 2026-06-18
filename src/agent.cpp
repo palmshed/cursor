@@ -99,6 +99,17 @@ void Agent::run() {
       Version::print_version_info();
       continue;
     }
+    if (user_input == "update") {
+      std::cout << "Checking for updates...\n";
+      std::string latest = Version::check_update();
+      if (latest.empty()) {
+        std::cout << "Already up to date (v" << Version::get_version()
+                  << ")\n";
+      } else if (Version::download_and_install(latest)) {
+        std::cout << "Restart cursor to use the new version.\n";
+      }
+      continue;
+    }
 
     process_user_input(user_input);
   }
