@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p release
           cp build/bin/cursor-agent release/cursor-linux
-          tar -C release -czf cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz cursor-linux
+          cd release && tar -czf cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz cursor-linux
 
       - uses: actions/upload-artifact@v6
         with:
@@ -57,7 +57,7 @@ jobs:
         run: |
           mkdir -p release
           cp build/bin/cursor-agent release/cursor-macos
-          tar -C release -czf cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz cursor-macos
+          cd release && tar -czf cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz cursor-macos
 
       - uses: actions/upload-artifact@v6
         with:
@@ -92,7 +92,7 @@ jobs:
         run: |
           mkdir -p release
           cp build/bin/Release/cursor-agent.exe release/cursor-windows.exe
-          cd release && 7z a -tzip ../cursor_${GITHUB_REF_NAME}_windows_amd64.zip cursor-windows.exe
+          cd release && 7z a -tzip cursor_${GITHUB_REF_NAME}_windows_amd64.zip cursor-windows.exe
 
       - uses: actions/upload-artifact@v6
         with:
@@ -121,7 +121,7 @@ jobs:
 
       - name: Compute checksums
         run: |
-          find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec shasum -a 256 {} + > checksums.txt || find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec sha256sum {} + > checksums.txt
+          find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec shasum -a 256 {} + > release/checksums.txt || find release -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec sha256sum {} + > release/checksums.txt
 
       - name: Compute source SHA
         run: |
