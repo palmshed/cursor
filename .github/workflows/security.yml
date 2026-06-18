@@ -20,7 +20,7 @@ permissions:
 jobs:
   codeql:
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'harpertoken'
+    if: github.repository_owner == 'bniladridas'
     steps:
       - uses: actions/checkout@v6
       - uses: github/codeql-action/init@v4
@@ -38,7 +38,7 @@ jobs:
   sast:
     name: sast
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'harpertoken'
+    if: github.repository_owner == 'bniladridas'
     steps:
       - uses: actions/checkout@v6
       - uses: aquasecurity/trivy-action@v0.36.0
@@ -53,7 +53,7 @@ jobs:
 
   release:
     name: release
-    if: github.event_name == 'release' && github.repository_owner == 'harpertoken'
+    if: github.event_name == 'release' && github.repository_owner == 'bniladridas'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -75,7 +75,7 @@ jobs:
     name: agent
     if: >
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-      && github.repository_owner == 'harpertoken'
+      && github.repository_owner == 'bniladridas'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

@@ -18,7 +18,7 @@ jobs:
   build:
     name: build (${{ matrix.os_short }}, ${{ matrix.build_type == 'Release' && 'release' || 'debug' }})
     runs-on: ${{ matrix.os }}
-    if: github.repository_owner == 'harpertoken'
+    if: github.repository_owner == 'bniladridas'
     strategy:
       matrix:
         include:
@@ -168,7 +168,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            harpertoken/cursor
+            bniladridas/cursor
             ghcr.io/${{ github.repository }}/cursor
           tags: |
             type=ref,event=branch

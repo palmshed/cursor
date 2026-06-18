@@ -7,7 +7,7 @@ on:
 jobs:
   cla:
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'harpertoken'
+    if: github.repository_owner == 'bniladridas'
     steps:
       - uses: actions/checkout@v6
         with:

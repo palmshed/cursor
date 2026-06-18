@@ -86,12 +86,12 @@ jobs:
 
       - name: Compute SHA256
         run: |
-          curl -sL "https://github.com/harpertoken/cursor/archive/refs/tags/${{ github.ref_name }}.tar.gz" -o /tmp/source.tar.gz
+          curl -sL "https://github.com/bniladridas/cursor/archive/refs/tags/${{ github.ref_name }}.tar.gz" -o /tmp/source.tar.gz
           echo "SHA256=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
 
       - name: Update Homebrew formula
         run: |
-          sed -i "s|url \".*\"|url \"https://github.com/harpertoken/cursor/archive/refs/tags/${{ github.ref_name }}.tar.gz\"|" Formula/cursor.rb
+          sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${{ github.ref_name }}.tar.gz\"|" Formula/cursor.rb
           sed -i "s|sha256 \".*\"|sha256 \"${{ env.SHA256 }}\"|" Formula/cursor.rb
 
       - name: Create Formula PR

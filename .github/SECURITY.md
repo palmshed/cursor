@@ -9,7 +9,7 @@
 
 ## Reporting a Vulnerability
 
-Do not create public issues. Email harpertoken@icloud.com with:
+Do not create public issues. Email bniladridas@icloud.com with:
 - Steps to reproduce
 - Potential impact
 - Suggested fixes

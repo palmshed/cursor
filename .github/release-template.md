@@ -22,7 +22,7 @@ Download the appropriate binary for your platform from the assets below.
 
 ### Build from Source
 ```bash
-git clone https://github.com/harpertoken/llamaware.git
+git clone https://github.com/bniladridas/llamaware.git
 cd llamaware
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
@@ -35,4 +35,4 @@ cmake --build build --config Release
 Thanks to all contributors who made this release possible!
 
 ---
-**Full Changelog**: https://github.com/harpertoken/llamaware/compare/v{previous_tag}...v{current_tag}
+**Full Changelog**: https://github.com/bniladridas/llamaware/compare/v{previous_tag}...v{current_tag}
