@@ -1,4 +1,4 @@
-class CursorAgent < Formula
+class Cursor < Formula
   desc "Professional AI agent with command execution and file operations"
   homepage "https://github.com/bniladridas/cursor"
   url "https://github.com/bniladridas/cursor/archive/refs/tags/v0.1.7.tar.gz"

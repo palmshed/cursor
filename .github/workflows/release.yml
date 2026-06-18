@@ -148,8 +148,8 @@ jobs:
       - name: Update Homebrew formula
         run: |
           version="${GITHUB_REF_NAME#v}"
-          sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor-agent.rb
-          sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor-agent.rb
+          sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor.rb
 
       - name: Update package version
         run: |
@@ -172,4 +172,4 @@ jobs:
           branch: release/${{ github.ref_name }}
           title: "chore: update formula and package for ${{ github.ref_name }}"
           body: Updates formula and package for ${{ github.ref_name }}.
-          add-paths: Formula/cursor-agent.rb, package.json
+          add-paths: Formula/cursor.rb, package.json
