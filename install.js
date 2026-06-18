@@ -27,24 +27,31 @@ fs.mkdirSync(binaryDir, { recursive: true });
 console.log(`downloading cursor v${version}...`);
 
 const file = fs.createWriteStream(path.join(binaryDir, archive));
-https.get(url, (res) => {
-  if (res.statusCode !== 200) {
-    console.error(`download failed (${res.statusCode}): ${url}`);
-    process.exit(1);
-  }
-  res.pipe(file);
-  file.on('finish', () => {
-    file.close();
-    console.log('extracting...');
-    if (process.platform === 'win32') {
-      execSync(`tar -xf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
-    } else {
-      execSync(`tar -xzf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+function download(url) {
+  https.get(url, (res) => {
+    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      download(res.headers.location);
+      return;
     }
-    fs.unlinkSync(path.join(binaryDir, archive));
-    console.log('done');
+    if (res.statusCode !== 200) {
+      console.error(`download failed (${res.statusCode}): ${url}`);
+      process.exit(1);
+    }
+    res.pipe(file);
+    file.on('finish', () => {
+      file.close();
+      console.log('extracting...');
+      if (process.platform === 'win32') {
+        execSync(`tar -xf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+      } else {
+        execSync(`tar -xzf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+      }
+      fs.unlinkSync(path.join(binaryDir, archive));
+      console.log('done');
+    });
+  }).on('error', (err) => {
+    console.error(`download failed: ${err.message}`);
+    process.exit(1);
   });
-}).on('error', (err) => {
-  console.error(`download failed: ${err.message}`);
-  process.exit(1);
-});
+}
+download(url);
