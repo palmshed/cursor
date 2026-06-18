@@ -65,11 +65,11 @@ jobs:
           cmake --build build --config Release
           make preflight
           mkdir -p release
-          cp build/bin/llamaware-agent README.md LICENSE CHANGELOG.md release/
-          tar -czf llamaware-${{ github.event.release.tag_name }}.tar.gz -C release .
+          cp build/bin/cursor-agent README.md LICENSE CHANGELOG.md release/
+          tar -czf cursor-${{ github.event.release.tag_name }}.tar.gz -C release .
       - uses: softprops/action-gh-release@v2
         with:
-          files: llamaware-${{ github.event.release.tag_name }}.tar.gz
+          files: cursor-${{ github.event.release.tag_name }}.tar.gz
 
   agent:
     name: agent
@@ -85,10 +85,10 @@ jobs:
             libcurl4-openssl-dev libpqxx-dev
           cmake -S . -B build
           cmake --build build
-          timeout 30s ./build/bin/llamaware-agent << EOF
+          timeout 30s ./build/bin/cursor-agent << EOF
           2
           exit
           EOF
-          echo "Build size: $(stat -c%s build/bin/llamaware-agent) bytes"
+          echo "Build size: $(stat -c%s build/bin/cursor-agent) bytes"
           echo "Build date: $(date)"
           echo "Commit: ${{ github.sha }}"

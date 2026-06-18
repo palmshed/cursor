@@ -99,10 +99,10 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: llamaware-${{ matrix.os }}-${{ matrix.build_type }}
+          name: cursor-${{ matrix.os }}-${{ matrix.build_type }}
           path: |
-            build/bin/llamaware-agent*
-            build/bin/Release/llamaware-agent.exe
+            build/bin/cursor-agent*
+            build/bin/Release/cursor-agent.exe
 
   coverage:
     runs-on: ubuntu-latest
@@ -168,8 +168,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            harpertoken/llamaware
-            ghcr.io/${{ github.repository }}/llamaware
+            harpertoken/cursor
+            ghcr.io/${{ github.repository }}/cursor
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

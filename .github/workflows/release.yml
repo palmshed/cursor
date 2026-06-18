@@ -16,13 +16,13 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            artifact_name: llamaware-linux
+            artifact_name: cursor-linux
             ext: ''
           - os: macos-latest
-            artifact_name: llamaware-macos
+            artifact_name: cursor-macos
             ext: ''
           - os: windows-latest
-            artifact_name: llamaware-windows
+            artifact_name: cursor-windows
             ext: .exe
 
     steps:
@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release
-          cp build/bin/llamaware-agent${{ matrix.ext }} release/${{ matrix.artifact_name }}${{ matrix.ext }}
+          cp build/bin/cursor-agent${{ matrix.ext }} release/${{ matrix.artifact_name }}${{ matrix.ext }}
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             7z a -tzip release-${{ matrix.artifact_name }}.zip release/*
           else
