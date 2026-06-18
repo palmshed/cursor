@@ -13,10 +13,8 @@ Brief description of what this PR does.
 - [ ] Test improvements
 
 ### Testing
-- I have run `make preflight` and all checks pass
-- I have tested the changes locally
-- I have added/updated tests as needed
-- All existing tests pass
+- [ ] I have tested the changes locally
+- [ ] All existing tests pass
 
 ### Checklist
 - My code follows the project's coding standards
