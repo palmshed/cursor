@@ -1,6 +1,6 @@
 #pragma once
 #include "core/agent_mode.h"
-#include "utils/config.h" // For LLAMAWARE_API
+#include "utils/config.h" // For CURSOR_API
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,7 +15,7 @@ class AIService;
 }
 
 namespace Core {
-class LLAMAWARE_API Agent {
+class CURSOR_API Agent {
 public:
   using Mode = AgentMode; // Type alias for backward compatibility
 

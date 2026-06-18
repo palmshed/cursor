@@ -2,7 +2,7 @@
 FROM ubuntu:22.04 as builder
 
 LABEL maintainer="bniladridas"
-LABEL description="Llamaware Agent - Build Stage"
+LABEL description="Cursor Agent - Build Stage"
 LABEL version="0.1"
 
 # Set environment variables to avoid interactive prompts
@@ -71,7 +71,7 @@ RUN mkdir -p build && cd build && \
 FROM ubuntu:22.04
 
 LABEL maintainer="bniladridas"
-LABEL description="Llamaware Agent - Runtime"
+LABEL description="Cursor Agent - Runtime"
 LABEL version="0.1"
 
 # Install runtime dependencies
@@ -89,23 +89,23 @@ RUN apt-get update && \
 RUN pip3 install --no-cache-dir pytest requests
 
 # Copy built binary from builder
-COPY --from=builder /usr/local/bin/llamaware-agent /usr/local/bin/
+COPY --from=builder /usr/local/bin/cursor-agent /usr/local/bin/
 COPY --from=builder /usr/local/lib/libcpr* /usr/local/lib/
 
 # Create non-root user and set up environment
-RUN useradd -m -s /bin/bash llamaware && \
+RUN useradd -m -s /bin/bash cursor && \
     mkdir -p /app/data && \
-    chown -R llamaware:llamaware /app/data
+    chown -R cursor:cursor /app/data
 
-USER llamaware
-WORKDIR /home/llamaware
+USER cursor
+WORKDIR /home/cursor
 
 # Copy configuration template
-COPY --chown=llamaware:llamaware .env.example .env
+COPY --chown=cursor:cursor .env.example .env
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD llamaware-agent --version || exit 1
+    CMD cursor-agent --version || exit 1
 
 # Default command
-CMD ["llamaware-agent"]
+CMD ["cursor-agent"]

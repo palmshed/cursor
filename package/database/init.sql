@@ -1,10 +1,10 @@
--- Llamaware Database Schema
+-- Cursor Database Schema
 
 -- Create database (run manually if needed)
--- CREATE DATABASE llamaware;
+-- CREATE DATABASE cursor;
 
--- Connect to llamaware database
--- \c llamaware;
+-- Connect to cursor database
+-- \c cursor;
 
 -- Example table for storing agent data
 CREATE TABLE IF NOT EXISTS agent_data (

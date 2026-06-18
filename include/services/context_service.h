@@ -14,11 +14,11 @@ struct ContextFile {
 
 class ContextService {
 public:
-  // Load hierarchical context from LLAMAWARE.md files
+  // Load hierarchical context from CURSOR.md files
   static std::string
   load_hierarchical_context(const std::string &working_directory = ".");
 
-  // Find all LLAMAWARE.md files in hierarchy
+  // Find all CURSOR.md files in hierarchy
   static std::vector<ContextFile>
   find_context_files(const std::string &working_directory = ".");
 

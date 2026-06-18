@@ -1,5 +1,5 @@
 #!/bin/bash
-# Llamaware Agent - Release Preparation Script
+# Cursor Agent - Release Preparation Script
 # Comprehensive pre-release validation and preparation
 
 set -e
@@ -17,7 +17,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 print_header() {
-    echo -e "${BLUE}Llamaware v${VERSION} Release Prep${NC}"
+    echo -e "${BLUE}Cursor v${VERSION} Release Prep${NC}"
 }
 
 print_step() {
@@ -63,7 +63,7 @@ fi
 
 # Check version consistency
 print_step "Checking versions..."
-VERSION_HEADER=$(grep "LLAMAWARE_VERSION_STRING" build/include/version.h | cut -d'"' -f2)
+VERSION_HEADER=$(grep "CURSOR_VERSION_STRING" build/include/version.h | cut -d'"' -f2)
 VERSION_RELEASE=$(cat ../../VERSION | tr -d '\n')
 if [ "$VERSION_HEADER" != "$VERSION" ] || [ "$VERSION_RELEASE" != "$VERSION" ]; then
     print_error "Version mismatch: header=$VERSION_HEADER, release=$VERSION_RELEASE, expected=$VERSION"
@@ -81,7 +81,7 @@ print_success "Preflight passed"
 
 # Test app modes
 print_step "Testing app..."
-if ! printf "2\n1\nversion\nexit\n" | timeout 10 ./build/bin/llamaware-agent > /dev/null 2>&1; then
+if ! printf "2\n1\nversion\nexit\n" | timeout 10 ./build/bin/cursor-agent > /dev/null 2>&1; then
     print_error "Offline test failed"
     exit 1
 fi

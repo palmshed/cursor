@@ -33,7 +33,7 @@ WebResponse GitHubService::make_github_request(const std::string &endpoint,
     headers["Authorization"] = "Bearer " + token;
   }
   headers["Accept"] = "application/vnd.github.v3+json";
-  headers["User-Agent"] = "llamaware-agent/1.0";
+  headers["User-Agent"] = "cursor-agent/1.0";
 
   if (!body.empty() || method == "POST" || method == "PATCH" ||
       method == "PUT") {

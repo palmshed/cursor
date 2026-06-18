@@ -1,5 +1,5 @@
 #!/bin/bash
-# Llamaware Agent - Unified Preflight Check Script
+# Cursor Agent - Unified Preflight Check Script
 # Comprehensive validation for development, CI/CD, and deployment
 
 set -e
@@ -34,7 +34,7 @@ else
     QUICK_MODE=${QUICK:-false}
 fi
 
-echo "Llamaware Agent Preflight Checks"
+echo "Cursor Agent Preflight Checks"
 echo "===================================="
 echo "Environment: $([ "$CI_MODE" = "true" ] && echo "CI/CD" || echo "Development")"
 echo "Mode: $([ "$QUICK_MODE" = "true" ] && echo "Quick" || echo "Comprehensive")"
@@ -202,12 +202,12 @@ fi
 
 # 5. Binary Validation
 print_status "Validating binary..."
-if [ ! -f "build/bin/llamaware-agent" ]; then
-    fail_check "Binary not found at build/bin/llamaware-agent"
-elif [ ! -x "build/bin/llamaware-agent" ]; then
+if [ ! -f "build/bin/cursor-agent" ]; then
+    fail_check "Binary not found at build/bin/cursor-agent"
+elif [ ! -x "build/bin/cursor-agent" ]; then
     fail_check "Binary is not executable"
 else
-    BINARY_SIZE=$(stat -f%z "build/bin/llamaware-agent" 2>/dev/null || stat -c%s "build/bin/llamaware-agent" 2>/dev/null || echo "unknown")
+    BINARY_SIZE=$(stat -f%z "build/bin/cursor-agent" 2>/dev/null || stat -c%s "build/bin/cursor-agent" 2>/dev/null || echo "unknown")
     print_success "Binary validation passed (size: $BINARY_SIZE bytes)"
 fi
 
@@ -215,21 +215,21 @@ fi
 print_status "Running functionality tests..."
 
 # Test 1: Basic startup/shutdown
-if ! printf "2\nexit\n" | ./build/bin/llamaware-agent > /dev/null 2>&1; then
+if ! printf "2\nexit\n" | ./build/bin/cursor-agent > /dev/null 2>&1; then
     print_error "Basic startup test failed"
     exit 1
 fi
 print_success "Basic startup test passed"
 
 # Test 2: Help system
-if ! printf "2\nhelp\nexit\n" | ./build/bin/llamaware-agent > /dev/null 2>&1; then
+if ! printf "2\nhelp\nexit\n" | ./build/bin/cursor-agent > /dev/null 2>&1; then
     print_error "Help system test failed"
     exit 1
 fi
 print_success "Help system test passed"
 
 # Test 3: Version command
-if ! printf "2\nversion\nexit\n" | ./build/bin/llamaware-agent > /dev/null 2>&1; then
+if ! printf "2\nversion\nexit\n" | ./build/bin/cursor-agent > /dev/null 2>&1; then
     print_error "Version command test failed"
     exit 1
 fi
@@ -256,7 +256,7 @@ print_status "Testing file operations..."
 TEST_FILE="test_preflight.txt"
 TEST_CONTENT="Preflight test content"
 
-if ! printf "2\nwrite:$TEST_FILE $TEST_CONTENT\nread:$TEST_FILE\nexit\n" | ./build/bin/llamaware-agent > /dev/null 2>&1; then
+if ! printf "2\nwrite:$TEST_FILE $TEST_CONTENT\nread:$TEST_FILE\nexit\n" | ./build/bin/cursor-agent > /dev/null 2>&1; then
     print_error "File operations test failed"
     exit 1
 fi
@@ -391,14 +391,7 @@ fi
 echo ""
 echo "===================================="
 if [ $ERROR_COUNT -eq 0 ]; then
-    print_success "ALL PREFLIGHT CHECKS PASSED!"
-    echo ""
-    echo "Ready for:"
-    echo "   • Development deployment"
-    echo "   • Production build"
-    echo "   • Package distribution"
-    echo "   • Container deployment"
-    echo "   • CI/CD pipeline"
+    print_success "All checks passed"
     echo ""
     echo "Next steps:"
     echo "   make package      # Create distribution package"

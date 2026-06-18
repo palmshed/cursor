@@ -2,7 +2,7 @@
 #include <iostream>
 #include <vector>
 
-namespace llamaware {
+namespace cursor {
 
 DatabaseService::DatabaseService()
 #ifdef HAVE_PQXX
@@ -145,4 +145,4 @@ DatabaseService::executeSelect(const std::string &query,
 #endif
 }
 
-} // namespace llamaware
+} // namespace cursor

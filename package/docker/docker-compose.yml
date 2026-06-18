@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  llamaware-agent:
+  cursor-agent:
     build:
       context: ../..
       dockerfile: package/docker/Dockerfile
-    container_name: llamaware-agent
+    container_name: cursor-agent
     depends_on:
       - postgres
     environment:
@@ -13,12 +13,12 @@ services:
       - SERPAPI_KEY=${SERPAPI_KEY}
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=llamaware
-      - DB_USER=llamaware
+      - DB_NAME=cursor
+      - DB_USER=cursor
       - DB_PASSWORD=password
     volumes:
-      - llamaware_data:/home/llamaware/data
-      - ../../.env:/home/llamaware/.env:ro
+      - cursor_data:/home/cursor/data
+      - ../../.env:/home/cursor/.env:ro
     stdin_open: true
     tty: true
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
   # PostgreSQL database
   postgres:
     image: postgres:15
-    container_name: llamaware-postgres
+    container_name: cursor-postgres
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -48,7 +48,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  llamaware_data:
+cursor_data:
     driver: local
   ollama_data:
     driver: local

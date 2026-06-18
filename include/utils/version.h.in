@@ -1,11 +1,11 @@
 #pragma once
 
-constexpr int llamaware_version_major = @PROJECT_VERSION_MAJOR@;
-constexpr int llamaware_version_minor = @PROJECT_VERSION_MINOR@;
-constexpr int llamaware_version_patch = @PROJECT_VERSION_PATCH@;
-constexpr const char* llamaware_version_string = "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@";
-#define LLAMAWARE_BUILD_DATE __DATE__
-#define LLAMAWARE_BUILD_TIME __TIME__
+constexpr int cursor_version_major = @PROJECT_VERSION_MAJOR@;
+constexpr int cursor_version_minor = @PROJECT_VERSION_MINOR@;
+constexpr int cursor_version_patch = @PROJECT_VERSION_PATCH@;
+constexpr const char* cursor_version_string = "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@";
+#define CURSOR_BUILD_DATE __DATE__
+#define CURSOR_BUILD_TIME __TIME__
 
 namespace Version {
     const char* get_version();

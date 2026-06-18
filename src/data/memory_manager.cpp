@@ -63,7 +63,7 @@ std::string MemoryManager::get_global_memory_path() const {
   }
 
   std::filesystem::path global_path =
-      std::filesystem::path(home) / ".llamaware" / "LLAMAWARE.md";
+      std::filesystem::path(home) / ".cursor" / "CURSOR.md";
   return global_path.string();
 }
 
@@ -225,7 +225,7 @@ void MemoryManager::save_global_fact(const std::string &fact) {
     }
 
     // Find or create the memories section
-    const std::string header = "## Llamaware Added Memories";
+    const std::string header = "## Cursor Added Memories";
     size_t header_pos = content.find(header);
 
     if (header_pos == std::string::npos) {
@@ -275,7 +275,7 @@ std::string MemoryManager::get_global_context() const {
     std::string content = buffer.str();
 
     // Extract memories section
-    const std::string header = "## Llamaware Added Memories";
+    const std::string header = "## Cursor Added Memories";
     size_t header_pos = content.find(header);
 
     if (header_pos == std::string::npos) {
@@ -371,7 +371,7 @@ void MemoryManager::export_memory(const std::string &filename) const {
     throw std::runtime_error("Unable to open export file: " + filename);
   }
 
-  file << "# Llamaware Memory Export\n\n";
+  file << "# Cursor Memory Export\n\n";
   file << "Export Date: " << get_timestamp() << "\n\n";
 
   for (const auto &entry : entries) {
@@ -393,7 +393,7 @@ bool MemoryManager::import_memory(const std::string &filename) {
 
     std::string line;
     while (std::getline(file, line)) {
-      if (!line.empty() && line != "# Llamaware Memory Export" &&
+      if (!line.empty() && line != "# Cursor Memory Export" &&
           line.find("Export Date:") == std::string::npos) {
 
         std::ofstream memory_file(memory_file_, std::ios::out | std::ios::app);

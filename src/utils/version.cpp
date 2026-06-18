@@ -3,7 +3,7 @@
 #include <string>
 
 namespace Version {
-const char *get_version() { return llamaware_version_string; }
+const char *get_version() { return cursor_version_string; }
 
 const char *get_build_info() {
   static std::string build_info;
@@ -14,7 +14,7 @@ const char *get_build_info() {
 }
 
 void print_version_info() {
-  std::cout << "Llamaware v" << get_version() << "\n";
+  std::cout << "Cursor v" << get_version() << "\n";
   std::cout << "Built: " << get_build_info() << "\n";
 }
 } // namespace Version

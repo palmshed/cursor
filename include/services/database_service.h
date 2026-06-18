@@ -25,7 +25,7 @@ public:
 } // namespace pqxx
 #endif
 
-namespace llamaware {
+namespace cursor {
 
 class DatabaseService {
 public:
@@ -51,6 +51,6 @@ private:
 #endif
 };
 
-} // namespace llamaware
+} // namespace cursor
 
 #endif // DATABASE_SERVICE_H

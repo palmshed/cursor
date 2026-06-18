@@ -7,7 +7,7 @@ TEST(BasicTest, SanityCheck) { EXPECT_EQ(1 + 1, 2); }
 // Test for version functionality
 TEST(VersionTest, VersionCommand) {
   const char *version = Version::get_version();
-  EXPECT_STREQ(version, llamaware_version_string);
+  EXPECT_STREQ(version, cursor_version_string);
 }
 
 int main(int argc, char **argv) {

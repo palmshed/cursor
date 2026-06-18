@@ -141,7 +141,7 @@ services:
       context: .
       dockerfile: package/docker/Dockerfile
       target: builder
-    container_name: llamaware-e2e-tests
+    container_name: cursor-e2e-tests
     depends_on:
       - mock-together
       - mock-cerebras

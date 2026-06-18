@@ -31,7 +31,7 @@ else()
   endif()
 endif()
 
-project(LlamawareAgent VERSION ${PROJECT_VERSION} LANGUAGES CXX)
+project(cursor VERSION ${PROJECT_VERSION} LANGUAGES CXX)
 
 # Configure version header
 configure_file(include/utils/version.h.in include/version.h @ONLY)
@@ -461,8 +461,8 @@ set(ALL_SOURCES
 )
 
 # Create library with all sources
-add_library(llamaware_lib ${ALL_SOURCES})
-target_include_directories(llamaware_lib PUBLIC
+add_library(cursor_lib ${ALL_SOURCES})
+target_include_directories(cursor_lib PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -473,8 +473,8 @@ target_include_directories(llamaware_lib PUBLIC
 )
 
 # Set compile definitions for symbol visibility
-target_compile_definitions(llamaware_lib PRIVATE LLAMAWARE_LIBRARY $<$<BOOL:${HAVE_PQXX}>:HAVE_PQXX>)
-set_target_properties(llamaware_lib PROPERTIES
+target_compile_definitions(cursor_lib PRIVATE CURSOR_LIBRARY $<$<BOOL:${HAVE_PQXX}>:HAVE_PQXX>)
+set_target_properties(cursor_lib PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
     CXX_STANDARD 20
@@ -485,24 +485,24 @@ set_target_properties(llamaware_lib PROPERTIES
 
 # Set platform-specific compiler flags
 if(MSVC)
-    target_compile_options(llamaware_lib PRIVATE /W4 /WX /EHsc)
-    target_compile_definitions(llamaware_lib PRIVATE _CRT_SECURE_NO_WARNINGS)
-    set_target_properties(llamaware_lib PROPERTIES
+    target_compile_options(cursor_lib PRIVATE /W4 /WX /EHsc)
+    target_compile_definitions(cursor_lib PRIVATE _CRT_SECURE_NO_WARNINGS)
+    set_target_properties(cursor_lib PROPERTIES
         WINDOWS_EXPORT_ALL_SYMBOLS ON
         CXX_VISIBILITY_PRESET default
     )
-    target_compile_definitions(llamaware_lib PUBLIC "LLAMAWARE_API=__declspec(dllexport)")
+    target_compile_definitions(cursor_lib PUBLIC "CURSOR_API=__declspec(dllexport)")
 else()
-    target_compile_options(llamaware_lib PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_definitions(llamaware_lib PUBLIC "LLAMAWARE_API=__attribute__((visibility(\"default\")))")
+    target_compile_options(cursor_lib PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_definitions(cursor_lib PUBLIC "CURSOR_API=__attribute__((visibility(\"default\")))")
 endif()
 
 # Link dependencies as PRIVATE to avoid exposing them
-target_link_libraries(llamaware_lib PUBLIC
+target_link_libraries(cursor_lib PUBLIC
     nlohmann_json::nlohmann_json
 )
 
-target_link_libraries(llamaware_lib PRIVATE
+target_link_libraries(cursor_lib PRIVATE
     ${CURL_LIBRARIES}
     cpr::cpr
     OpenSSL::SSL
@@ -515,35 +515,35 @@ target_link_libraries(llamaware_lib PRIVATE
 
 # Set additional linker flags for macOS
 if(APPLE)
-    target_link_options(llamaware_lib PRIVATE -stdlib=libc++)
-    target_link_libraries(llamaware_lib PRIVATE "-framework CoreFoundation" "-framework Security")
+    target_link_options(cursor_lib PRIVATE -stdlib=libc++)
+    target_link_libraries(cursor_lib PRIVATE "-framework CoreFoundation" "-framework Security")
 endif()
 
 # Main executable
-add_executable(llamaware-agent src/main.cpp)
-target_include_directories(llamaware-agent PRIVATE
+add_executable(cursor-agent src/main.cpp)
+target_include_directories(cursor-agent PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
-target_link_libraries(llamaware-agent PRIVATE
-    llamaware_lib
+target_link_libraries(cursor-agent PRIVATE
+    cursor_lib
 )
 
 # Test executable
-add_executable(llamaware-tests tests/main_test.cpp src/utils/version.cpp)
-target_include_directories(llamaware-tests PRIVATE
+add_executable(cursor-tests tests/main_test.cpp src/utils/version.cpp)
+target_include_directories(cursor-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
-target_link_libraries(llamaware-tests PRIVATE
-    llamaware_lib
+target_link_libraries(cursor-tests PRIVATE
+    cursor_lib
     gtest_main
     gtest
 )
-add_test(NAME basic_tests COMMAND llamaware-tests)
+add_test(NAME basic_tests COMMAND cursor-tests)
 
 # Set target properties for test executable
-set_target_properties(llamaware-tests PROPERTIES
+set_target_properties(cursor-tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     MACOSX_RPATH ON
     INSTALL_RPATH "@executable_path/lib"
@@ -551,8 +551,8 @@ set_target_properties(llamaware-tests PROPERTIES
 )
 
 # Set target properties
-set_target_properties(llamaware-agent PROPERTIES
-    OUTPUT_NAME "llamaware-agent"
+set_target_properties(cursor-agent PROPERTIES
+    OUTPUT_NAME "cursor-agent"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     MACOSX_RPATH ON
     INSTALL_RPATH "@executable_path/../lib"
@@ -562,7 +562,7 @@ set_target_properties(llamaware-agent PROPERTIES
 
 # On macOS, add additional settings
 if(APPLE)
-    target_link_options(llamaware-agent PRIVATE
+    target_link_options(cursor-agent PRIVATE
         -Wl,-rpath,@loader_path/../lib
         -Wl,-rpath,/usr/local/lib
         -Wl,-rpath,/opt/homebrew/lib
@@ -570,20 +570,20 @@ if(APPLE)
 endif()
 
 # Installation
-install(TARGETS llamaware-agent
+install(TARGETS cursor-agent
     RUNTIME DESTINATION bin
 )
 
 # Install configuration files (only if .env.example exists)
 if(EXISTS "${CMAKE_SOURCE_DIR}/.env.example")
     install(FILES .env.example
-        DESTINATION etc/llamaware
+        DESTINATION etc/cursor
         RENAME config.env
     )
 endif()
 
 # CPack configuration for package generation
-set(CPACK_PACKAGE_NAME "llamaware-agent")
+set(CPACK_PACKAGE_NAME "cursor-agent")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Professional AI Agent with Command Execution")
 set(CPACK_PACKAGE_DESCRIPTION "A powerful, modular AI agent built with modern C++ that provides seamless interaction with language models and comprehensive system operations.")
@@ -607,22 +607,22 @@ include(CPack)
 
 # Add custom check target for testing and validation
 add_custom_target(check
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target llamaware-agent
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cursor-agent
     COMMAND echo "Running automated tests..."
-    COMMAND printf "2\\nversion\\nhelp\\nexit\\n" | ${CMAKE_BINARY_DIR}/bin/llamaware-agent
+    COMMAND printf "2\\nversion\\nhelp\\nexit\\n" | ${CMAKE_BINARY_DIR}/bin/cursor-agent
     COMMAND echo "Checking binary exists..."
-    COMMAND test -f ${CMAKE_BINARY_DIR}/bin/llamaware-agent
+    COMMAND test -f ${CMAKE_BINARY_DIR}/bin/cursor-agent
     COMMAND echo "Validating executable permissions..."
-    COMMAND test -x ${CMAKE_BINARY_DIR}/bin/llamaware-agent
+    COMMAND test -x ${CMAKE_BINARY_DIR}/bin/cursor-agent
     COMMAND echo "All checks passed!"
-    DEPENDS llamaware-agent
+    DEPENDS cursor-agent
     COMMENT "Running comprehensive project validation"
 )
 
 # Add quick test target
 add_custom_target(test-quick
-    COMMAND printf "2\\nexit\\n" | ${CMAKE_BINARY_DIR}/bin/llamaware-agent
-    DEPENDS llamaware-agent
+    COMMAND printf "2\\nexit\\n" | ${CMAKE_BINARY_DIR}/bin/cursor-agent
+    DEPENDS cursor-agent
     COMMENT "Quick functionality test"
 )
 
@@ -645,7 +645,7 @@ if(LCOV_EXE)
         COMMAND ${LCOV_EXE} --capture --directory ${CMAKE_BINARY_DIR} --output-file ${CMAKE_BINARY_DIR}/coverage/coverage.info --exclude '/usr/*' --exclude '*/tests/*' --exclude '*/_deps/*'
         COMMAND ${LCOV_EXE} --list ${CMAKE_BINARY_DIR}/coverage/coverage.info
         COMMAND ${GENHTML_EXE} ${CMAKE_BINARY_DIR}/coverage/coverage.info --output-directory ${CMAKE_BINARY_DIR}/coverage/html
-        DEPENDS llamaware-tests
+        DEPENDS cursor-tests
         COMMENT "Running tests and generating code coverage report"
     )
 endif()
@@ -653,6 +653,6 @@ endif()
 # Add preflight target (comprehensive pre-deployment checks)
 add_custom_target(preflight
     COMMAND ${CMAKE_SOURCE_DIR}/package/scripts/preflight.sh
-    DEPENDS llamaware-agent
+    DEPENDS cursor-agent
     COMMENT "Running comprehensive preflight checks"
 )

@@ -1,8 +1,8 @@
 #include "utils/config.h"
 
-// Define the LLAMAWARE_LIBRARY macro to ensure proper symbol export
-#ifndef LLAMAWARE_LIBRARY
-#define LLAMAWARE_LIBRARY
+// Define the CURSOR_LIBRARY macro to ensure proper symbol export
+#ifndef CURSOR_LIBRARY
+#define CURSOR_LIBRARY
 #endif
 #include <cstdlib>
 #include <fstream>

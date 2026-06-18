@@ -93,7 +93,7 @@ std::string SandboxService::generate_container_name() {
   auto time_t = std::chrono::system_clock::to_time_t(now);
 
   std::stringstream ss;
-  ss << "llamaware_sandbox_" << time_t << "_" << counter++;
+  ss << "cursor_sandbox_" << time_t << "_" << counter++;
   return ss.str();
 }
 
@@ -370,7 +370,7 @@ std::vector<std::string> SandboxService::list_active_containers() {
   std::vector<std::string> containers;
 
   FILE *pipe = Utils::Platform::open_process(
-      "docker ps --filter name=llamaware_sandbox_ --format '{{.Names}}'", "r");
+      "docker ps --filter name=cursor_sandbox_ --format '{{.Names}}'", "r");
   if (pipe) {
     char buffer[256];
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
@@ -426,7 +426,7 @@ bool SandboxService::remove_container(const std::string &container_name) {
 
 void SandboxService::cleanup_old_containers() {
   std::string command =
-      "docker container prune -f --filter label=llamaware_sandbox";
+      "docker container prune -f --filter label=cursor_sandbox";
   FILE *pipe = Utils::Platform::open_process(command.c_str(), "r");
   if (pipe) {
     // Read and discard output

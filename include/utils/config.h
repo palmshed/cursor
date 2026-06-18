@@ -2,11 +2,11 @@
 
 // Define DLL export/import macros for Windows
 #if defined(_WIN32) || defined(_WIN64)
-#ifndef LLAMAWARE_API
-#ifdef LLAMAWARE_LIBRARY
-#define LLAMAWARE_API __declspec(dllexport)
+#ifndef CURSOR_API
+#ifdef CURSOR_LIBRARY
+#define CURSOR_API __declspec(dllexport)
 #else
-#define LLAMAWARE_API __declspec(dllimport)
+#define CURSOR_API __declspec(dllimport)
 #endif
 #endif
 
@@ -35,34 +35,34 @@
 #define NOMINMAX
 #endif
 #else
-#ifndef LLAMAWARE_API
-#define LLAMAWARE_API __attribute__((visibility("default")))
+#ifndef CURSOR_API
+#define CURSOR_API __attribute__((visibility("default")))
 #endif
 
 // On non-Windows, we can use visibility attributes for better control
 #ifdef __GNUC__
-#ifndef LLAMAWARE_LOCAL
-#define LLAMAWARE_LOCAL __attribute__((visibility("hidden")))
+#ifndef CURSOR_LOCAL
+#define CURSOR_LOCAL __attribute__((visibility("hidden")))
 #endif
 #else
-#ifndef LLAMAWARE_LOCAL
-#define LLAMAWARE_LOCAL
+#ifndef CURSOR_LOCAL
+#define CURSOR_LOCAL
 #endif
 #endif
 #endif
 
 // Disable exporting of STL templates
 #ifdef _MSC_VER
-#define LLAMAWARE_NO_EXPORT_TEMPLATE template class LLAMAWARE_API
+#define CURSOR_NO_EXPORT_TEMPLATE template class CURSOR_API
 #else
-#define LLAMAWARE_NO_EXPORT_TEMPLATE extern template class LLAMAWARE_API
+#define CURSOR_NO_EXPORT_TEMPLATE extern template class CURSOR_API
 #endif
 
 #include <string>
 
 namespace Utils::Config {
-LLAMAWARE_API void load_environment(const std::string &filename = ".env");
-LLAMAWARE_API std::string get_env_var(const std::string &key,
+CURSOR_API void load_environment(const std::string &filename = ".env");
+CURSOR_API std::string get_env_var(const std::string &key,
                                       const std::string &default_value = "");
-LLAMAWARE_API bool has_env_var(const std::string &key);
+CURSOR_API bool has_env_var(const std::string &key);
 } // namespace Utils::Config

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains documentation related to packaging, distribution, and deployment of Llamaware.
+This directory contains documentation related to packaging, distribution, and deployment of Cursor.
 
 ## Contents
 
@@ -15,4 +15,4 @@ This directory contains documentation related to packaging, distribution, and de
 
 - [Binary Installation](../binary/install.sh)
 - [Docker Deployment](../docker/)
-- [Homebrew Package](../managers/homebrew/llamaware.rb)
+- [Homebrew Package](../managers/homebrew/cursor.rb)

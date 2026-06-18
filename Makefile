@@ -1,4 +1,4 @@
-# Llamaware Agent Makefile
+# Cursor Agent Makefile
 # Professional AI Agent with Command Execution
 
 .PHONY: all build clean test test-e2e test-e2e-docker package install docker-build preflight preflight-quick preflight-full preflight-ci full-check setup install-deps-mac install-deps-ubuntu lint-yaml lint-all help
@@ -8,7 +8,7 @@ all: build
 
 # Build the project
 build:
-	@echo "Building Llamaware Agent..."
+	@echo "Building Cursor Agent..."
 	@mkdir -p build
 	@cd build && cmake .. && make
 
@@ -22,7 +22,7 @@ clean:
 # Run basic tests
 test: build
 	@echo "Running basic tests..."
-	@printf "2\\nexit\\n" | ./build/bin/llamaware-agent
+	@printf "2\\nexit\\n" | ./build/bin/cursor-agent
 
 # Run E2E tests locally
 test-e2e: build
@@ -38,7 +38,7 @@ test-e2e-docker:
 package: build
 	@echo "Creating distribution package..."
 	@mkdir -p package/dist
-	@cp build/bin/llamaware-agent package/dist/
+	@cp build/bin/cursor-agent package/dist/
 	@cp README.md package/dist/
 	@cp LICENSE package/dist/
 	@cp .env.example package/dist/
@@ -46,14 +46,14 @@ package: build
 
 # Install locally
 install: build
-	@echo "Installing Llamaware Agent locally..."
-	@sudo cp build/bin/llamaware-agent /usr/local/bin/
-	@echo "Installation complete. Run 'llamaware-agent' to start."
+	@echo "Installing Cursor Agent locally..."
+	@sudo cp build/bin/cursor-agent /usr/local/bin/
+	@echo "Installation complete. Run 'cursor-agent' to start."
 
 # Build Docker image
 docker-build:
 	@echo "Building Docker image..."
-	@docker build -t llamaware/agent -f package/docker/Dockerfile .
+	@docker build -t cursor/agent -f package/docker/Dockerfile .
 
 # Run preflight checks (smart detection)
 preflight:
@@ -129,7 +129,7 @@ clang-tidy: build
 
 # Show help
 help:
-	@echo "Llamaware Agent - Available Make Targets:"
+	@echo "Cursor Agent - Available Make Targets:"
 	@echo ""
 	@echo "Build Commands:"
 	@echo "  build              Build the project"

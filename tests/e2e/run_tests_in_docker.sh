@@ -28,7 +28,7 @@ echo "=================="
 ulimit -c unlimited
 
 # Set test data directory
-export TEST_DATA_DIR="/tmp/llamaware_test_data"
+export TEST_DATA_DIR="/tmp/cursor_test_data"
 
 # Clean up any previous builds
 echo "=== Cleaning previous builds ==="
@@ -66,7 +66,7 @@ cmake ..
 make -j1
 
 # Set binary path for E2E tests
-export BINARY_PATH="/tmp/app/build/bin/llamaware-agent"
+export BINARY_PATH="/tmp/app/build/bin/cursor-agent"
 
 # Run unit tests
 echo "=== Running unit tests ==="

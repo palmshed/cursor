@@ -33,7 +33,7 @@ It runs on macOS, Linux, and containerized environments. It performs codebase ex
 
   * `nlohmann-json3-dev`, `libcurl4-openssl-dev`
 * Verified Docker build and runtime execution
-* Confirmed binary output at expected path (`build/bin/llamaware-agent`)
+* Confirmed binary output at expected path (`build/bin/cursor-agent`)
 * Confirmed cross-platform compilation consistency across macOS and Linux
 
 ## Platform

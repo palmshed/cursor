@@ -67,7 +67,7 @@ ContextFile ContextService::load_global_context() {
     return context;
   }
 
-  std::string global_path = home_dir + "/.llamaware/LLAMAWARE.md";
+  std::string global_path = home_dir + "/.cursor/CURSOR.md";
 
   if (is_readable_file(global_path)) {
     context.file_path = global_path;
@@ -105,10 +105,10 @@ ContextService::load_project_context(const std::string &working_directory) {
   // Reverse to go from root to current
   std::reverse(path_hierarchy.begin(), path_hierarchy.end());
 
-  // Load LLAMAWARE.md files in hierarchy order
+  // Load CURSOR.md files in hierarchy order
   int priority = 90; // Start below global priority
   for (const auto &path : path_hierarchy) {
-    std::string context_file = path.string() + "/LLAMAWARE.md";
+    std::string context_file = path.string() + "/CURSOR.md";
 
     if (is_readable_file(context_file)) {
       ContextFile context;
@@ -131,11 +131,11 @@ ContextService::load_local_context(const std::string &working_directory) {
   std::vector<ContextFile> files;
 
   try {
-    // Look for LLAMAWARE.md files in subdirectories
+    // Look for CURSOR.md files in subdirectories
     for (const auto &entry :
          std::filesystem::recursive_directory_iterator(working_directory)) {
       if (entry.is_regular_file() &&
-          entry.path().filename() == "LLAMAWARE.md") {
+          entry.path().filename() == "CURSOR.md") {
 
         std::string entry_path = entry.path().string();
 
@@ -169,7 +169,7 @@ ContextService::merge_context_files(const std::vector<ContextFile> &files) {
   }
 
   std::ostringstream merged;
-  merged << "# Llamaware Context\n\n";
+  merged << "# Cursor Context\n\n";
 
   // Group files by source
   std::map<std::string, std::vector<const ContextFile *>> files_by_source;
@@ -239,9 +239,9 @@ void ContextService::refresh_context_cache() {
 }
 
 std::string ContextService::get_context_template() {
-  return R"(# Llamaware Context File
+  return R"(# Cursor Context File
 
-This file provides context and instructions for Llamaware AI assistant.
+This file provides context and instructions for Cursor AI assistant.
 
 ## Project Overview
 
@@ -277,7 +277,7 @@ Example code or commands that are commonly used in this context
 bool ContextService::create_context_file(const std::string &directory,
                                          const std::string &content) {
   try {
-    std::string file_path = directory + "/LLAMAWARE.md";
+    std::string file_path = directory + "/CURSOR.md";
 
     // Don't overwrite existing file
     if (std::filesystem::exists(file_path)) {

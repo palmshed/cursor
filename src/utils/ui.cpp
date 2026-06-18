@@ -10,13 +10,13 @@ namespace Utils {
 // ===== Color Codes =====
 namespace Color {
 // Exported color constants
-LLAMAWARE_API const std::string RESET = "\033[0m";
-LLAMAWARE_API const std::string GREEN = "\033[32m";
-LLAMAWARE_API const std::string YELLOW = "\033[33m";
-LLAMAWARE_API const std::string RED = "\033[31m";
-LLAMAWARE_API const std::string CYAN = "\033[36m";
-LLAMAWARE_API const std::string BOLD = "\033[1m";
-LLAMAWARE_API const std::string DIM = "\033[2m";
+CURSOR_API const std::string RESET = "\033[0m";
+CURSOR_API const std::string GREEN = "\033[32m";
+CURSOR_API const std::string YELLOW = "\033[33m";
+CURSOR_API const std::string RED = "\033[31m";
+CURSOR_API const std::string CYAN = "\033[36m";
+CURSOR_API const std::string BOLD = "\033[1m";
+CURSOR_API const std::string DIM = "\033[2m";
 } // namespace Color
 
 // ===== Logo =====
@@ -34,9 +34,9 @@ void UI::print_logo() {
                "██   ██ ███████ \n"
             << Color::RESET;
 
-  std::cout << Color::DIM << "Llamaware\n" << Color::RESET;
+  std::cout << Color::DIM << "Cursor\n" << Color::RESET;
 
-  std::cout << Color::DIM << "Welcome to Llamaware — Choose your mode below.\n"
+  std::cout << Color::DIM << "Welcome to Cursor — Choose your mode below.\n"
             << Color::RESET;
 
   print_divider();

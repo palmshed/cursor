@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "Setting up Git hooks for Llamaware Agent..."
+echo "Setting up Git hooks for Cursor Agent..."
 
 # Create .git/hooks directory if it doesn't exist
 mkdir -p .git/hooks

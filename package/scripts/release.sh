@@ -1,5 +1,5 @@
 #!/bin/bash
-# Llamaware Agent - Release Script
+# Cursor Agent - Release Script
 
 set -e
 
@@ -13,7 +13,7 @@ make clean && make build
 mkdir -p "$RELEASE_DIR"
 make package
 cp -r package/dist/* "$RELEASE_DIR/"
-git archive --format=tar.gz --prefix="llamaware-agent-${VERSION}/" HEAD > "$RELEASE_DIR/llamaware-agent-${VERSION}-source.tar.gz"
+git archive --format=tar.gz --prefix="cursor-agent-${VERSION}/" HEAD > "$RELEASE_DIR/cursor-agent-${VERSION}-source.tar.gz"
 
 cd "$RELEASE_DIR"
 shasum -a 256 * > checksums.sha256
