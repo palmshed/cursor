@@ -17,7 +17,7 @@ jobs:
       - name: Checkout private cla-bot
         uses: actions/checkout@v6
         with:
-          repository: bniladridas/cla-bot
+          repository: palmshed/clabot
           token: ${{ secrets.CLA_BOT_TOKEN }}
           path: cla-bot
 
