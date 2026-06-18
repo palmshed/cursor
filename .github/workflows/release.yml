@@ -106,7 +106,11 @@ jobs:
       - name: Compute checksums
         run: |
           cd release
-          shasum -a 256 *.tar.gz *.zip > checksums.txt || sha256sum *.tar.gz *.zip > checksums.txt
+          if ls *.tar.gz *.zip >/dev/null 2>&1; then
+            shasum -a 256 *.tar.gz *.zip > checksums.txt || sha256sum *.tar.gz *.zip > checksums.txt
+          else
+            echo "No artifacts to checksum yet" > checksums.txt
+          fi
 
       - name: Publish release
         env:
