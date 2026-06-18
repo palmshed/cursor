@@ -81,7 +81,7 @@ jobs:
       - name: Package
         run: |
           mkdir -p release
-          cp build/Release/cursor-agent.exe release/cursor-windows.exe
+          cp build/bin/Release/cursor-agent.exe release/cursor-windows.exe
           cd release && 7z a -tzip ../cursor_${GITHUB_REF_NAME}_windows_amd64.zip cursor-windows.exe
 
   release:
