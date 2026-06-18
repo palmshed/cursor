@@ -1,0 +1,63 @@
+name: formula sha
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.LINEA_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.LINEA_BOT_PRIVATE_KEY }}
+
+      - name: Resolve tag
+        id: tag
+        run: printf 'tag=%s\n' "${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+
+      - name: Apply sha
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          version="${tag#v}"
+
+          url="https://github.com/bniladridas/cursor/archive/refs/tags/${tag}.tar.gz"
+          curl -fsSL "$url" -o source.tar.gz
+          sha="$(sha256sum source.tar.gz | awk '{print $1}')"
+          TAG="$tag" SHA="$sha" ruby -0pi -e 'gsub(/url "https:\/\/github\.com\/bniladridas\/cursor\/archive\/refs\/tags\/v[^\"]+\.tar\.gz"/, "url \"https:\/\/github.com\/bniladridas\/cursor\/archive\/refs\/tags\/#{ENV.fetch("TAG")}.tar.gz\""); gsub(/sha256 "[0-9a-f]{64}"/, "sha256 \"#{ENV.fetch("SHA")}\"")' Formula/cursor.rb
+          rm source.tar.gz
+
+          bottle_url="https://github.com/bniladridas/cursor/releases/download/${tag}/cursor-${version}.arm64_sequoia.bottle.tar.gz"
+          if curl -fsSL "$bottle_url" -o bottle.tar.gz; then
+            bottle_sha="$(sha256sum bottle.tar.gz | awk '{print $1}')"
+            BOTTLE_SHA="$bottle_sha" ruby -0pi -e '
+              gsub(/sha256 arm64_sequoia: "[0-9a-f]{64}"/, "sha256 arm64_sequoia: \"#{ENV.fetch("BOTTLE_SHA")}\"")
+            ' Formula/cursor.rb
+            rm bottle.tar.gz
+          fi
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          base: main
+          branch: formula-sha-${{ steps.tag.outputs.tag }}
+          delete-branch: true
+          title: "chore: formula sha"
+          commit-message: "chore: formula sha"
+          body: ""
