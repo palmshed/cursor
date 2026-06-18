@@ -7,25 +7,30 @@
 #include "services/ai_service.h"
 #include "utils/config.h"
 #include "utils/ui.h"
+#include "version.h"
 
-int main() {
+int main(int argc, char *argv[]) {
+  for (int i = 1; i < argc; ++i) {
+    std::string arg = argv[i];
+    if (arg == "--version" || arg == "-v") {
+      Version::print_version_info();
+      return 0;
+    }
+    if (arg == "--help" || arg == "-h") {
+      std::cout << "Usage: cursor-agent [OPTIONS]\n\n"
+                << "Options:\n"
+                << "  -v, --version    Print version info and exit\n"
+                << "  -h, --help       Show this help and exit\n";
+      return 0;
+    }
+  }
+
   try {
-    // Initialize configuration (reads env vars, .env, etc.)
     Utils::Config::load_environment();
-
-    // Check for test mode is handled in Agent::initialize_mode()
-
-    // Display welcome screen
     Utils::UI::print_logo();
-
-    // Create agent
     Core::Agent agent;
-
-    // Run agent
     agent.run();
-
     std::cout << "Agent run completed" << std::endl;
-
   } catch (const std::exception &e) {
     std::cerr << Utils::Color::RED << "Fatal error: " << e.what()
               << Utils::Color::RESET << std::endl;
