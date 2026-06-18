@@ -4,7 +4,7 @@ services:
   cursor-agent:
     build:
       context: ../..
-      dockerfile: package/docker/Dockerfile
+      dockerfile: .github/packaging/docker/Dockerfile
     container_name: cursor-agent
     depends_on:
       - postgres

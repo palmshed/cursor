@@ -49,6 +49,7 @@ cmake-build-*/
 *.out
 
 # Runtime data
+data/
 data/memory.txt
 data/*.log
 *.log

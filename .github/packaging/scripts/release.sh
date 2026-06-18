@@ -12,7 +12,7 @@ make clean && make build
 
 mkdir -p "$RELEASE_DIR"
 make package
-cp -r package/dist/* "$RELEASE_DIR/"
+cp -r .github/packaging/dist/* "$RELEASE_DIR/"
 git archive --format=tar.gz --prefix="cursor-agent-${VERSION}/" HEAD > "$RELEASE_DIR/cursor-agent-${VERSION}-source.tar.gz"
 
 cd "$RELEASE_DIR"

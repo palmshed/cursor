@@ -73,7 +73,7 @@ print_success "Versions match: $VERSION"
 
 # Run preflight checks
 print_step "Running preflight..."
-if ! CI=false QUICK=false ./package/scripts/preflight.sh > /dev/null 2>&1; then
+if ! CI=false QUICK=false ./.github/packaging/scripts/preflight.sh > /dev/null 2>&1; then
     print_error "Preflight failed"
     exit 1
 fi

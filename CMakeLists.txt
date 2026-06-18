@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Get version from git tag if available, fallback to VERSION file
+# Get version from git tag if available, fallback to 0.1.6
 find_package(Git)
 if(GIT_FOUND)
   execute_process(
@@ -13,22 +13,10 @@ if(GIT_FOUND)
   if(GIT_TAG)
     string(REGEX REPLACE "^v" "" PROJECT_VERSION ${GIT_TAG})
   else()
-    # Fallback to VERSION file
-    if(EXISTS "${CMAKE_SOURCE_DIR}/VERSION")
-      file(READ "${CMAKE_SOURCE_DIR}/VERSION" PROJECT_VERSION)
-      string(STRIP "${PROJECT_VERSION}" PROJECT_VERSION)
-    else()
-      set(PROJECT_VERSION "0.1.0")
-    endif()
+    set(PROJECT_VERSION "0.1.6")
   endif()
 else()
-  # Fallback to VERSION file
-  if(EXISTS "${CMAKE_SOURCE_DIR}/VERSION")
-    file(READ "${CMAKE_SOURCE_DIR}/VERSION" PROJECT_VERSION)
-    string(STRIP "${PROJECT_VERSION}" PROJECT_VERSION)
-  else()
-    set(PROJECT_VERSION "0.1.0")
-  endif()
+  set(PROJECT_VERSION "0.1.6")
 endif()
 
 project(cursor VERSION ${PROJECT_VERSION} LANGUAGES CXX)
@@ -652,7 +640,7 @@ endif()
 
 # Add preflight target (comprehensive pre-deployment checks)
 add_custom_target(preflight
-    COMMAND ${CMAKE_SOURCE_DIR}/package/scripts/preflight.sh
+    COMMAND ${CMAKE_SOURCE_DIR}/.github/packaging/scripts/preflight.sh
     DEPENDS cursor-agent
     COMMENT "Running comprehensive preflight checks"
 )

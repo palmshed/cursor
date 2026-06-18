@@ -284,7 +284,7 @@ print_success "Configuration template found"
 
 # 10. Documentation Check
 print_status "Checking documentation..."
-REQUIRED_DOCS=("README.md" "LICENSE" "package/docs/CHANGELOG.md")
+REQUIRED_DOCS=("README.md" "LICENSE" ".github/packaging/docs/CHANGELOG.md")
 for doc in "${REQUIRED_DOCS[@]}"; do
     if [ ! -f "$doc" ]; then
         print_warning "Documentation file missing: $doc"

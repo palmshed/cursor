@@ -5,8 +5,7 @@ C++20 AI coding agent. 16 services, 8 AI providers, CI/CD across 3 platforms.
 ## Build & Test
 
 ```bash
-make build        # cmake .. && make
-make test         # build + run with test input
+cmake -S . -B build && cmake --build build
 ./build/cursor-tests   # unit tests
 ```
 
