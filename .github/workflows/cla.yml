@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   cla:
     runs-on: ubuntu-latest
@@ -14,20 +18,16 @@ jobs:
           sparse-checkout: |
             .github/signed.json
 
-      - name: Checkout private cla-bot
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           repository: palmshed/clabot
-          token: ${{ secrets.CLA_BOT_TOKEN }}
           path: cla-bot
 
-      - name: Copy .github/signed.json to cla-signers.json
-        run: |
-          cp .github/signed.json cla-signers.json
-          cp .github/signed.json cla-bot/cla-signers.json
+      - name: Prepare CLA signers
+        run: cp .github/signed.json cla-signers.json
 
-      - name: Run CLA bot
-        uses: ./cla-bot/
+      - name: CLA check
+        uses: ./cla-bot
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          .github/signed.json: ${{ secrets.CLA_SIGNED_JSON }}
+          cla-url: "https://harpertoken.github.io/cla.html"

@@ -1,0 +1,50 @@
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/packaging/**'
+          - 'Dockerfile'
+          - 'docker-compose*.yml'
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'README.md'
+          - 'CHANGELOG.md'
+          - 'AGENTS.md'
+          - 'LICENSE'
+          - '.env.example'
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/SECURITY.md'
+          - 'src/services/auth_service.cpp'
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'CMakeLists.txt'
+          - '.github/dependabot.yml'
+          - 'package.json'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**'
+
+refactor:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+
+feature:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/services/**'
+
+bug:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/agent.cpp'
+          - 'src/memory_manager.cpp'

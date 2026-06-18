@@ -26,14 +26,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get changed files
-        id: files
-        uses: jitterbit/get-changed-files@v1
-        with:
-          format: space-delimited
-
-      - name: Label PR
-        uses: actions/labeler@v6
+      - uses: actions/labeler@v5
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           configuration-path: .github/labeler.yml
