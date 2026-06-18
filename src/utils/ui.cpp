@@ -17,21 +17,26 @@ CURSOR_API const std::string RED = "\033[31m";
 CURSOR_API const std::string CYAN = "\033[36m";
 CURSOR_API const std::string BOLD = "\033[1m";
 CURSOR_API const std::string DIM = "\033[2m";
+CURSOR_API const std::string PINK = "\033[38;2;255;105;180m";
 } // namespace Color
 
 // ===== Logo =====
 void UI::print_logo() {
-  std::cout << Color::GREEN
-            << "██      ██       █████  ███    ███  █████  ██     ██  █████  "
-               "██████  ███████ \n"
-            << "██      ██      ██   ██ ████  ████ ██   ██ ██     ██ ██   ██ "
-               "██   ██ ██      \n"
-            << "██      ██      ███████ ██ ████ ██ ███████ ██  █  ██ ███████ "
-               "██████  █████   \n"
-            << "██      ██      ██   ██ ██  ██  ██ ██   ██ ██ ███ ██ ██   ██ "
-               "██   ██ ██      \n"
-            << "███████ ███████ ██   ██ ██      ██ ██   ██  ███ ███  ██   ██ "
-               "██   ██ ███████ \n"
+  std::cout << Color::PINK
+            << "        ▄▄▄▄▄▄▄▄▄▄▄\n"
+            << "       █           █\n"
+            << "      █   ▄▄▄▄▄▄   █\n"
+            << "     █   █      █   █\n"
+            << "    █   █   ██   █   █\n"
+            << "    █   █  █  █  █   █\n"
+            << "    █   █  █  █  █   █\n"
+            << "    █   █   ██   █   █\n"
+            << "     █   █       █  █\n"
+            << "      █   ▀▀▀▀▀▀  █\n"
+            << "       █         █\n"
+            << "        ▀▀▀▀▀▀▀▀▀\n"
+            << Color::RESET
+            << Color::BOLD << "          CURSOR\n"
             << Color::RESET;
 
   std::cout << Color::DIM << "Cursor\n" << Color::RESET;

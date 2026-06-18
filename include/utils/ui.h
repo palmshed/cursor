@@ -13,6 +13,7 @@ extern CURSOR_API const std::string RED;
 extern CURSOR_API const std::string CYAN;
 extern CURSOR_API const std::string BOLD;
 extern CURSOR_API const std::string DIM;
+extern CURSOR_API const std::string PINK;
 } // namespace Color
 
 // UI namespace
