@@ -1,0 +1,38 @@
+name: stale
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "39 4 * * 1"
+
+jobs:
+  mark:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.CURSOR_BOT_PRIVATE_KEY }}
+          permission-issues: write
+          permission-pull-requests: write
+
+      - uses: actions/stale@v10
+        with:
+          repo-token: ${{ steps.app-token.outputs.token }}
+          days-before-stale: 45
+          days-before-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: pinned,security
+          exempt-pr-labels: pinned,security
+          stale-issue-message: "This has been quiet for a while. Please add a note if it should stay open."
+          stale-pr-message: "This has been quiet for a while. Please add a note if it should stay open."
+          close-issue-message: "Closing for now."
+          close-pr-message: "Closing for now."
+          operations-per-run: 20
