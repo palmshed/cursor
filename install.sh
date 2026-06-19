@@ -46,6 +46,7 @@ tar -xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR"
 mkdir -p "$INSTALL_DIR"
 cp "$TMPDIR/$BINARY" "$INSTALL_DIR/cursor-agent"
 chmod +x "$INSTALL_DIR/cursor-agent"
+ln -sf cursor-agent "$INSTALL_DIR/cursor"
 
 echo "installed cursor-agent to $INSTALL_DIR/cursor-agent"
-echo "run: cursor-agent --help"
+echo "run: cursor or cursor-agent --help"

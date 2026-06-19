@@ -20,7 +20,7 @@ brew tap palmshed/cursor
 brew install palmshed/cursor/cursor --formula
 ```
 
-**Curl** (binary: `cursor-agent`):
+**Curl** (binary: `cursor-agent` / `cursor`):
 ```bash
 curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sudo sh
 ```
