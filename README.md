@@ -20,6 +20,11 @@ brew tap palmshed/cursor
 brew install cursor
 ```
 
+**Curl** (binary: `cursor-agent`):
+```bash
+curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sh
+```
+
 **From source** (binary: `cursor`):
 ```bash
 cmake -S . -B build && cmake --build build

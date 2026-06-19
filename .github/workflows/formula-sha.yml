@@ -22,11 +22,21 @@ jobs:
           client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
           private-key: ${{ secrets.CURSOR_BOT_PRIVATE_KEY }}
 
+      - uses: actions/create-github-app-token@v3
+        id: tap-token
+        with:
+          client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.CURSOR_BOT_PRIVATE_KEY }}
+          owner: palmshed
+          repositories: homebrew-cursor
+
       - name: Resolve tag
         id: tag
         run: printf 'tag=%s\n' "${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Apply sha
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
         run: |
           tag="${{ steps.tag.outputs.tag }}"
           version="${tag#v}"
@@ -51,8 +61,9 @@ jobs:
             rm bottle.tar.gz
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${{ steps.tap-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.tap-token.outputs.app-id }}+${{ steps.tap-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/palmshed/homebrew-cursor
           git add Formula/cursor.rb
           git commit -m "chore: update formula for ${tag}"
           git push origin main
