@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <vector>
 
@@ -168,17 +169,39 @@ void Agent::initialize_mode() {
       }
     }
   } else {
-    // Data-driven offline model configuration
+    // Offline mode: dynamically fetch available Ollama models
     struct ModelInfo {
       int choice;
       Mode mode;
       std::string display_name;
     };
 
-    std::vector<ModelInfo> models = {
-        {1, Agent::Mode::MODE_LLAMA_3B, "llama3.2:3b"},
-        {2, Agent::Mode::MODE_LLAMA_LATEST, "llama3.2:latest"},
-        {3, Agent::Mode::MODE_LLAMA_31, "llama3.1:latest"}};
+    std::vector<ModelInfo> models;
+    std::string default_model = "llama3.2:3b";
+
+    try {
+      auto response = Services::WebService::fetch_url("http://localhost:11434/api/tags");
+      if (response.success && !response.content.empty()) {
+        auto json = nlohmann::json::parse(response.content);
+        if (json.contains("models") && json["models"].is_array()) {
+          int idx = 1;
+          for (const auto &m : json["models"]) {
+            if (m.contains("name")) {
+              models.push_back({idx++, Mode::MODE_LLAMA_3B, m["name"]});
+            }
+          }
+        }
+      }
+    } catch (...) {
+      // Ollama not available, fall back to defaults
+    }
+
+    if (models.empty()) {
+      models = {
+          {1, Mode::MODE_LLAMA_3B, "llama3.2:3b"},
+          {2, Mode::MODE_LLAMA_LATEST, "llama3.2:latest"},
+          {3, Mode::MODE_LLAMA_31, "llama3.1:latest"}};
+    }
 
     // Offline mode: pick model
     std::string prompt = "Model [";
@@ -199,6 +222,7 @@ void Agent::initialize_mode() {
     for (const auto &model : models) {
       if (model.choice == model_choice) {
         mode_ = model.mode;
+        ollama_model_ = model.display_name;
         Utils::UI::print_success(model.display_name);
         break;
       }
@@ -546,6 +570,9 @@ void Agent::handle_direct_command(const std::string &input) {
 void Agent::handle_ai_chat(const std::string &input) {
   if (!ai_service_) {
     ai_service_ = std::make_unique<Services::AIService>(mode_, api_key_);
+    if (!ollama_model_.empty()) {
+      ai_service_->set_model_name(ollama_model_);
+    }
   }
 
   if (!ai_service_->is_available()) {

@@ -12,6 +12,7 @@ class AIService {
 private:
   Core::AgentMode mode_;
   std::string api_key_;
+  std::string model_name_;
 
   [[nodiscard]] bool is_online_mode() const;
   nlohmann::json create_standard_payload(const std::string &model,
@@ -24,6 +25,8 @@ private:
 
 public:
   AIService(Core::AgentMode mode, const std::string &api_key = "");
+
+  void set_model_name(const std::string &name) { model_name_ = name; }
 
   std::string chat(const std::string &user_input, const std::string &context);
   bool is_available();

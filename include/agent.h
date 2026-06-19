@@ -22,6 +22,7 @@ public:
 private:
   Mode mode_{Mode::MODE_UNSET};
   std::string api_key_;
+  std::string ollama_model_;
   bool shell_mode_{false};
   // Using raw pointers with PIMPL idiom would be better for ABI stability
   std::unique_ptr<Data::MemoryManager> memory_;

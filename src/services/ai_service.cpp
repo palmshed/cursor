@@ -166,33 +166,17 @@ nlohmann::json AIService::create_payload(const std::string &user_input,
     return create_standard_payload("deepseek-chat", user_input, system_prompt);
   case Core::AgentMode::MODE_OPENAI: // OpenAI
     return create_standard_payload("gpt-4", user_input, system_prompt);
-  case Core::AgentMode::MODE_LLAMA_3B: // Llama 3B (local)
-    return {{"model", "llama3.2:3b"},
+  case Core::AgentMode::MODE_LLAMA_3B: // Local Ollama models
+  case Core::AgentMode::MODE_LLAMA_LATEST:
+  case Core::AgentMode::MODE_LLAMA_31:
+  default: {
+    std::string model = model_name_.empty() ? "llama3.2:3b" : model_name_;
+    return {{"model", model},
             {"stream", false},
             {"messages",
              {{{"role", "system"}, {"content", system_prompt}},
               {{"role", "user"}, {"content", user_input}}}}};
-
-  case Core::AgentMode::MODE_LLAMA_LATEST: // Llama latest (local)
-    return {{"model", "llama3.2:latest"},
-            {"stream", false},
-            {"messages",
-             {{{"role", "system"}, {"content", system_prompt}},
-              {{"role", "user"}, {"content", user_input}}}}};
-
-  case Core::AgentMode::MODE_LLAMA_31: // Llama 3.1 (local)
-    return {{"model", "llama3.1:latest"},
-            {"stream", false},
-            {"messages",
-             {{{"role", "system"}, {"content", system_prompt}},
-              {{"role", "user"}, {"content", user_input}}}}};
-
-  default: // Fallback to Llama 3B
-    return {{"model", "llama3.2:3b"},
-            {"stream", false},
-            {"messages",
-             {{{"role", "system"}, {"content", system_prompt}},
-              {{"role", "user"}, {"content", user_input}}}}};
+  }
   }
 }
 
