@@ -155,9 +155,13 @@ bool WebService::is_valid_url(const std::string &url) {
   if (url.find("http://") == 0 || url.find("https://") == 0) {
     // Must have at least a domain after protocol
     size_t domain_start = url.find("://") + 3;
-    if (domain_start < url.length() &&
-        url.find('.', domain_start) != std::string::npos) {
-      return true;
+    if (domain_start < url.length()) {
+      std::string domain = url.substr(domain_start);
+      // Allow localhost without dot
+      if (domain.starts_with("localhost") || domain.starts_with("127.") ||
+          url.find('.', domain_start) != std::string::npos) {
+        return true;
+      }
     }
   }
   return false;
