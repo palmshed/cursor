@@ -190,9 +190,20 @@ jobs:
           git config user.name "${{ steps.tap-token.outputs.app-slug }}[bot]"
           git config user.email "${{ steps.tap-token.outputs.app-id }}+${{ steps.tap-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/palmshed/homebrew-cursor
+          branch="release/${GITHUB_REF_NAME}"
+          git checkout -b "$branch"
           git add Formula/cursor.rb
           git commit -m "chore: update formula for ${GITHUB_REF_NAME}"
-          git push origin main
+          git push origin "$branch"
+          gh pr create \
+            --repo palmshed/homebrew-cursor \
+            --base main \
+            --head "$branch" \
+            --title "chore: update formula for ${GITHUB_REF_NAME}" \
+            --body "Automated formula update for ${GITHUB_REF_NAME}." \
+            --fill
+          gh pr merge --squash --delete-branch --repo palmshed/homebrew-cursor || \
+            echo "merge failed (race or conflict), PR is open for manual merge"
 
       - name: Update package version
         run: |
