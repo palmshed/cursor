@@ -161,8 +161,8 @@ void Agent::run() {
       Utils::UI::draw_status_line(mode_name, model_name, dir);
       Utils::UI::draw_context_line(
           "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
-      Utils::UI::draw_input_bar();
       redraw_messages();
+      Utils::UI::draw_input_bar();
       std::cout << "\033[?25h" << std::flush;
       user_input = read_line();
       // Hide cursor during response processing
