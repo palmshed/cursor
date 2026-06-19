@@ -1,3 +1,4 @@
+#include "services/ai_service.h"
 #include "agent.h"
 #include "version.h"
 #include <gtest/gtest.h>
