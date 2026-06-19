@@ -71,7 +71,7 @@ jobs:
           # build bottle
           mkdir -p bottle/cursor/${version}/bin
           cp ../build/bin/cursor-agent bottle/cursor/${version}/bin/cursor-agent
-          tar -C bottle -czf release/cursor-${version}.arm64_sequoia.bottle.tar.gz cursor
+          tar -C bottle -czf cursor-${version}.arm64_sequoia.bottle.tar.gz cursor
 
       - uses: actions/upload-artifact@v6
         with:
