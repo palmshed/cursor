@@ -757,8 +757,11 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     std::cout << response;
     memory_->save_interaction(input, response);
 
-    // Store formatted message for scroll history
-    store_message("Cursor", response);
+    // Strip trailing newline for cleaner stored format
+    std::string clean = response;
+    if (!clean.empty() && clean.back() == '\n')
+      clean.pop_back();
+    store_message("Cursor", clean);
 
     return response;
   } else {
