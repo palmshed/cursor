@@ -383,7 +383,16 @@ int Agent::count_lines(const std::string &text) {
   int w = Utils::UI::get_terminal_width();
   int lines = 1;
   int col = 0;
-  for (char c : text) {
+  for (size_t i = 0; i < text.size(); i++) {
+    char c = text[i];
+    if (c == '\033') {
+      // Skip ANSI escape sequence
+      i++;
+      while (i < text.size() && text[i] != 'm' &&
+             !(text[i] >= 'A' && text[i] <= 'Z'))
+        i++;
+      continue;
+    }
     if (c == '\n') {
       lines++;
       col = 0;
@@ -407,78 +416,37 @@ void Agent::store_message(const std::string &text) {
 void Agent::redraw_messages() {
   int h = Utils::UI::get_terminal_height();
   int scroll_bot = h - 3;
-  int visible = scroll_bot - 1;  // rows 2..scroll_bot
+  int visible = scroll_bot - 1;
 
-  if (total_lines_ <= visible) {
-    // No scrolling needed, draw all messages from top
-    int row = 2;
-    for (auto &m : messages_) {
-      Utils::UI::cursor_to(row, 1);
-      std::cout << m.text;
-      row += m.lines;
-    }
-    // Clear remaining lines
-    for (; row <= scroll_bot; row++) {
-      Utils::UI::cursor_to(row, 1);
-      Utils::UI::clear_line();
-    }
-    Utils::UI::draw_scrollbar(total_lines_, visible, 0);
-    return;
-  }
-
-  // Find which messages to show based on scroll_offset
-  // scroll_offset = 0 means show latest (bottom)
-  int target_end = total_lines_ - scroll_offset_;  // last visible line
-  int target_start = target_end - visible;        // first visible line
-
-  int line = 0;
-  int start_idx = 0;
-  int skip = 0;
-  for (size_t i = 0; i < messages_.size(); i++) {
-    int next = line + messages_[i].lines;
-    if (next > target_start) {
-      start_idx = i;
-      skip = target_start - line;
+  // scroll_offset_ counts lines from the end.
+  // Find the first message to show by walking backwards from the end.
+  int lines_from_end = scroll_offset_;
+  size_t first = messages_.size();
+  for (size_t i = messages_.size(); i > 0; i--) {
+    int prev = lines_from_end - messages_[i - 1].lines;
+    if (prev < 0) {
+      first = i - 1;
       break;
     }
-    line = next;
+    lines_from_end = prev;
   }
 
+  // Walk forward from first to see how many messages fit
   int row = 2;
-  int drawn = 0;
-  for (size_t i = start_idx; i < messages_.size() && drawn < visible; i++) {
-    int take = messages_[i].lines - skip;
-    if (take > visible - drawn)
-      take = visible - drawn;
-    Utils::UI::cursor_to(row, 1);
-    // Print only the visible portion of this message
-    std::string_view sv(messages_[i].text);
-    size_t pos = 0;
-    int lines_consumed = 0;
-    while (lines_consumed < skip) {
-      size_t nl = sv.find('\n', pos);
-      if (nl == std::string_view::npos) break;
-      pos = nl + 1;
-      lines_consumed++;
-    }
-    int lines_taken = 0;
-    while (lines_taken < take) {
-      size_t nl = sv.find('\n', pos);
-      std::cout << sv.substr(pos, nl == std::string_view::npos
-                                     ? sv.size() - pos
-                                     : nl - pos);
-      if (nl != std::string_view::npos) {
-        std::cout << '\n';
-        pos = nl + 1;
-      }
-      lines_taken++;
-    }
-    row += take;
-    drawn += take;
-    skip = 0;
+  size_t last = first;
+  int used = 0;
+  for (size_t i = first; i < messages_.size(); i++) {
+    if (used + messages_[i].lines > visible) break;
+    used += messages_[i].lines;
+    last = i + 1;
   }
 
-  // Clear remaining lines
+  for (size_t i = first; i < last; i++) {
+    Utils::UI::cursor_to(row, 1);
+    Utils::UI::clear_line();
+    std::cout << messages_[i].text;
+    row += messages_[i].lines;
+  }
   for (; row <= scroll_bot; row++) {
     Utils::UI::cursor_to(row, 1);
     Utils::UI::clear_line();
