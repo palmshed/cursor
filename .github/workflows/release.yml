@@ -48,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: |
           export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
-          brew install cmake nlohmann-json curl
+          brew install cmake nlohmann-json
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
