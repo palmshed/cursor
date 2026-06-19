@@ -16,7 +16,7 @@ npm i -g @bniladridas/cursor
 
 **Homebrew** (binary: `cursor-agent`):
 ```bash
-brew tap bniladridas/cursor https://github.com/bniladridas/cursor
+brew tap palmshed/cursor
 brew install cursor
 ```
 

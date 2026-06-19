@@ -166,15 +166,24 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes
 
-      - name: Update Homebrew formula
+      - name: Update Homebrew tap formula
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
+          git clone https://github.com/palmshed/homebrew-cursor /tmp/homebrew-cursor
+          cd /tmp/homebrew-cursor
           sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
           sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor.rb
           sed -i "s|root_url \".*\"|root_url \"https://github.com/bniladridas/cursor/releases/download/${GITHUB_REF_NAME}\"|" Formula/cursor.rb
           if [ -n "${BOTTLE_SHA}" ]; then
             sed -i "s|sha256 arm64_sequoia: \".*\"|sha256 arm64_sequoia: \"${BOTTLE_SHA}\"|" Formula/cursor.rb
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/cursor.rb
+          git commit -m "chore: update formula for ${GITHUB_REF_NAME}"
+          git push origin main
 
       - name: Update package version
         run: |
@@ -187,13 +196,3 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           npm publish --access public --provenance 2>&1 || echo "already published"
-
-      - name: Create version update PR
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          base: main
-          branch: release/${{ github.ref_name }}
-          title: "chore: update formula and package for ${{ github.ref_name }}"
-          body: Updates formula and package for ${{ github.ref_name }}.
-          add-paths: Formula/cursor.rb, package.json
