@@ -424,42 +424,66 @@ void Agent::redraw_messages() {
   int scroll_bot = h - 3;
   int visible = scroll_bot - 1;
 
-  // scroll_offset_ counts lines from the end.
-  // Find the first message to show by walking backwards from the end.
-  int lines_from_end = scroll_offset_;
+  if (messages_.empty()) {
+    msg_cursor_row_ = 2;
+    Utils::UI::draw_scrollbar(0, visible, 0);
+    return;
+  }
+
+  // scroll_offset_ is lines from the end to skip.
+  // Determine which messages are visible.
+  int remaining = visible;
   size_t first = messages_.size();
+
+  // Walk backwards from the end, skipping scroll_offset_ lines
+  // then collecting messages until visible is filled.
+  int skip = scroll_offset_;
   for (size_t i = messages_.size(); i > 0; i--) {
-    int prev = lines_from_end - messages_[i - 1].lines;
-    if (prev < 0) {
+    int msg_lines = messages_[i - 1].lines;
+    if (skip >= msg_lines) {
+      skip -= msg_lines;
+      continue;
+    }
+    // This message partially contributes to the skipped lines.
+    // We don't do partial messages, so we show it whole.
+    // That means (msg_lines - skip) more lines taken than intended.
+    // We adjust remaining by those extra lines.
+    remaining -= (msg_lines - skip);
+    if (remaining >= 0) {
       first = i - 1;
+      skip = 0;
+      // Keep going further back to fill more space
+      continue;
+    }
+    break;
+  }
+
+  // If remaining > 0 after including all messages, adjust
+  if (first == messages_.size() && skip == 0)
+    first = 0;
+
+  // Draw messages from first to as many as fit
+  int row = 2;
+  for (size_t i = first; i < messages_.size() && remaining >= 0; i++) {
+    int msg_lines = messages_[i].lines;
+    if (msg_lines <= remaining) {
+      Utils::UI::cursor_to(row, 1);
+      Utils::UI::clear_line();
+      std::cout << messages_[i].text;
+      row += msg_lines;
+      remaining -= msg_lines;
+    } else {
       break;
     }
-    lines_from_end = prev;
   }
 
-  // Walk forward from first to see how many messages fit
-  int row = 2;
-  size_t last = first;
-  int used = 0;
-  for (size_t i = first; i < messages_.size(); i++) {
-    if (used + messages_[i].lines > visible) break;
-    used += messages_[i].lines;
-    last = i + 1;
-  }
-
-  for (size_t i = first; i < last; i++) {
-    Utils::UI::cursor_to(row, 1);
-    Utils::UI::clear_line();
-    std::cout << messages_[i].text;
-    row += messages_[i].lines;
-  }
+  // Clear remaining lines
   for (; row <= scroll_bot; row++) {
     Utils::UI::cursor_to(row, 1);
     Utils::UI::clear_line();
   }
   Utils::UI::draw_scrollbar(total_lines_, visible, scroll_offset_);
-
-  msg_cursor_row_ = 2 + used;
+  msg_cursor_row_ = row;
 }
 
 std::string Agent::process_user_input(const std::string &input) {
