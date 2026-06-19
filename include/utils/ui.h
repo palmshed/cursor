@@ -39,5 +39,20 @@ CURSOR_API void print_system_info(const std::string &mode,
 CURSOR_API void print_ready_interface(const std::string &mode,
                                          const std::string &model);
 CURSOR_API std::string prompt_user(const std::string &prompt_text);
+
+// Terminal management (chat mode)
+CURSOR_API int get_terminal_width();
+CURSOR_API int get_terminal_height();
+CURSOR_API void clear_screen();
+CURSOR_API void enter_chat_mode();
+CURSOR_API void exit_chat_mode();
+CURSOR_API void clear_line();
+CURSOR_API void cursor_to(int line, int col);
+CURSOR_API void draw_status_line(const std::string &mode,
+                                 const std::string &model,
+                                 const std::string &dir);
+CURSOR_API void draw_context_line(const std::string &hints);
+CURSOR_API void draw_input_bar(const std::string &text = "",
+                               bool focused = true);
 } // namespace UI
 } // namespace Utils

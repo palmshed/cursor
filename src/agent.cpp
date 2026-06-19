@@ -31,12 +31,18 @@
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <signal.h>
 #include <sstream>
 #include <termios.h>
 #include <vector>
 
 // Constants for response handling
 const size_t MAX_RESPONSE_LENGTH = 8000;
+
+static std::atomic<bool> g_resized{false};
+extern "C" void handle_sigwinch(int) {
+  g_resized = true;
+}
 
 // Using the Mode enum from agent.h instead of separate constants
 
@@ -59,21 +65,61 @@ static inline std::string trim_copy(const std::string &s) {
   return s.substr(a, b - a);
 }
 
+static void print_tty_user_msg(const std::string &text) {
+  std::cout << Utils::Color::CYAN << "\u2502 " << Utils::Color::RESET  // │
+            << Utils::Color::BOLD << "You" << Utils::Color::RESET << "\n"
+            << Utils::Color::CYAN << "\u2502 " << Utils::Color::RESET
+            << text << "\n\n";
+}
+
 void Agent::run() {
   initialize_mode();
 
-  // Show minimal ready interface
   std::string mode_name = is_online_mode() ? "Online" : "Offline";
   std::string model_name = ollama_model_.empty()
       ? "local"
       : ollama_model_;
-  Utils::UI::print_ready_interface(mode_name, model_name);
+  bool tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
+
+  if (tty) {
+    Utils::UI::enter_chat_mode();
+    struct sigaction sa;
+    sa.sa_handler = handle_sigwinch;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGWINCH, &sa, nullptr);
+    std::error_code ec;
+    auto cwd = std::filesystem::current_path(ec);
+    std::string dir = ec ? "~" : cwd.filename().string();
+    Utils::UI::draw_status_line(mode_name, model_name, dir);
+    Utils::UI::draw_context_line(
+        "\xE2\x8C\x98P palette  :cmd  !shell  ? help");  // ⌘P
+    Utils::UI::draw_input_bar();
+    std::cout << "\033[?25l";
+  } else {
+    Utils::UI::print_ready_interface(mode_name, model_name);
+  }
 
   while (true) {
-    std::cout << "> ";
+    if (g_resized.exchange(false)) {
+      Utils::UI::enter_chat_mode();
+      std::error_code ec;
+      auto cwd = std::filesystem::current_path(ec);
+      std::string dir = ec ? "~" : cwd.filename().string();
+      Utils::UI::draw_status_line(mode_name, model_name, dir);
+      Utils::UI::draw_context_line(
+          "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
+    }
     std::string user_input;
+    if (tty) {
+      Utils::UI::draw_input_bar();
+      std::cout << "\033[?25h" << std::flush;
+    } else {
+      std::cout << "> " << std::flush;
+    }
+
     if (!std::getline(std::cin, user_input)) {
-      break; // EOF or error
+      break;
     }
 
     user_input = trim_copy(user_input);
@@ -82,15 +128,29 @@ void Agent::run() {
 
     if (user_input == "exit" || user_input == "quit")
       break;
+
+    // Clear input bar and move to scroll region for output
+    if (tty) {
+      int h = Utils::UI::get_terminal_height();
+      Utils::UI::cursor_to(h - 1, 1);
+      Utils::UI::clear_line();
+      Utils::UI::cursor_to(2, 1);
+    }
+
     if (user_input == "help") {
-      Utils::UI::print_help();
-      continue;
-    }
-    if (user_input == "version") {
+      if (tty) {
+        print_tty_user_msg("asked for help");
+        Utils::UI::print_help();
+      } else {
+        Utils::UI::print_help();
+      }
+    } else if (user_input == "version") {
+      if (tty)
+        print_tty_user_msg("checked version");
       Version::print_version_info();
-      continue;
-    }
-    if (user_input == "update") {
+    } else if (user_input == "update") {
+      if (tty)
+        print_tty_user_msg("checked for updates");
       std::cout << "Checking for updates...\n";
       std::string latest = Version::check_update();
       if (latest.empty()) {
@@ -99,12 +159,27 @@ void Agent::run() {
       } else if (Version::download_and_install(latest)) {
         std::cout << "Restart cursor to use the new version.\n";
       }
-      continue;
+    } else {
+      if (tty)
+        print_tty_user_msg(user_input);
+      if (tty) {
+        std::cout << Utils::Color::GREEN << "\u2502 " << Utils::Color::RESET
+                  << Utils::Color::BOLD << "Cursor" << Utils::Color::RESET << "\n"
+                  << Utils::Color::GREEN << "\u2502 " << Utils::Color::RESET;
+      }
+      process_user_input(user_input);
     }
 
-    process_user_input(user_input);
+    if (tty) {
+      Utils::UI::draw_context_line(
+          "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
+    }
   }
 
+  if (tty) {
+    Utils::UI::exit_chat_mode();
+    Utils::UI::clear_screen();
+  }
   std::cout << "Goodbye\n";
 }
 

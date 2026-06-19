@@ -4,6 +4,12 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
 
 namespace Utils {
 
@@ -291,12 +297,93 @@ void UI::print_ready_interface(const std::string &mode,
 
 // ===== Prompted Input =====
 std::string UI::prompt_user(const std::string &prompt_text) {
-  // Only print the prompt once with consistent formatting
   std::cout << Color::BOLD << "[You] " << prompt_text << Color::RESET << " > ";
-
   std::string input;
   std::getline(std::cin, input);
   return input;
+}
+
+// ===== Terminal Management =====
+int UI::get_terminal_width() {
+#ifndef _WIN32
+  struct winsize w;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_col > 0)
+    return w.ws_col;
+#endif
+  return 80;
+}
+
+int UI::get_terminal_height() {
+#ifndef _WIN32
+  struct winsize w;
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0 && w.ws_row > 0)
+    return w.ws_row;
+#endif
+  return 24;
+}
+
+void UI::clear_screen() {
+  std::cout << "\033[2J\033[H";
+}
+
+void UI::enter_chat_mode() {
+  int h = get_terminal_height();
+  // Scroll region: lines 2 through h-3
+  // Lines 1 (StatusLine), h-2 (ContextLine), h-1 (InputBar) are fixed
+  int scroll_bot = h - 3;
+  if (scroll_bot > 1) {
+    std::cout << "\033[2;" << scroll_bot << "r";
+  }
+  clear_screen();
+}
+
+void UI::exit_chat_mode() {
+  std::cout << "\033[?25h\033[r";
+}
+
+void UI::clear_line() {
+  std::cout << "\033[2K\r";
+}
+
+void UI::cursor_to(int line, int col) {
+  std::cout << "\033[" << line << ";" << col << "H";
+}
+
+void UI::draw_status_line(const std::string &mode,
+                          const std::string &model,
+                          const std::string &dir) {
+  cursor_to(1, 1);
+  clear_line();
+  std::cout << Color::DIM << "\u25C9 " << Color::RESET  // ◉
+            << mode << "    "
+            << Color::BOLD << model << Color::RESET
+            << "    " << Color::DIM << dir << Color::RESET;
+  std::cout.flush();
+}
+
+void UI::draw_context_line(const std::string &hints) {
+  int h = get_terminal_height();
+  cursor_to(h - 2, 1);
+  clear_line();
+  if (!hints.empty()) {
+    std::cout << Color::DIM << hints << Color::RESET;
+  }
+  std::cout.flush();
+}
+
+void UI::draw_input_bar(const std::string &text, bool focused) {
+  int h = get_terminal_height();
+  cursor_to(h - 1, 1);
+  clear_line();
+  std::cout << Color::CYAN << "> " << Color::RESET;
+  if (text.empty()) {
+    std::cout << Color::DIM << "Ask anything..." << Color::RESET;
+    cursor_to(h - 1, 3);
+  } else {
+    std::cout << text;
+    cursor_to(h - 1, 3 + (int)text.size());
+  }
+  std::cout.flush();
 }
 
 } // namespace Utils
