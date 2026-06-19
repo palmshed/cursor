@@ -45,7 +45,7 @@ void UI::print_logo() {
             << Color::BOLD << "          CURSOR\n"
             << Color::RESET;
 
-  std::cout << Color::DIM << "Welcome to Cursor - Choose your mode below.\n"
+  std::cout << Color::DIM << "Choose a mode.\n"
             << Color::RESET;
 
   print_divider();
