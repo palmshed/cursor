@@ -49,9 +49,15 @@ jobs:
         run: |
           export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
           brew install cmake nlohmann-json
+          # remove brew curl/cpr so cmake uses system curl and builds cpr from source
+          brew uninstall --ignore-dependencies curl cpr 2>/dev/null || true
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          SDK=$(xcrun --show-sdk-path)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCURL_INCLUDE_DIR="$SDK/usr/include" \
+            -DCURL_LIBRARY="$SDK/usr/lib/libcurl.tbd"
 
       - name: Build
         run: cmake --build build --config Release
