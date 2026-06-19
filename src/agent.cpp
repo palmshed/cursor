@@ -93,6 +93,15 @@ static std::string read_line() {
         buf.pop_back();
         Utils::UI::draw_input_bar(buf);
       }
+    } else if (ch == '\033') {
+      // Discard escape sequences (arrow keys, etc.)
+      if (std::cin.get() == '[') {
+        while (true) {
+          int c = std::cin.get();
+          if (c == EOF || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+            break;
+        }
+      }
     } else if (ch >= 32 && ch < 127) {
       buf.push_back((char)ch);
       Utils::UI::draw_input_bar(buf);
