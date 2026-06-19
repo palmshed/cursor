@@ -53,9 +53,9 @@ public:
   int show_menu(const std::string &title,
                 const std::vector<std::string> &items,
                 int default_index);
-  void process_user_input(const std::string &input);
+  std::string process_user_input(const std::string &input);
   void handle_direct_command(const std::string &input);
-  void handle_ai_chat(const std::string &input);
+  std::string handle_ai_chat(const std::string &input);
   void handle_file_injection_command(const std::string &input);
   void handle_shell_command(const std::string &input);
   void handle_meta_command(const std::string &input);

@@ -37,22 +37,6 @@
 #include <termios.h>
 #include <vector>
 
-class TeeBuf : public std::streambuf {
-  std::streambuf *target_;
-  std::string &capture_;
-public:
-  TeeBuf(std::streambuf *t, std::string &c) : target_(t), capture_(c) {}
-protected:
-  int overflow(int c) override {
-    if (c != EOF) {
-      capture_ += (char)c;
-      if (target_->sputc(c) == EOF) return EOF;
-    }
-    return c;
-  }
-  int sync() override { return target_->pubsync(); }
-};
-
 // Constants for response handling
 const size_t MAX_RESPONSE_LENGTH = 8000;
 
@@ -244,30 +228,21 @@ void Agent::run() {
       }
     } else {
       if (tty) {
-        // Build and store user message
         std::string user_msg =
             Utils::Color::CYAN + "\u2502 " + Utils::Color::RESET +
             Utils::Color::BOLD + "You" + Utils::Color::RESET + "\n" +
             Utils::Color::CYAN + "\u2502 " + Utils::Color::RESET +
             user_input + "\n\n";
         store_message(user_msg);
-
-        // Print user message and Cursor header
         std::cout << user_msg;
+
         std::string cursor_hdr =
             Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET +
             Utils::Color::BOLD + "Cursor" + Utils::Color::RESET + "\n" +
             Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET;
-
-        std::string ai_capture;
-        TeeBuf tee(std::cout.rdbuf(), ai_capture);
-        auto old = std::cout.rdbuf(&tee);
-
         std::cout << cursor_hdr;
-        process_user_input(user_input);
-        std::cout.rdbuf(old);
 
-        store_message(cursor_hdr + ai_capture);
+        process_user_input(user_input);
       } else {
         process_user_input(user_input);
       }
@@ -431,7 +406,6 @@ void Agent::store_message(const std::string &text) {
 
 void Agent::redraw_messages() {
   int h = Utils::UI::get_terminal_height();
-  int w = Utils::UI::get_terminal_width();
   int scroll_bot = h - 3;
   int visible = scroll_bot - 1;  // rows 2..scroll_bot
 
@@ -512,34 +486,34 @@ void Agent::redraw_messages() {
   Utils::UI::draw_scrollbar(total_lines_, visible, scroll_offset_);
 }
 
-void Agent::process_user_input(const std::string &input) {
+std::string Agent::process_user_input(const std::string &input) {
   command_count_++;
   std::string trimmed_input = trim_copy(input);
 
   // Handle @ file injection commands
   if (trimmed_input.find('@') != std::string::npos) {
     handle_file_injection_command(trimmed_input);
-    return;
+    return {};
   }
 
   // Handle ! shell commands
   if (trimmed_input.starts_with("!")) {
     handle_shell_command(trimmed_input);
-    return;
+    return {};
   }
 
   // Handle / meta commands
   if (trimmed_input.starts_with("/")) {
     handle_meta_command(trimmed_input);
-    return;
+    return {};
   }
 
   // Check for direct commands (detect colon)
   if (trimmed_input.find(':') != std::string::npos) {
     handle_direct_command(trimmed_input);
-  } else {
-    handle_ai_chat(trimmed_input);
+    return {};
   }
+  return handle_ai_chat(trimmed_input);
 }
 
 void Agent::handle_direct_command(const std::string &input) {
@@ -810,7 +784,7 @@ void Agent::handle_direct_command(const std::string &input) {
   }
 }
 
-void Agent::handle_ai_chat(const std::string &input) {
+std::string Agent::handle_ai_chat(const std::string &input) {
   if (!ai_service_) {
     ai_service_ = std::make_unique<Services::AIService>(mode_, api_key_);
     if (!ollama_model_.empty()) {
@@ -819,8 +793,9 @@ void Agent::handle_ai_chat(const std::string &input) {
   }
 
   if (!ai_service_->is_available()) {
-    std::cout << "AI service unavailable\n";
-    return;
+    std::string msg = "AI service unavailable\n";
+    std::cout << msg;
+    return msg;
   }
 
   std::atomic<bool> done(false);
@@ -843,16 +818,28 @@ void Agent::handle_ai_chat(const std::string &input) {
     spin.join();
 
   if (!response.empty()) {
-    std::cout << response << std::endl;
+    response += "\n";
+    std::cout << response;
     memory_->save_interaction(input, response);
+
+    // Store formatted message for scroll history
+    std::string formatted =
+        Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET +
+        Utils::Color::BOLD + "Cursor" + Utils::Color::RESET + "\n" +
+        Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET + response;
+    store_message(formatted);
+
+    return response;
   } else {
-    std::cout << "No response\n";
+    std::string msg = "No response\n";
+    std::cout << msg;
+    return msg;
   }
 }
 
 void Agent::handle_file_injection_command(const std::string &input) {
-  // Process @ file injections and then send to AI
   std::string processed_input = process_file_injections(input);
+  // Result is printed by the caller via process_user_input's return
   handle_ai_chat(processed_input);
 }
 
