@@ -181,7 +181,7 @@ bool download_and_install(const std::string &version) {
     }
   }
 
-  std::string extracted = tmpDir + std::filesystem::path::preferred_separator + binary_name;
+  std::string extracted = tmpDir + "/" + binary_name;
   if (!std::filesystem::exists(extracted)) {
     std::cerr << "Extracted binary not found: " << extracted << "\n";
     std::filesystem::rename(backup, exe);

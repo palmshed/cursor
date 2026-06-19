@@ -531,8 +531,8 @@ std::string Agent::format_message(const std::string &sender,
     color = Utils::Color::GREEN;
   else
     color = Utils::Color::CYAN;
-  return color + "\u2502 " + Utils::Color::RESET + Utils::Color::BOLD +
-         sender + Utils::Color::RESET + "\n" + color + "\u2502 " +
+  return Utils::Color::GREEN + "| " + Utils::Color::RESET + Utils::Color::BOLD +
+         sender + Utils::Color::RESET + "\n" + color + "| " +
          Utils::Color::RESET + content;
 }
 
@@ -673,6 +673,7 @@ int Agent::show_menu(const std::string &title,
   }
 
 #ifdef _WIN32
+  (void)title;
   return default_index;
 #else
   int selected = std::clamp(default_index, 0, (int)items.size() - 1);
