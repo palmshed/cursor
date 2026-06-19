@@ -1,6 +1,6 @@
 {
   "name": "@bniladridas/cursor",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Cross-platform AI coding agent",
   "bin": {
     "cursor": "cli.js"
