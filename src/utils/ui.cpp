@@ -328,38 +328,10 @@ void UI::clear_screen() {
 
 void UI::enter_chat_mode() {
   clear_screen();
-  enable_mouse();
 }
 
 void UI::exit_chat_mode() {
-  disable_mouse();
   std::cout << "\033[?25h";
-}
-
-void UI::enable_mouse() {
-  std::cout << "\033[?1000h\033[?1002h\033[?1006h" << std::flush;
-}
-
-void UI::disable_mouse() {
-  std::cout << "\033[?1006l\033[?1002l\033[?1000l" << std::flush;
-}
-
-void UI::draw_scrollbar(int total, int visible, int offset) {
-  if (total <= visible) return;
-  int h = get_terminal_height();
-  int scroll_bot = h - 3;
-  int track_h = scroll_bot - 1;  // rows 2..scroll_bot
-  int thumb = track_h > 1 ? (offset * (track_h - 1)) / (total - visible) : 0;
-  // Draw thumb character at row 2 + thumb, rightmost column
-  int w = get_terminal_width();
-  for (int row = 2; row <= scroll_bot; row++) {
-    cursor_to(row, w);
-    if (row - 2 == thumb && track_h > 1)
-      std::cout << "\033[37m\u2588\033[0m";  // white block
-    else
-      std::cout << "\033[2m\u2502\033[0m";   // dim vertical bar
-  }
-  std::cout.flush();
 }
 
 void UI::clear_line() {
@@ -392,7 +364,7 @@ void UI::draw_context_line(const std::string &hints) {
   std::cout.flush();
 }
 
-void UI::draw_input_bar(const std::string &text, bool focused) {
+void UI::draw_input_bar(const std::string &text, bool /*focused*/) {
   int h = get_terminal_height();
   cursor_to(h - 1, 1);
   clear_line();

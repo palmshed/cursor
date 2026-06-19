@@ -38,8 +38,6 @@ private:
   long long token_usage_{0};
 
   std::deque<MessageBlock> messages_;
-  int scroll_offset_{0};
-  int total_lines_{0};
   int msg_cursor_row_{2};
 
 public:

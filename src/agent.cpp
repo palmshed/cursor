@@ -28,7 +28,6 @@
 #include <unistd.h>
 
 #include <filesystem>
-#include <functional>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -78,8 +77,7 @@ std::string Agent::format_message(const std::string &sender,
          Utils::Color::RESET + content + "\n\n";
 }
 
-static std::string read_line(
-    std::function<void(int)> on_scroll = nullptr) {
+static std::string read_line() {
   std::string buf;
   struct termios oldt, newt;
   tcgetattr(STDIN_FILENO, &oldt);
@@ -99,36 +97,6 @@ static std::string read_line(
       if (!buf.empty()) {
         buf.pop_back();
         Utils::UI::draw_input_bar(buf);
-      }
-    } else if (ch == '\033') {
-      if (std::cin.get() == '[') {
-        int c = std::cin.get();
-        if (c == '5' && std::cin.get() == '~' && on_scroll) {
-          // PgUp
-          on_scroll(Utils::UI::get_terminal_height() - 4);
-        } else if (c == '6' && std::cin.get() == '~' && on_scroll) {
-          // PgDn
-          on_scroll(-(Utils::UI::get_terminal_height() - 4));
-        } else if (c == '<') {
-          // SGR mouse event: <button;col;row M/m
-          std::string params;
-          while (true) {
-            int p = std::cin.get();
-            if (p == EOF) break;
-            if (p == 'M' || p == 'm') break;
-            params += (char)p;
-          }
-          if (on_scroll) {
-            auto sep = params.find(';');
-            if (sep != std::string::npos) {
-              int btn = std::stoi(params.substr(0, sep));
-              if (btn == 64)      on_scroll(3);   // wheel up
-              else if (btn == 65) on_scroll(-3);  // wheel down
-            }
-          }
-        } else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
-          // Regular arrow/function key, discard
-        }
       }
     } else if (ch >= 32 && ch < 127) {
       buf.push_back((char)ch);
@@ -176,14 +144,7 @@ void Agent::run() {
       Utils::UI::draw_input_bar();
       redraw_messages();
       std::cout << "\033[?25h" << std::flush;
-      user_input = read_line([this](int delta) {
-        int h = Utils::UI::get_terminal_height();
-        int visible = h - 4;
-        int max_offset = std::max(0, total_lines_ - visible);
-        scroll_offset_ = std::clamp(scroll_offset_ + delta, 0, max_offset);
-        redraw_messages();
-        Utils::UI::draw_input_bar();
-      });
+      user_input = read_line();
       // Hide cursor during response processing
       std::cout << "\033[?25l";
     } else {
@@ -196,8 +157,6 @@ void Agent::run() {
     user_input = trim_copy(user_input);
     if (user_input.empty())
       continue;
-
-    scroll_offset_ = 0;
 
     if (user_input == "exit" || user_input == "quit")
       break;
@@ -419,73 +378,25 @@ void Agent::store_message(const std::string &sender,
   std::string formatted = format_message(sender, content);
   int l = count_lines(formatted);
   messages_.push_back({sender, content, l});
-  total_lines_ += l;
 }
 
 void Agent::redraw_messages() {
   int h = Utils::UI::get_terminal_height();
   int scroll_bot = h - 3;
-  int visible = scroll_bot - 1;
 
-  if (messages_.empty()) {
-    msg_cursor_row_ = 2;
-    Utils::UI::draw_scrollbar(0, visible, 0);
-    return;
-  }
-
-  // scroll_offset_ is lines from the end to skip.
-  // Determine which messages are visible.
-  int remaining = visible;
-  size_t first = messages_.size();
-
-  // Walk backwards from the end, skipping scroll_offset_ lines
-  // then collecting messages until visible is filled.
-  int skip = scroll_offset_;
-  for (size_t i = messages_.size(); i > 0; i--) {
-    int msg_lines = messages_[i - 1].lines;
-    if (skip >= msg_lines) {
-      skip -= msg_lines;
-      continue;
-    }
-    // This message partially contributes to the skipped lines.
-    // We don't do partial messages, so we show it whole.
-    // That means (msg_lines - skip) more lines taken than intended.
-    // We adjust remaining by those extra lines.
-    remaining -= (msg_lines - skip);
-    if (remaining >= 0) {
-      first = i - 1;
-      skip = 0;
-      // Keep going further back to fill more space
-      continue;
-    }
-    break;
-  }
-
-  // If remaining > 0 after including all messages, adjust
-  if (first == messages_.size() && skip == 0)
-    first = 0;
-
-  // Draw messages from first to as many as fit
   int row = 2;
-  for (size_t i = first; i < messages_.size() && remaining >= 0; i++) {
-    int msg_lines = messages_[i].lines;
-    if (msg_lines <= remaining) {
-      Utils::UI::cursor_to(row, 1);
-      Utils::UI::clear_line();
-      std::cout << format_message(messages_[i].sender, messages_[i].content);
-      row += msg_lines;
-      remaining -= msg_lines;
-    } else {
-      break;
-    }
+  for (size_t i = 0; i < messages_.size(); i++) {
+    Utils::UI::cursor_to(row, 1);
+    Utils::UI::clear_line();
+    std::cout << format_message(messages_[i].sender, messages_[i].content);
+    row += messages_[i].lines;
   }
 
-  // Clear remaining lines
+  // Clear remaining lines below messages
   for (; row <= scroll_bot; row++) {
     Utils::UI::cursor_to(row, 1);
     Utils::UI::clear_line();
   }
-  Utils::UI::draw_scrollbar(total_lines_, visible, scroll_offset_);
   msg_cursor_row_ = row;
 }
 
