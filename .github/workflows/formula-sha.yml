@@ -42,6 +42,8 @@ jobs:
           TAG="$tag" SHA="$sha" ruby -0pi -e 'gsub(/url "https:\/\/github\.com\/bniladridas\/cursor\/archive\/refs\/tags\/v[^\"]+\.tar\.gz"/, "url \"https:\/\/github.com\/bniladridas\/cursor\/archive\/refs\/tags\/#{ENV.fetch("TAG")}.tar.gz\""); gsub(/sha256 "[0-9a-f]{64}"/, "sha256 \"#{ENV.fetch("SHA")}\"")' Formula/cursor.rb
           rm source.tar.gz
 
+          sed -i "s|root_url \".*\"|root_url \"https://github.com/bniladridas/cursor/releases/download/${tag}\"|" Formula/cursor.rb
+
           bottle_url="https://github.com/bniladridas/cursor/releases/download/${tag}/cursor-${version}.arm64_sequoia.bottle.tar.gz"
           if curl -fsSL "$bottle_url" -o bottle.tar.gz; then
             bottle_sha="$(sha256sum bottle.tar.gz | awk '{print $1}')"

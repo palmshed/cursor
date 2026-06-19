@@ -64,14 +64,21 @@ jobs:
 
       - name: Package
         run: |
+          version="${GITHUB_REF_NAME#v}"
           mkdir -p release
           cp build/bin/cursor-agent release/cursor-macos
           cd release && tar -czf cursor_${GITHUB_REF_NAME}_darwin_arm64.tar.gz cursor-macos
+          # build bottle
+          mkdir -p bottle/cursor/${version}/bin
+          cp ../build/bin/cursor-agent bottle/cursor/${version}/bin/cursor-agent
+          tar -C bottle -czf release/cursor-${version}.arm64_sequoia.bottle.tar.gz cursor
 
       - uses: actions/upload-artifact@v6
         with:
           name: cursor-macos
-          path: release/*.tar.gz
+          path: |
+            release/*.tar.gz
+            release/*.bottle.tar.gz
 
   windows:
     runs-on: windows-latest
@@ -141,6 +148,14 @@ jobs:
           curl -sL "https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz" -o /tmp/source.tar.gz
           echo "SOURCE_SHA=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
 
+      - name: Compute bottle SHA
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          bottle=$(find release -name "*.bottle.tar.gz" | head -1)
+          if [ -n "$bottle" ]; then
+            echo "BOTTLE_SHA=$(sha256sum "$bottle" | cut -d' ' -f1)" >> $GITHUB_ENV
+          fi
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -156,6 +171,10 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
           sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor.rb
+          sed -i "s|root_url \".*\"|root_url \"https://github.com/bniladridas/cursor/releases/download/${GITHUB_REF_NAME}\"|" Formula/cursor.rb
+          if [ -n "${BOTTLE_SHA}" ]; then
+            sed -i "s|sha256 arm64_sequoia: \".*\"|sha256 arm64_sequoia: \"${BOTTLE_SHA}\"|" Formula/cursor.rb
+          fi
 
       - name: Update package version
         run: |

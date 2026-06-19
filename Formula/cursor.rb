@@ -5,6 +5,11 @@ class Cursor < Formula
   sha256 "3bd20c26f2efee7dacb13611c6827490b13600d0d3fe37aae8f2ef04f53315b0"
   license "Apache-2.0"
 
+  bottle do
+    root_url "https://github.com/bniladridas/cursor/releases/download/v0.1.13"
+    sha256 arm64_sequoia: "PLACEHOLDER"
+  end
+
   depends_on "cmake" => :build
   depends_on "cpr"
   depends_on "nlohmann-json"
