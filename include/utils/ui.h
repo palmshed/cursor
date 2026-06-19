@@ -53,6 +53,6 @@ CURSOR_API void draw_status_line(const std::string &mode,
                                  const std::string &dir);
 CURSOR_API void draw_context_line(const std::string &hints);
   CURSOR_API void draw_input_bar(const std::string &text = "",
-                                bool focused = true);
+                                int cursor_pos = -1);
 } // namespace UI
 } // namespace Utils

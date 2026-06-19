@@ -364,7 +364,7 @@ void UI::draw_context_line(const std::string &hints) {
   std::cout.flush();
 }
 
-void UI::draw_input_bar(const std::string &text, bool /*focused*/) {
+void UI::draw_input_bar(const std::string &text, int cursor_pos) {
   int h = get_terminal_height();
   cursor_to(h - 1, 1);
   clear_line();
@@ -374,7 +374,8 @@ void UI::draw_input_bar(const std::string &text, bool /*focused*/) {
     cursor_to(h - 1, 3);
   } else {
     std::cout << text;
-    cursor_to(h - 1, 3 + (int)text.size());
+    int pos = (cursor_pos < 0) ? (int)text.size() : cursor_pos;
+    cursor_to(h - 1, 3 + pos);
   }
   std::cout.flush();
 }

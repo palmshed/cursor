@@ -79,6 +79,7 @@ std::string Agent::format_message(const std::string &sender,
 
 static std::string read_line() {
   std::string buf;
+  int cursor = 0;
   struct termios oldt, newt;
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
@@ -94,13 +95,32 @@ static std::string read_line() {
       break;
     }
     if (ch == 127 || ch == '\b') {
-      if (!buf.empty()) {
-        buf.pop_back();
-        Utils::UI::draw_input_bar(buf);
+      if (cursor > 0) {
+        buf.erase(cursor - 1, 1);
+        cursor--;
+        Utils::UI::draw_input_bar(buf, cursor);
+      }
+    } else if (ch == '\033') {
+      if (std::cin.get() == '[') {
+        int c = std::cin.get();
+        if (c == 'D' && cursor > 0) {
+          cursor--;
+          Utils::UI::draw_input_bar(buf, cursor);
+        } else if (c == 'C' && cursor < (int)buf.size()) {
+          cursor++;
+          Utils::UI::draw_input_bar(buf, cursor);
+        } else if (c == 'H') {
+          cursor = 0;
+          Utils::UI::draw_input_bar(buf, 0);
+        } else if (c == 'F') {
+          cursor = (int)buf.size();
+          Utils::UI::draw_input_bar(buf, cursor);
+        }
       }
     } else if (ch >= 32 && ch < 127) {
-      buf.push_back((char)ch);
-      Utils::UI::draw_input_bar(buf);
+      buf.insert(cursor, 1, (char)ch);
+      cursor++;
+      Utils::UI::draw_input_bar(buf, cursor);
     }
   }
 
