@@ -17,12 +17,6 @@ jobs:
 
     steps:
       - uses: actions/create-github-app-token@v3
-        id: app-token
-        with:
-          client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.CURSOR_BOT_PRIVATE_KEY }}
-
-      - uses: actions/create-github-app-token@v3
         id: tap-token
         with:
           client-id: ${{ secrets.CURSOR_BOT_CLIENT_ID }}
@@ -41,8 +35,9 @@ jobs:
           tag="${{ steps.tag.outputs.tag }}"
           version="${tag#v}"
 
-          git clone https://github.com/palmshed/homebrew-cursor /tmp/homebrew-cursor
-          cd /tmp/homebrew-cursor
+          TAPDIR=$(mktemp -d)
+          git clone https://github.com/palmshed/homebrew-cursor "$TAPDIR"
+          cd "$TAPDIR"
 
           url="https://github.com/bniladridas/cursor/archive/refs/tags/${tag}.tar.gz"
           curl -fsSL "$url" -o source.tar.gz

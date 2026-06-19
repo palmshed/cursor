@@ -19,7 +19,7 @@ esac
 case "$(uname -m)" in
   arm64|aarch64) ARCH="arm64" ;;
   x86_64|amd64)  ARCH="amd64" ;;
-  *)             echo "unsupported arch: $(uname -m)"; exit 1 ;;
+  *)             echo "unsupported arch: $(uname -m) (only amd64 and arm64 are supported)"; exit 1 ;;
 esac
 
 if [ "$OS" = "darwin" ] && [ "$ARCH" = "arm64" ]; then
@@ -38,7 +38,7 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 echo "downloading cursor v${VERSION} for ${OS}/${ARCH}..."
-curl -fsSL "$URL" -o "$TMPDIR/$ARCHIVE"
+curl -fsSL "$URL" -o "$TMPDIR/$ARCHIVE" || { echo "download failed: $URL"; exit 1; }
 
 echo "extracting..."
 tar -xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR"

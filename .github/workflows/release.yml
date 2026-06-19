@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
   id-token: write
 
 jobs:
@@ -179,8 +178,9 @@ jobs:
           GH_TOKEN: ${{ steps.tap-token.outputs.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          git clone https://github.com/palmshed/homebrew-cursor /tmp/homebrew-cursor
-          cd /tmp/homebrew-cursor
+          TAPDIR=$(mktemp -d)
+          git clone https://github.com/palmshed/homebrew-cursor "$TAPDIR"
+          cd "$TAPDIR"
           sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
           sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor.rb
           sed -i "s|root_url \".*\"|root_url \"https://github.com/bniladridas/cursor/releases/download/${GITHUB_REF_NAME}\"|" Formula/cursor.rb
