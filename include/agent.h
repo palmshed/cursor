@@ -39,6 +39,7 @@ private:
 
   std::deque<MessageBlock> messages_;
   int msg_cursor_row_{2};
+  bool needs_screen_reset_{false};
 
 public:
   // Move operations

@@ -155,13 +155,17 @@ void Agent::run() {
     }
     std::string user_input;
     if (tty) {
+      if (needs_screen_reset_) {
+        needs_screen_reset_ = false;
+        Utils::UI::clear_screen();
+      }
       std::error_code ec;
       auto cwd = std::filesystem::current_path(ec);
       std::string dir = ec ? "~" : cwd.filename().string();
       Utils::UI::draw_status_line(mode_name, model_name, dir);
+      redraw_messages();
       Utils::UI::draw_context_line(
           "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
-      redraw_messages();
       Utils::UI::draw_input_bar();
       std::cout << "\033[?25h" << std::flush;
       user_input = read_line();
@@ -181,33 +185,29 @@ void Agent::run() {
     if (user_input == "exit" || user_input == "quit")
       break;
 
-    // Clear input bar and move cursor to after last message
-    if (tty) {
-      int h = Utils::UI::get_terminal_height();
-      int scroll_bot = h - 3;
-      Utils::UI::cursor_to(h - 1, 1);
-      Utils::UI::clear_line();
-      // Append new output right after the last drawn message
-      if (msg_cursor_row_ <= scroll_bot)
-        Utils::UI::cursor_to(msg_cursor_row_, 1);
-      else
-        Utils::UI::cursor_to(scroll_bot, 1);
-    }
+    // Input bar will be cleared and redrawn by draw_input_bar on next loop
 
     if (user_input == "help") {
       if (tty) {
-        std::cout << format_message("You", "asked for help") << "\n\n";
+        store_message("You", "asked for help");
+        redraw_messages();
         Utils::UI::print_help();
+        needs_screen_reset_ = true;
       } else {
         Utils::UI::print_help();
       }
     } else if (user_input == "version") {
-      if (tty)
-        std::cout << format_message("You", "checked version") << "\n";
+      if (tty) {
+        store_message("You", "checked version");
+        redraw_messages();
+      }
       Version::print_version_info();
+      if (tty) needs_screen_reset_ = true;
     } else if (user_input == "update") {
-      if (tty)
-        std::cout << format_message("You", "checked for updates") << "\n";
+      if (tty) {
+        store_message("You", "checked for updates");
+        redraw_messages();
+      }
       std::cout << "Checking for updates...\n";
       std::string latest = Version::check_update();
       if (latest.empty()) {
@@ -216,19 +216,26 @@ void Agent::run() {
       } else if (Version::download_and_install(latest)) {
         std::cout << "Restart cursor to use the new version.\n";
       }
+      if (tty) needs_screen_reset_ = true;
     } else {
       if (tty) {
-        std::string user_msg = format_message("You", user_input);
         store_message("You", user_input);
-        std::cout << user_msg << "\n\n";
+        redraw_messages();
+        Utils::UI::draw_input_bar();
+        std::cout << "\033[?25h" << std::flush;
 
-        std::string cursor_hdr =
-            Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET +
-            Utils::Color::BOLD + "Cursor" + Utils::Color::RESET + "\n" +
-            Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET;
-        std::cout << cursor_hdr;
-
+        bool is_direct_cmd = user_input.starts_with("!") ||
+                             user_input.starts_with("/") ||
+                             user_input.find('@') != std::string::npos ||
+                             user_input.find(':') != std::string::npos;
         process_user_input(user_input);
+
+        if (is_direct_cmd) {
+          needs_screen_reset_ = true;
+        }
+        redraw_messages();
+        Utils::UI::draw_input_bar();
+        std::cout << "\033[?25h" << std::flush;
       } else {
         process_user_input(user_input);
       }
@@ -425,6 +432,11 @@ std::string Agent::process_user_input(const std::string &input) {
   command_count_++;
   std::string trimmed_input = trim_copy(input);
 
+  if (shell_mode_ && !trimmed_input.starts_with("!")) {
+    handle_shell_command("!" + trimmed_input);
+    return {};
+  }
+
   // Handle @ file injection commands
   if (trimmed_input.find('@') != std::string::npos) {
     handle_file_injection_command(trimmed_input);
@@ -443,8 +455,9 @@ std::string Agent::process_user_input(const std::string &input) {
     return {};
   }
 
-  // Check for direct commands (detect colon)
-  if (trimmed_input.find(':') != std::string::npos) {
+  if (trimmed_input.find(':') != std::string::npos ||
+      trimmed_input == "memory" || trimmed_input == "clear" ||
+      trimmed_input == "forget") {
     handle_direct_command(trimmed_input);
     return {};
   }
@@ -727,9 +740,11 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     }
   }
 
+  bool tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
+
   if (!ai_service_->is_available()) {
     std::string msg = "AI service unavailable\n";
-    std::cout << msg;
+    if (!tty) std::cout << msg;
     return msg;
   }
 
@@ -753,8 +768,9 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     spin.join();
 
   if (!response.empty()) {
-    response += "\n";
-    std::cout << response;
+    if (!tty) {
+      std::cout << response << "\n";
+    }
     memory_->save_interaction(input, response);
 
     // Strip trailing newline for cleaner stored format
@@ -765,9 +781,10 @@ std::string Agent::handle_ai_chat(const std::string &input) {
 
     return response;
   } else {
-    std::string msg = "No response\n";
-    std::cout << msg;
-    return msg;
+    if (!tty) {
+      std::cout << "No response\n";
+    }
+    return "No response\n";
   }
 }
 

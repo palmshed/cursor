@@ -9,14 +9,14 @@
 #define NULL_DEVICE "NUL"
 #define PATH_SEPARATOR "\\"
 #define SHELL_REDIRECT " 2>NUL"
-#define SHELL_REDIRECT_BOTH " >NUL 2>&1"
+#define SHELL_REDIRECT_BOTH " 2>&1"
 #else
 #include <sys/wait.h>
 #include <unistd.h>
 #define NULL_DEVICE "/dev/null"
 #define PATH_SEPARATOR "/"
 #define SHELL_REDIRECT " 2>/dev/null"
-#define SHELL_REDIRECT_BOTH " >/dev/null 2>&1"
+#define SHELL_REDIRECT_BOTH " 2>&1"
 #endif
 
 #include <cstdio>

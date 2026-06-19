@@ -62,7 +62,10 @@ int main(int argc, char *argv[]) {
     Utils::Config::load_environment();
     Utils::UI::print_logo();
 
-    std::string latest = Version::check_update();
+    std::string latest;
+    if (!Utils::Config::has_env_var("CURSOR_SKIP_UPDATE_CHECK")) {
+      latest = Version::check_update();
+    }
     if (!latest.empty()) {
       std::cout << Utils::Color::YELLOW
                 << "Update available: v" << Version::get_version() << " -> v"

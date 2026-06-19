@@ -137,13 +137,21 @@ find_package(CURL REQUIRED)
 set(openssl_is_found FALSE)
 if(APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architectures for macOS" FORCE)
-    # Set deployment target based on environment
     if(DEFINED ENV{CI} OR DEFINED ENV{GITHUB_ACTIONS})
-        # Use compatible version for CI environments
         set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version" FORCE)
     else()
-        # Use current system version to avoid linker warnings with Homebrew libraries
-        set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version" FORCE)
+        execute_process(
+            COMMAND sw_vers -productVersion
+            OUTPUT_VARIABLE MACOS_PRODUCT_VERSION
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        string(REGEX MATCH "^[0-9]+\\.[0-9]+" MACOS_DEPLOYMENT_VERSION "${MACOS_PRODUCT_VERSION}")
+        if(MACOS_DEPLOYMENT_VERSION)
+            set(CMAKE_OSX_DEPLOYMENT_TARGET "${MACOS_DEPLOYMENT_VERSION}" CACHE STRING "Minimum macOS version" FORCE)
+        else()
+            set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version" FORCE)
+        endif()
     endif()
 
     # Use Homebrew's OpenSSL on macOS/arm64
@@ -246,7 +254,7 @@ if(PQXX_LIBRARY AND PQXX_INCLUDE_DIR)
     message(STATUS "Found libpqxx: ${PQXX_LIBRARY}")
 else()
     set(HAVE_PQXX FALSE)
-    message(WARNING "libpqxx not found. Database support will be disabled. Install libpqxx-dev to enable PostgreSQL support.")
+    message(STATUS "libpqxx not found. Database support will be disabled.")
 endif()
 
 # Find CPR - try to find the package first
@@ -346,6 +354,14 @@ if(CURSOR_BUILD_TESTS)
          set(BUILD_GTEST ON CACHE BOOL "" FORCE)
 
          FetchContent_MakeAvailable(googletest)
+
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            foreach(GTEST_TARGET gtest gtest_main gmock gmock_main)
+                if(TARGET ${GTEST_TARGET})
+                    target_compile_options(${GTEST_TARGET} PRIVATE -Wno-character-conversion)
+                endif()
+            endforeach()
+        endif()
 
         if(NOT TARGET gtest_all_tests)
             add_library(gtest_all_tests INTERFACE)
@@ -530,6 +546,10 @@ if(CURSOR_BUILD_TESTS)
         gtest
     )
     add_test(NAME basic_tests COMMAND cursor-tests)
+    add_test(
+        NAME local_batch_e2e
+        COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e/run_local_batch.sh $<TARGET_FILE:cursor-agent>
+    )
 
     set_target_properties(cursor-tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
@@ -594,26 +614,44 @@ include(CPack)
 
 
 
+set(CURSOR_CHECK_TEST_COMMANDS "")
+set(CURSOR_CHECK_DEPENDS cursor-agent)
+if(CURSOR_BUILD_TESTS)
+    list(APPEND CURSOR_CHECK_TEST_COMMANDS COMMAND ${CMAKE_BINARY_DIR}/cursor-tests)
+    list(APPEND CURSOR_CHECK_TEST_COMMANDS COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e/run_local_batch.sh $<TARGET_FILE:cursor-agent>)
+    list(APPEND CURSOR_CHECK_DEPENDS cursor-tests)
+endif()
+
 # Add custom check target for testing and validation
 add_custom_target(check
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cursor-agent
     COMMAND echo "Running automated tests..."
-    COMMAND printf "2\\nversion\\nhelp\\nexit\\n" | ${CMAKE_BINARY_DIR}/bin/cursor-agent
+    COMMAND $<TARGET_FILE:cursor-agent> --version
+    COMMAND $<TARGET_FILE:cursor-agent> --help
+    ${CURSOR_CHECK_TEST_COMMANDS}
     COMMAND echo "Checking binary exists..."
-    COMMAND test -f ${CMAKE_BINARY_DIR}/bin/cursor-agent
+    COMMAND test -f $<TARGET_FILE:cursor-agent>
     COMMAND echo "Validating executable permissions..."
-    COMMAND test -x ${CMAKE_BINARY_DIR}/bin/cursor-agent
+    COMMAND test -x $<TARGET_FILE:cursor-agent>
     COMMAND echo "All checks passed!"
-    DEPENDS cursor-agent
+    DEPENDS ${CURSOR_CHECK_DEPENDS}
     COMMENT "Running comprehensive project validation"
 )
 
 # Add quick test target
 add_custom_target(test-quick
-    COMMAND printf "2\\nexit\\n" | ${CMAKE_BINARY_DIR}/bin/cursor-agent
+    COMMAND printf "2\\nexit\\n" | $<TARGET_FILE:cursor-agent>
     DEPENDS cursor-agent
     COMMENT "Quick functionality test"
 )
+
+if(CURSOR_BUILD_TESTS)
+    add_custom_target(e2e-local
+        COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e/run_local_batch.sh $<TARGET_FILE:cursor-agent>
+        DEPENDS cursor-agent
+        COMMENT "Running local batch E2E checks"
+    )
+endif()
 
 # Clang-Tidy target (disabled)
 # if(CLANG_TIDY_EXE)
