@@ -18,6 +18,10 @@ public:
   // Get git status
   static std::string get_git_status(const std::string &path);
 
+  // Get list of files changed in working tree (staged, unstaged, untracked)
+  static std::vector<std::string> get_working_tree_changed_files(
+      const std::string &path);
+
   // Get list of files changed in last N days
   static std::vector<std::string> get_changed_files(const std::string &path,
                                                     int days = 7);

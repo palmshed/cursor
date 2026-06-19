@@ -52,7 +52,11 @@ CURSOR_API void draw_status_line(const std::string &mode,
                                  const std::string &model,
                                  const std::string &dir);
 CURSOR_API void draw_context_line(const std::string &hints);
-  CURSOR_API void draw_input_bar(const std::string &text = "",
-                                int cursor_pos = -1);
+CURSOR_API void draw_input_bar(const std::string &text = "",
+                               int cursor_pos = -1);
+
+// Mouse support
+CURSOR_API void enable_mouse();
+CURSOR_API void disable_mouse();
 } // namespace UI
 } // namespace Utils

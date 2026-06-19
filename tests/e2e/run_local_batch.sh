@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/../.." && pwd)"
+
 binary_path="${BINARY_PATH:-${1:-}}"
 if [[ -z "$binary_path" ]]; then
-  echo "Usage: BINARY_PATH=/path/to/cursor-agent $0" >&2
+  for candidate in \
+    "$repo_root/build/bin/cursor-agent" \
+    "$repo_root/build/bin/Release/cursor-agent.exe" \
+    "$repo_root/build/bin/cursor-agent.exe"; do
+    if [[ -x "$candidate" ]]; then
+      binary_path="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -z "$binary_path" ]]; then
+  echo "Usage: BINARY_PATH=/path/to/cursor-agent $0 [binary-path]" >&2
+  echo "Could not find a built cursor-agent under $repo_root/build/bin." >&2
   exit 2
 fi
 

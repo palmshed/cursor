@@ -2,6 +2,7 @@
 #include "utils/platform.h"
 #include "utils/validation.h"
 #include <filesystem>
+#include <unordered_set>
 #include <fstream>
 #include <regex>
 #include <sstream>
@@ -67,6 +68,50 @@ std::string GitService::get_git_status(const std::string &path) {
   return result.empty() ? "Working directory clean" : result;
 }
 
+std::vector<std::string>
+GitService::get_working_tree_changed_files(const std::string &path) {
+  std::vector<std::string> files;
+
+  if (!is_git_repository(path)) {
+    return files;
+  }
+
+  auto collect_files = [&](const std::string &command) {
+    FILE *pipe = Utils::Platform::open_process(command, "r");
+    if (!pipe) {
+      return;
+    }
+
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+      std::string file(buffer);
+      if (!file.empty() && file.back() == '\n') {
+        file.pop_back();
+      }
+      if (!file.empty()) {
+        files.push_back(file);
+      }
+    }
+    Utils::Platform::close_process(pipe);
+  };
+
+  std::string base = "cd \"" + path + "\" && ";
+  collect_files(base + "git diff --name-only --cached");
+  collect_files(base + "git diff --name-only");
+  collect_files(base + "git ls-files --others --exclude-standard");
+
+  std::vector<std::string> unique_files;
+  std::unordered_set<std::string> seen;
+  for (const auto &file : files) {
+    if (!seen.count(file)) {
+      seen.insert(file);
+      unique_files.push_back(file);
+    }
+  }
+
+  return unique_files;
+}
+
 std::vector<std::string> GitService::get_changed_files(const std::string &path,
                                                        int days) {
   std::vector<std::string> files;
@@ -87,7 +132,6 @@ std::vector<std::string> GitService::get_changed_files(const std::string &path,
   char buffer[256];
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     std::string file(buffer);
-    // Remove newline
     if (!file.empty() && file.back() == '\n') {
       file.pop_back();
     }

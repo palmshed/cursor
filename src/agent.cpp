@@ -21,19 +21,26 @@
 #include "version.h"
 
 #include <algorithm>
+#include <optional>
 #include <atomic>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <thread>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#include <termios.h>
+#endif
 
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <sstream>
-#include <termios.h>
 #include <vector>
 
 // Constants for response handling
@@ -43,6 +50,14 @@ const size_t MAX_RESPONSE_LENGTH = 8000;
 extern "C" char *readline(const char *);
 extern "C" void add_history(const char *);
 #endif
+
+static bool is_tty_stream(FILE *stream) {
+#ifdef _WIN32
+  return _isatty(_fileno(stream)) != 0;
+#else
+  return isatty(fileno(stream)) != 0;
+#endif
+}
 
 // Using the Mode enum from agent.h instead of separate constants
 
@@ -69,6 +84,243 @@ static bool starts_with_at(const std::string &s, size_t pos,
                            const std::string &prefix) {
   return pos + prefix.size() <= s.size() &&
          s.compare(pos, prefix.size(), prefix) == 0;
+}
+
+static std::string normalize_input(const std::string &input) {
+  std::string lower = input;
+  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+  return lower;
+}
+
+static std::string strip_trailing_clause(std::string input) {
+  std::string lower = normalize_input(input);
+  const std::array<std::string_view, 4> suffixes = {
+      " in code", " in repo", " in this repo", " in project"};
+  for (const auto &suffix : suffixes) {
+    if (lower.ends_with(suffix)) {
+      input = trim_copy(input.substr(0, input.size() - suffix.size()));
+      break;
+    }
+  }
+  return input;
+}
+
+static std::optional<std::string>
+extract_grep_command(const std::string &input, const std::string &marker) {
+  std::string lower = normalize_input(input);
+  size_t pos = lower.find(marker);
+  if (pos == std::string::npos)
+    return std::nullopt;
+
+  std::string query = trim_copy(input.substr(pos + marker.size()));
+  query = strip_trailing_clause(query);
+  if (query.empty())
+    return std::nullopt;
+  return std::make_optional(std::string("grep:") + query);
+}
+
+bool Agent::is_direct_command_input(const std::string &input) {
+  static const std::array<std::string_view, 3> direct_aliases = {
+      "memory", "clear", "forget"};
+  for (const auto &alias : direct_aliases) {
+    if (input == alias) {
+      return true;
+    }
+  }
+
+  static const std::array<std::string_view, 14> direct_prefixes = {
+      "search:", "cmd:",    "build:", "read:",  "write:",
+      "replace:", "grep:",  "remember:", "analyze:", "components:",
+      "todos:",   "git:",   "tree:",  "github:"};
+  for (const auto &prefix : direct_prefixes) {
+    if (input.starts_with(prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Agent::is_git_status_query(const std::string &input) {
+  std::string lower = normalize_input(input);
+
+  static const std::vector<std::string> triggers = {
+      "files we changed",
+      "changed files",
+      "show changed files",
+      "what changed",
+      "check changed files",
+      "check the files we changed",
+      "what files changed",
+      "what changes",
+      "what has changed",
+      "git diff",
+      "git status"};
+
+  for (const auto &phrase : triggers) {
+    if (lower.find(phrase) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::optional<std::string> Agent::map_nl_to_direct_command(
+    const std::string &input) {
+  std::string lower = normalize_input(input);
+  // Helper to extract the remainder after a marker
+  auto extract_after = [&](const std::vector<std::string> &markers)
+      -> std::optional<std::string> {
+    for (const auto &m : markers) {
+      size_t pos = lower.find(m);
+      if (pos != std::string::npos) {
+        std::string val = trim_copy(input.substr(pos + m.size()));
+        if (!val.empty())
+          return std::make_optional(val);
+      }
+    }
+    return std::nullopt;
+  };
+
+  // Git-related queries
+  if (is_git_status_query(input) || lower.find("what changed") != std::string::npos) {
+    return std::make_optional(std::string("git:status"));
+  }
+  if (lower.find("git diff") != std::string::npos ||
+      lower.find("show diff") != std::string::npos ||
+      lower.find("diff") != std::string::npos) {
+    return std::make_optional(std::string("git:status"));
+  }
+  if (lower.find("git log") != std::string::npos ||
+      lower.find("commit history") != std::string::npos ||
+      lower.find("recent commits") != std::string::npos) {
+    return std::make_optional(std::string("git:log"));
+  }
+
+  // Run/execute shell commands
+  if (auto cmd = extract_after({"run ", "execute ", "start "})) {
+    return std::make_optional(std::string("cmd:") + *cmd);
+  }
+
+  // Build / compile requests
+  if (lower.find("build the project") != std::string::npos ||
+      lower.find("build project") != std::string::npos ||
+      lower.find("compile") != std::string::npos ||
+      lower.find("build") == 0) {
+    // Prefer explicit make invocation when mentioned, otherwise use build wrapper
+    if (auto make_cmd = extract_after({"make "})) {
+      return std::make_optional(std::string("cmd:") + *make_cmd);
+    }
+    return std::make_optional(std::string("build:make"));
+  }
+
+  // TODO / task comment queries (prefer over grep)
+  if (lower.find("todo") != std::string::npos || lower.find("task comments") != std::string::npos || lower.find("fixme") != std::string::npos) {
+    return std::make_optional(std::string("todos:."));
+  }
+
+  // Grep/search-style queries
+  if (lower.find("search for ") != std::string::npos &&
+      (lower.find("code") != std::string::npos ||
+       lower.find("repo") != std::string::npos ||
+       lower.find("project") != std::string::npos)) {
+    return extract_grep_command(input, "search for ");
+  }
+  if ((lower.find("find ") != std::string::npos &&
+       (lower.find("in code") != std::string::npos ||
+        lower.find("in repo") != std::string::npos ||
+        lower.find("in project") != std::string::npos ||
+        lower.find("in files") != std::string::npos)) ||
+      lower.find("grep ") != std::string::npos) {
+    if (auto g = extract_after({"find ", "grep ", "search for "}))
+      return extract_grep_command(*g, "");
+  }
+
+  // Read/open file
+  if (auto path = extract_after({"read file ", "show file ", "open file "})) {
+    return std::make_optional(std::string("read:") + *path);
+  }
+
+  // Write/save file
+  if (lower.find("save file ") != std::string::npos ||
+      lower.find("write file ") != std::string::npos ||
+      lower.find("save ") == 0) {
+    if (auto p = extract_after({"save file ", "write file ", "save "})) {
+      // If user provided content like "save file X as Y", attempt to parse
+      size_t as_pos = normalize_input(*p).find(" as ");
+      if (as_pos != std::string::npos) {
+        std::string filename = trim_copy(p->substr(0, as_pos));
+        std::string content = trim_copy(p->substr(as_pos + 4));
+        if (!filename.empty() && !content.empty())
+          return std::make_optional(std::string("write:") + filename + " " + content);
+      }
+      // Fallback: just write filename (caller will validate usage)
+      return std::make_optional(std::string("write:") + *p);
+    }
+  }
+
+  // Replace text in files: "replace X with Y in file Z"
+  if (lower.find("replace ") != std::string::npos && lower.find(" with ") != std::string::npos) {
+    // crude parsing
+    size_t rep_pos = lower.find("replace ");
+    size_t with_pos = lower.find(" with ");
+    std::string old_text = trim_copy(input.substr(rep_pos + 8, with_pos - (rep_pos + 8)));
+    size_t in_pos = lower.find(" in file ");
+    if (in_pos == std::string::npos)
+      in_pos = lower.find(" in ");
+    if (in_pos != std::string::npos) {
+      std::string new_text = trim_copy(input.substr(with_pos + 6, in_pos - (with_pos + 6)));
+      std::string filename = trim_copy(input.substr(in_pos + (lower.find(" in file ") != std::string::npos ? 9 : 4)));
+      if (!filename.empty() && !old_text.empty() && !new_text.empty()) {
+        return std::make_optional(std::string("replace:") + filename + ":" + old_text + ":" + new_text);
+      }
+    }
+  }
+
+  // Remember / forget / memory / clear
+  if (auto fact = extract_after({"remember ", "remember:"})) {
+    return std::make_optional(std::string("remember:") + *fact);
+  }
+  if (lower.find("forget") != std::string::npos) {
+    return std::make_optional(std::string("forget"));
+  }
+  if (lower.find("show memory") != std::string::npos || lower.find("memory show") != std::string::npos || lower == "memory") {
+    return std::make_optional(std::string("memory"));
+  }
+  if (lower.find("clear memory") != std::string::npos || lower == "clear") {
+    return std::make_optional(std::string("clear"));
+  }
+
+  // Analyze / components / todos / tree
+  if (lower.find("analyze repo") != std::string::npos || lower.find("analyze") == 0 || lower.find("repository analysis") != std::string::npos) {
+    return std::make_optional(std::string("analyze:."));
+  }
+  if (lower.find("components") != std::string::npos) {
+    return std::make_optional(std::string("components:."));
+  }
+  if (lower.find("todo") != std::string::npos || lower.find("task comments") != std::string::npos) {
+    return std::make_optional(std::string("todos:."));
+  }
+  if (lower.find("directory tree") != std::string::npos || lower.find("repo tree") != std::string::npos || lower.find("tree ") != std::string::npos) {
+    return std::make_optional(std::string("tree:."));
+  }
+
+  // GitHub quick helpers: "open repo owner/repo on github" or "github repo owner/repo"
+  if (lower.find("on github") != std::string::npos) {
+    // try to find owner/repo earlier in the sentence
+    size_t slash = lower.find('/');
+    if (slash != std::string::npos) {
+      // extract token around slash
+      size_t start = lower.rfind(' ', slash);
+      if (start == std::string::npos) start = 0; else start++;
+      size_t end = lower.find(' ', slash);
+      if (end == std::string::npos) end = lower.size();
+      std::string repo_spec = trim_copy(input.substr(start, end - start));
+      return std::make_optional(std::string("github:repo:") + repo_spec);
+    }
+  }
+
+  // Fallback: no mapping
+  return std::nullopt;
 }
 
 static std::string replace_inline_markdown(const std::string &line) {
@@ -195,6 +447,16 @@ static std::string read_prompt(const std::string &prompt,
   std::free(line);
   return input;
 #else
+#ifdef _WIN32
+  (void)prompt;
+  (void)history;
+  std::string input;
+  if (!std::getline(std::cin, input)) {
+    std::cin.setstate(std::ios::eofbit);
+    return {};
+  }
+  return input;
+#else
   std::string buf;
   std::string saved;
   int cursor = 0;
@@ -259,6 +521,7 @@ static std::string read_prompt(const std::string &prompt,
   std::cout << "\n";
   return buf;
 #endif
+#endif
 }
 
 std::string Agent::format_message(const std::string &sender,
@@ -280,7 +543,7 @@ void Agent::run() {
   std::string model_name = ollama_model_.empty()
       ? "local"
       : ollama_model_;
-  bool tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
+  bool tty = is_tty_stream(stdout) && is_tty_stream(stdin);
 
   if (tty) {
     Utils::UI::print_ready_interface(mode_name, model_name);
@@ -293,7 +556,7 @@ void Agent::run() {
     std::string user_input;
     if (tty) {
       std::cout << Utils::Color::DIM
-                << "\xE2\x8C\x98P palette  :cmd  !shell  ? help"
+                << "\xE2\x8C\x98P palette  :cmd  !shell  /help  /debug"
                 << Utils::Color::RESET << "\n";
       user_input = read_prompt("> ", input_history);
       if (std::cin.eof()) {
@@ -319,8 +582,8 @@ void Agent::run() {
 
     // Input bar will be cleared and redrawn by draw_input_bar on next loop
 
-    if (user_input == "help") {
-      Utils::UI::print_help();
+    if (user_input == "help" || user_input == "?") {
+      process_user_input("/help");
     } else if (user_input == "version") {
       Version::print_version_info();
     } else if (user_input == "update") {
@@ -404,11 +667,14 @@ bool Agent::is_online_mode() const {
 int Agent::show_menu(const std::string &title,
                      const std::vector<std::string> &items,
                      int default_index) {
-  bool tty = isatty(STDIN_FILENO) && isatty(STDOUT_FILENO);
+  bool tty = is_tty_stream(stdin) && is_tty_stream(stdout);
   if (!tty || items.empty()) {
     return default_index;
   }
 
+#ifdef _WIN32
+  return default_index;
+#else
   int selected = std::clamp(default_index, 0, (int)items.size() - 1);
 
   std::cout << "\033[?25l";
@@ -458,41 +724,69 @@ int Agent::show_menu(const std::string &title,
   std::cout << "\033[?25h";
 
   return selected;
+#endif
 }
 
 std::string Agent::process_user_input(const std::string &input) {
   command_count_++;
   std::string trimmed_input = trim_copy(input);
+  show_reasoning_header("INPUT RECEIVED");
+  show_pipeline_section("Input classification");
+  show_parsed_input(input, trimmed_input);
 
   if (shell_mode_ && !trimmed_input.starts_with("!")) {
+    show_pipeline_section("Shell mode handling");
+    show_reasoning_step("Shell mode", "active");
+    show_reasoning_step("Command", "!" + trimmed_input);
     handle_shell_command("!" + trimmed_input);
     return {};
   }
 
   // Handle @ file injection commands
   if (trimmed_input.find('@') != std::string::npos) {
+    show_pipeline_section("File injection detection");
+    show_reasoning_step("Detected", "file injection");
     handle_file_injection_command(trimmed_input);
     return {};
   }
 
   // Handle ! shell commands
   if (trimmed_input.starts_with("!")) {
+    show_pipeline_section("Shell command execution");
+    show_reasoning_step("Command", trimmed_input);
     handle_shell_command(trimmed_input);
     return {};
   }
 
   // Handle / meta commands
   if (trimmed_input.starts_with("/")) {
+    show_pipeline_section("Meta command execution");
+    show_reasoning_step("Command", trimmed_input);
     handle_meta_command(trimmed_input);
     return {};
   }
 
-  if (trimmed_input.find(':') != std::string::npos ||
-      trimmed_input == "memory" || trimmed_input == "clear" ||
-      trimmed_input == "forget") {
+  if (is_direct_command_input(trimmed_input)) {
+    show_reasoning_header("DIRECT COMMAND");
+    show_pipeline_section("Direct command execution");
+    show_parsed_input(trimmed_input, "direct command: " + trimmed_input);
+    show_context_state();
     handle_direct_command(trimmed_input);
     return {};
   }
+  if (auto mapped_command = map_nl_to_direct_command(trimmed_input)) {
+    show_reasoning_header("NATURAL LANGUAGE TOOLING");
+    show_pipeline_section("Natural language mapping");
+    show_reasoning_step("User intent", trimmed_input);
+    show_reasoning_step("Mapped to", *mapped_command);
+    show_context_state();
+    handle_direct_command(*mapped_command);
+    return {};
+  }
+
+  show_reasoning_header("AI CHAT");
+  show_pipeline_section("AI reasoning flow");
+  show_context_state();
   return handle_ai_chat(trimmed_input);
 }
 
@@ -532,6 +826,9 @@ void Agent::handle_direct_command(const std::string &input) {
     }
     result = Services::CommandService::execute(command);
     memory_->save_interaction("cmd:" + command, result);
+  } else if (input.starts_with("build:")) {
+    handle_direct_command("cmd:" + trim_copy(input.substr(6)));
+    return;
   } else if (input.starts_with("read:")) {
     std::string params = trim_copy(input.substr(5));
     // Check if it has range parameters: read:filename:start:count
@@ -561,6 +858,7 @@ void Agent::handle_direct_command(const std::string &input) {
         result = "Error: " + validation.error_message;
       } else {
         result = Services::FileService::read_file(params);
+        show_file_preview(params, result, 30);
       }
     }
     memory_->save_interaction("read:" + params, result);
@@ -635,10 +933,14 @@ void Agent::handle_direct_command(const std::string &input) {
       result = "No matches found for pattern: " + pattern;
     } else {
       result = "Found " + std::to_string(search_results.size()) + " matches:\n";
+      std::vector<std::string> formatted_results;
       for (const auto &match : search_results) {
-        result += match.file_path + ":" + std::to_string(match.line_number) +
-                  ": " + match.line_content + "\n";
+        std::string line_text = match.file_path + ":" + std::to_string(match.line_number) +
+                  ": " + match.line_content;
+        result += line_text + "\n";
+        formatted_results.push_back(line_text);
       }
+      show_search_results(pattern, formatted_results);
     }
     memory_->save_interaction("grep:" + pattern, result);
   } else if (input.starts_with("remember:")) {
@@ -692,6 +994,8 @@ void Agent::handle_direct_command(const std::string &input) {
       result = Services::GitService::get_git_log(path, 7);
     } else if (params.find("status") == 0) {
       result = Services::GitService::get_git_status(path);
+      auto files = Services::GitService::get_working_tree_changed_files(path);
+      show_git_status_results(files);
     } else if (params.find("analyze") == 0) {
       result = Services::GitService::analyze_repository(path);
     } else {
@@ -759,6 +1063,7 @@ void Agent::handle_direct_command(const std::string &input) {
     result = "Unknown command";
   }
 
+  show_operation_result("Operation complete", result);
   if (!result.empty()) {
     std::cout << result << std::endl;
   }
@@ -791,6 +1096,14 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     full_context = hierarchical_context + "\n\n" + memory_context;
   }
 
+  std::string agent_context = build_agent_context();
+  if (!agent_context.empty()) {
+    full_context = agent_context + "\n\n" + full_context;
+  }
+
+  std::string system_prompt = "You are an advanced AI agent with comprehensive codebase analysis capabilities.";
+  show_ai_prompt(system_prompt, input);
+
   std::string response = ai_service_->chat(input, full_context);
 
   done = true;
@@ -798,8 +1111,9 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     spin.join();
 
   if (!response.empty()) {
-    if (isatty(STDOUT_FILENO)) {
-      std::cout << format_message("Cursor", render_markdown(response)) << "\n";
+    if (is_tty_stream(stdout)) {
+      std::string formatted_response = render_markdown(response);
+      std::cout << format_message("Cursor", formatted_response) << "\n";
     } else {
       std::cout << response << "\n";
     }
@@ -855,9 +1169,17 @@ void Agent::handle_meta_command(const std::string &input) {
   std::string command = trim_copy(input.substr(1));
 
   if (command == "help" || command == "?") {
-    show_meta_help();
+    show_agent_documentation();
+  } else if (command == "docs") {
+    show_agent_documentation();
+  } else if (command == "debug") {
+    toggle_verbose_mode();
   } else if (command == "clear") {
     clear_screen();
+  } else if (command == "goal" || command.starts_with("goal ") ||
+             command == "task" || command.starts_with("task ") ||
+             command == "params" || command.starts_with("params ")) {
+    handle_agentic_command(command);
   } else if (command.starts_with("chat ")) {
     handle_chat_management(command.substr(5));
   } else if (command == "tools") {
@@ -1036,9 +1358,20 @@ bool Agent::should_skip_file(const std::string &file_path,
 
 void Agent::show_meta_help() {
   std::cout << "Available meta commands:" << std::endl;
-  std::cout << "  /help or /?           - Show this help" << std::endl;
-  std::cout << "  /clear                - Clear screen" << std::endl;
-  std::cout << "  /chat save <tag>      - Save conversation state" << std::endl;
+  std::cout << "  /help or /?             - Show this help" << std::endl;
+  std::cout << "  /debug                  - Toggle verbose/debug mode" << std::endl;
+  std::cout << "  /clear                  - Clear screen" << std::endl;
+  std::cout << "  /goal set <description> - Set a project goal" << std::endl;
+  std::cout << "  /goal show              - Show current goal and task status" << std::endl;
+  std::cout << "  /goal clear             - Clear goal, tasks, and params" << std::endl;
+  std::cout << "  /task add <description> - Add a task for the current goal" << std::endl;
+  std::cout << "  /task list              - List active tasks" << std::endl;
+  std::cout << "  /task complete <id>     - Mark a task complete" << std::endl;
+  std::cout << "  /task remove <id>       - Remove a task" << std::endl;
+  std::cout << "  /params set key=value   - Set goal/task parameters" << std::endl;
+  std::cout << "  /params show            - Show current parameters" << std::endl;
+  std::cout << "  /params clear           - Clear current parameters" << std::endl;
+  std::cout << "  /chat save <tag>        - Save conversation state" << std::endl;
   std::cout << "  /chat resume <tag>    - Resume conversation state"
             << std::endl;
   std::cout << "  /chat list            - List saved conversations"
@@ -1089,6 +1422,414 @@ void Agent::show_meta_help() {
   std::cout << "Shell commands:" << std::endl;
   std::cout << "  !<command>            - Execute shell command" << std::endl;
   std::cout << "  !                     - Toggle shell mode" << std::endl;
+  std::cout << "  /docs                 - Show agent documentation" << std::endl;
+}
+
+void Agent::handle_agentic_command(const std::string &command) {
+  if (command == "goal" || command == "goal show") {
+    show_goal();
+  } else if (command.starts_with("goal set ")) {
+    set_goal(trim_copy(command.substr(9)));
+  } else if (command == "goal clear") {
+    clear_goal();
+  } else if (command == "task" || command == "task list") {
+    list_tasks();
+  } else if (command.starts_with("task add ")) {
+    add_task(trim_copy(command.substr(9)));
+  } else if (command.starts_with("task complete ")) {
+    complete_task(trim_copy(command.substr(14)));
+  } else if (command.starts_with("task remove ")) {
+    remove_task(trim_copy(command.substr(12)));
+  } else if (command == "params" || command == "params show") {
+    show_params();
+  } else if (command.starts_with("params set ")) {
+    set_param(trim_copy(command.substr(11)));
+  } else if (command == "params clear") {
+    agent_params_.clear();
+    std::cout << "Cleared agent parameters." << std::endl;
+  } else {
+    show_agentic_help();
+  }
+}
+
+void Agent::show_agentic_help() {
+  std::cout << "Agentic workflow commands:" << std::endl;
+  std::cout << "  /goal set <description> - Set or update the project goal" << std::endl;
+  std::cout << "  /goal show              - Show active goal and tasks" << std::endl;
+  std::cout << "  /goal clear             - Clear the current goal and tasks" << std::endl;
+  std::cout << "  /task add <description> - Add a task to the current goal" << std::endl;
+  std::cout << "  /task list              - List active tasks" << std::endl;
+  std::cout << "  /task complete <id>     - Mark a task as completed" << std::endl;
+  std::cout << "  /task remove <id>       - Remove a task" << std::endl;
+  std::cout << "  /params set key=value   - Set structured goal/task parameters" << std::endl;
+  std::cout << "  /params show            - Show task parameters" << std::endl;
+  std::cout << "  /params clear           - Clear current task parameters" << std::endl;
+}
+
+void Agent::set_goal(const std::string &goal) {
+  if (goal.empty()) {
+    std::cout << "Usage: /goal set <description>" << std::endl;
+    return;
+  }
+  active_goal_ = goal;
+  tasks_.clear();
+  agent_params_.clear();
+  std::cout << "Goal set: " << active_goal_ << std::endl;
+  memory_->save_interaction("goal:set", active_goal_);
+}
+
+void Agent::show_goal() const {
+  if (active_goal_.empty()) {
+    std::cout << "No active goal set." << std::endl;
+    return;
+  }
+  std::cout << "Active goal: " << active_goal_ << std::endl;
+  if (tasks_.empty()) {
+    std::cout << "No tasks added yet." << std::endl;
+  } else {
+    std::cout << "Tasks:" << std::endl;
+    for (const auto &task : tasks_) {
+      std::cout << "  [" << (task.completed ? "x" : " ") << "] "
+                << task.id << ": " << task.description << std::endl;
+    }
+  }
+  if (!agent_params_.empty()) {
+    std::cout << "Parameters:" << std::endl;
+    for (const auto &pair : agent_params_) {
+      std::cout << "  " << pair.first << " = " << pair.second << std::endl;
+    }
+  }
+}
+
+void Agent::clear_goal() {
+  active_goal_.clear();
+  tasks_.clear();
+  agent_params_.clear();
+  std::cout << "Cleared goal, tasks, and parameters." << std::endl;
+  memory_->save_interaction("goal:clear", "Cleared goal and task state");
+}
+
+void Agent::add_task(const std::string &task_description) {
+  if (task_description.empty()) {
+    std::cout << "Usage: /task add <description>" << std::endl;
+    return;
+  }
+
+  int task_id = tasks_.empty() ? 1 : tasks_.back().id + 1;
+  tasks_.push_back({task_id, task_description, false});
+  std::cout << "Task added: [" << task_id << "] " << task_description
+            << std::endl;
+  memory_->save_interaction("task:add", task_description);
+}
+
+void Agent::list_tasks() const {
+  if (tasks_.empty()) {
+    std::cout << "No active tasks." << std::endl;
+    return;
+  }
+  std::cout << "Active tasks:" << std::endl;
+  for (const auto &task : tasks_) {
+    std::cout << "  [" << (task.completed ? "x" : " ") << "] "
+              << task.id << ": " << task.description << std::endl;
+  }
+}
+
+void Agent::complete_task(const std::string &args) {
+  if (args.empty()) {
+    std::cout << "Usage: /task complete <id>" << std::endl;
+    return;
+  }
+  try {
+    int task_id = std::stoi(args);
+    for (auto &task : tasks_) {
+      if (task.id == task_id) {
+        task.completed = true;
+        std::cout << "Task completed: [" << task_id << "] "
+                  << task.description << std::endl;
+        memory_->save_interaction("task:complete", task.description);
+        return;
+      }
+    }
+    std::cout << "Task not found: " << args << std::endl;
+  } catch (const std::exception &) {
+    std::cout << "Invalid task id: " << args << std::endl;
+  }
+}
+
+void Agent::remove_task(const std::string &args) {
+  if (args.empty()) {
+    std::cout << "Usage: /task remove <id>" << std::endl;
+    return;
+  }
+  try {
+    int task_id = std::stoi(args);
+    auto it = std::remove_if(tasks_.begin(), tasks_.end(),
+                             [&](const AgentTask &task) {
+                               return task.id == task_id;
+                             });
+    if (it != tasks_.end()) {
+      std::cout << "Task removed: " << task_id << std::endl;
+      tasks_.erase(it, tasks_.end());
+      memory_->save_interaction("task:remove", std::to_string(task_id));
+    } else {
+      std::cout << "Task not found: " << args << std::endl;
+    }
+  } catch (const std::exception &) {
+    std::cout << "Invalid task id: " << args << std::endl;
+  }
+}
+
+void Agent::set_param(const std::string &param_string) {
+  size_t equals_pos = param_string.find('=');
+  if (equals_pos == std::string::npos) {
+    std::cout << "Usage: /params set key=value" << std::endl;
+    return;
+  }
+  std::string key = trim_copy(param_string.substr(0, equals_pos));
+  std::string value = trim_copy(param_string.substr(equals_pos + 1));
+  if (key.empty() || value.empty()) {
+    std::cout << "Usage: /params set key=value" << std::endl;
+    return;
+  }
+  agent_params_[key] = value;
+  std::cout << "Parameter set: " << key << " = " << value << std::endl;
+  memory_->save_interaction("params:set", key + "=" + value);
+}
+
+void Agent::show_params() const {
+  if (agent_params_.empty()) {
+    std::cout << "No parameters set." << std::endl;
+    return;
+  }
+  std::cout << "Agent parameters:" << std::endl;
+  for (const auto &pair : agent_params_) {
+    std::cout << "  " << pair.first << " = " << pair.second << std::endl;
+  }
+}
+
+std::string Agent::build_agent_context() const {
+  if (active_goal_.empty() && tasks_.empty() && agent_params_.empty()) {
+    return "";
+  }
+
+  std::ostringstream context;
+  if (!active_goal_.empty()) {
+    context << "Current objective: " << active_goal_ << "\n";
+  }
+  if (!tasks_.empty()) {
+    context << "Tasks:\n";
+    for (const auto &task : tasks_) {
+      context << "- [" << (task.completed ? "x" : " ") << "] "
+              << task.id << ": " << task.description << "\n";
+    }
+  }
+  if (!agent_params_.empty()) {
+    context << "Parameters:\n";
+    for (const auto &pair : agent_params_) {
+      context << "- " << pair.first << " = " << pair.second << "\n";
+    }
+  }
+  context << "Use this goal, task list, and parameters to guide your next actions.";
+  return context.str();
+}
+
+void Agent::show_agent_documentation() {
+  std::string help_path = "AGENTS.md";
+  std::string doc = Services::FileService::read_file(help_path);
+  if (doc.starts_with("Error:")) {
+    std::filesystem::path current = std::filesystem::current_path();
+    while (true) {
+      std::filesystem::path candidate = current / "AGENTS.md";
+      if (Services::FileService::file_exists(candidate.string())) {
+        help_path = candidate.string();
+        doc = Services::FileService::read_file(help_path);
+        break;
+      }
+      if (!current.has_parent_path() || current == current.parent_path()) {
+        break;
+      }
+      current = current.parent_path();
+    }
+  }
+
+  if (doc.starts_with("Error:")) {
+    std::cout << "Unable to load runtime help from AGENTS.md: " << doc
+              << std::endl;
+    std::cout << "Falling back to built-in help.\n";
+    show_meta_help();
+    return;
+  }
+
+  std::cout << "Runtime help from AGENTS.md:\n" << doc << std::endl;
+}
+
+void Agent::toggle_verbose_mode() {
+  verbose_mode_ = !verbose_mode_;
+  std::cout << (verbose_mode_ ? Utils::Color::GREEN : Utils::Color::YELLOW)
+            << (verbose_mode_ ? "[debug] Verbose mode ON"
+                               : "[debug] Verbose mode OFF")
+            << Utils::Color::RESET << std::endl;
+}
+
+void Agent::show_reasoning_header(const std::string &operation_type) {
+  if (!verbose_mode_)
+    return;
+  std::cout << "\n" << Utils::Color::CYAN << "=== " << Utils::Color::BOLD
+            << operation_type << Utils::Color::RESET << Utils::Color::CYAN
+            << " ===" << Utils::Color::RESET << std::endl;
+}
+
+void Agent::show_pipeline_section(const std::string &section_title) {
+  if (!verbose_mode_)
+    return;
+  std::cout << "\n" << Utils::Color::BOLD << Utils::Color::CYAN << "[ "
+            << section_title << " ]" << Utils::Color::RESET << std::endl;
+}
+
+void Agent::show_reasoning_step(const std::string &label,
+                                const std::string &detail) {
+  if (!verbose_mode_)
+    return;
+  std::cout << Utils::Color::CYAN << "  - " << Utils::Color::RESET << label;
+  if (!detail.empty()) {
+    std::cout << ": " << Utils::Color::YELLOW << detail << Utils::Color::RESET;
+  }
+  std::cout << std::endl;
+}
+
+void Agent::show_parsed_input(const std::string &input,
+                              const std::string &parsed_as) {
+  if (!verbose_mode_)
+    return;
+  show_reasoning_step("Heard", input);
+  show_reasoning_step("Parsed as", parsed_as);
+}
+
+void Agent::show_context_state() {
+  if (!verbose_mode_)
+    return;
+  std::cout << Utils::Color::PINK << "Agent Context:" << Utils::Color::RESET
+            << std::endl;
+  if (!active_goal_.empty()) {
+    std::cout << "  Goal: " << active_goal_ << std::endl;
+  }
+  if (!tasks_.empty()) {
+    std::cout << "  Tasks: " << tasks_.size() << " active";
+    int completed = 0;
+    for (const auto &t : tasks_) {
+      if (t.completed) completed++;
+    }
+    if (completed > 0)
+      std::cout << " (" << completed << " completed)";
+    std::cout << std::endl;
+  }
+  if (!agent_params_.empty()) {
+    std::cout << "  Params: " << agent_params_.size() << " set" << std::endl;
+  }
+}
+
+void Agent::show_ai_prompt(const std::string &system_prompt,
+                           const std::string &user_input) {
+  if (!verbose_mode_)
+    return;
+  show_pipeline_section("AI prompt construction");
+  show_reasoning_step("System prompt length",
+                      std::to_string(system_prompt.length()) + " chars");
+  show_reasoning_step("User input preview",
+                      user_input.length() > 100
+                          ? user_input.substr(0, 100) + "..."
+                          : user_input);
+}
+
+void Agent::show_operation_result(const std::string &operation,
+                                  const std::string &result) {
+  if (!verbose_mode_)
+    return;
+  std::cout << Utils::Color::GREEN << "[ok] " << operation << ": "
+            << Utils::Color::RESET;
+  if (result.length() > 150) {
+    std::cout << result.substr(0, 150) << "..." << std::endl;
+  } else {
+    std::cout << result << std::endl;
+  }
+}
+
+void Agent::show_search_results(const std::string &query,
+                                const std::vector<std::string> &results) {
+  if (!verbose_mode_ || results.empty())
+    return;
+  std::cout << "\n" << Utils::Color::GREEN << "Search results for '"
+            << query << "' (" << results.size() << " matches)"
+            << Utils::Color::RESET << std::endl;
+  int line_num = 1;
+  for (const auto &result : results) {
+    std::cout << Utils::Color::CYAN << std::setw(4) << std::right << line_num
+              << Utils::Color::RESET << ": " << result << std::endl;
+    line_num++;
+  }
+}
+
+void Agent::show_git_status_results(const std::vector<std::string> &files) {
+  if (!verbose_mode_)
+    return;
+  if (files.empty()) {
+    std::cout << Utils::Color::GREEN << "[ok] Working directory clean" << Utils::Color::RESET << std::endl;
+    return;
+  }
+  std::cout << "\n" << Utils::Color::YELLOW << "Modified / Untracked files (" << files.size() << ")" << Utils::Color::RESET << std::endl;
+  int i = 1;
+  for (const auto &f : files) {
+    std::cout << Utils::Color::PINK << std::setw(3) << i << Utils::Color::RESET << " " << f << std::endl;
+    i++;
+  }
+}
+
+static std::string detect_language_from_filename(const std::string &filename) {
+  auto pos = filename.find_last_of('.');
+  if (pos == std::string::npos)
+    return "";
+  std::string ext = filename.substr(pos + 1);
+  if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "c")
+    return "cpp";
+  if (ext == "h" || ext == "hpp" || ext == "hh")
+    return "cpp";
+  if (ext == "py")
+    return "python";
+  if (ext == "js" || ext == "ts")
+    return "javascript";
+  if (ext == "md")
+    return "markdown";
+  if (ext == "html" || ext == "htm")
+    return "html";
+  return "";
+}
+
+void Agent::show_file_preview(const std::string &filename, const std::string &content, int max_lines) {
+  if (!verbose_mode_)
+    return;
+  if (content.rfind("Error:", 0) == 0) {
+    // content starts with Error:
+    std::cout << Utils::Color::RED << content << Utils::Color::RESET << std::endl;
+    return;
+  }
+  std::string language = detect_language_from_filename(filename);
+  std::istringstream in(content);
+  std::string line;
+  int line_no = 1;
+  std::cout << "\n" << Utils::Color::GREEN << filename << Utils::Color::RESET << std::endl;
+  while (line_no <= max_lines && std::getline(in, line)) {
+    std::ostringstream pref;
+    pref << Utils::Color::CYAN << std::setw(4) << std::right << line_no << Utils::Color::RESET << ": ";
+    if (!language.empty()) {
+      std::cout << pref.str() << highlight_code_line(line, language) << std::endl;
+    } else {
+      std::cout << pref.str() << replace_inline_markdown(line) << std::endl;
+    }
+    line_no++;
+  }
+  if (in && !in.eof()) {
+    std::cout << Utils::Color::DIM << "... (file truncated)" << Utils::Color::RESET << std::endl;
+  }
 }
 
 void Agent::clear_screen() {
@@ -1134,15 +1875,13 @@ void Agent::handle_chat_management(const std::string &command) {
 void Agent::show_available_tools() {
   std::cout << "Available tools:" << std::endl;
   std::cout << "  File Operations:" << std::endl;
-  std::cout << "    read:file[:start:count]     - Read file content"
-            << std::endl;
+  std::cout << "    read:file[:start:count]     - Read file content" << std::endl;
   std::cout << "    write:file content          - Write to file" << std::endl;
-  std::cout << "    replace:file:old:new        - Replace text in file"
-            << std::endl;
+  std::cout << "    replace:file:old:new        - Replace text in file" << std::endl;
   std::cout << "    grep:pattern[:dir[:ext]]    - Search in files" << std::endl;
+  std::cout << "    build:command               - Execute build or shell commands" << std::endl;
   std::cout << "  Project Analysis:" << std::endl;
-  std::cout << "    analyze:[path]              - Analyze project structure"
-            << std::endl;
+  std::cout << "    analyze:[path]              - Analyze project structure" << std::endl;
   std::cout << "    components:[path]           - Find main components"
             << std::endl;
   std::cout << "    todos:[path]                - Find task comments"

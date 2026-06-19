@@ -347,7 +347,7 @@ void UI::draw_status_line(const std::string &mode,
                           const std::string &dir) {
   cursor_to(1, 1);
   clear_line();
-  std::cout << Color::DIM << "\u25C9 " << Color::RESET  // ◉
+  std::cout << Color::DIM << "* " << Color::RESET
             << mode << "    "
             << Color::BOLD << model << Color::RESET
             << "    " << Color::DIM << dir << Color::RESET;
@@ -377,6 +377,16 @@ void UI::draw_input_bar(const std::string &text, int cursor_pos) {
     int pos = (cursor_pos < 0) ? (int)text.size() : cursor_pos;
     cursor_to(h - 1, 3 + pos);
   }
+  std::cout.flush();
+}
+
+void UI::enable_mouse() {
+  std::cout << "\033[?1000h\033[?1006h";
+  std::cout.flush();
+}
+
+void UI::disable_mouse() {
+  std::cout << "\033[?1006l\033[?1000l";
   std::cout.flush();
 }
 

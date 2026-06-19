@@ -1,49 +1,79 @@
-# Cursor
+# Cursor Runtime Help
 
-C++20 AI coding agent. 16 services, 8 AI providers, CI/CD across 3 platforms.
+This file is the live runtime help source for the Cursor agent.
 
-## Build & Test
+Use `/help` or `/docs` to display this content at runtime. If this file cannot be loaded,
+the agent falls back to built-in help output.
 
-```bash
-cmake -S . -B build && cmake --build build
-./build/cursor-tests   # unit tests
-```
+## Available Meta Commands
 
-## Style
+- `/help` or `/?` - Show runtime help
+- `/docs` - Show runtime help
+- `/debug` - Toggle verbose/debug mode (shows all agent reasoning)
+- `/tools` - Show available tools
+- `/clear` - Clear screen
+- `/chat save <tag>` - Save conversation state
+- `/chat resume <tag>` - Resume conversation state
+- `/chat list` - List saved conversations
+- `/memory show` - Show memory context
+- `/memory add <text>` - Add a fact to memory
+- `/compress` - Compress conversation context
+- `/stats` - Show session statistics
+- `/context show` - Show hierarchical context
+- `/context refresh` - Refresh context cache
+- `/context create` - Create `CURSOR.md`
+- `/files <patterns>` - Read multiple files via glob or path patterns
+- `/fetch <url> [format]` - Fetch web content (text/json/raw)
+- `/checkpoint <cmd>` - Manage checkpoints (create/list/delete)
+- `/restore [id]` - List or restore checkpoints
+- `/mcp <cmd>` - MCP server management
+- `/theme <cmd>` - Theme management
+- `/auth <cmd>` - Authentication management
+- `/sandbox <cmd>` - Sandboxed execution management
+- `/error <cmd>` - Error management and reporting
+- `/goal show` - Show the current goal and task status
+- `/goal clear` - Clear current goal, tasks, and params
+- `/task add <description>` - Add a task for the current goal
+- `/task list` - List active tasks
+- `/task complete <id>` - Mark a task complete
+- `/task remove <id>` - Remove a task
+- `/params set key=value` - Set goal/task parameters
+- `/params show` - Show current parameters
+- `/params clear` - Clear current parameters- `/github repo:owner/repo` - Repository info
+- `/github issues:owner/repo` - List repository issues
+- `/github health:owner/repo` - Run repository health check
+- `/quit` or `/exit` - Exit the program
 
-- C++20: `starts_with()`, `std::optional`, structured bindings
-- `snake_case` for functions, `PascalCase` for classes
-- Static service methods - no state (except `AIService`, `DatabaseService`)
-- No exceptions in hot paths - return `std::optional` or error codes
-- No raw pointers - RAII wrappers or `unique_ptr`
-- `#pragma once` in headers, `#ifdef _WIN32` for platform code
+## File Injection
 
-## Workflow
+- `@<path>` - Include file or directory content in the prompt
+- Example: `@src/main.cpp What does this code do?`
 
-`plan → implement → build → test → fix → cleanup → continue`
+## Shell Commands
 
-Detect stale, duplicated, or dead code as you go. Fix warnings and failing tests immediately. Keep dependencies and config clean. Don't remove things that serve a purpose.
+- `!<command>` - Execute shell command
+- `!` - Toggle shell mode
+- `build:command` - Execute build or shell commands
 
-## Technical Debt
+## Direct Commands
 
-- `agent.cpp` (76KB) - God class, main refactoring target
-- 2 unit tests - far below where we need to be
+- `cmd:<command>` - Execute shell command safely
+- `read:<file>[:start:count]` - Read file contents
+- `write:<file> <content>` - Write content to a file
+- `replace:<file>:<old>:<new>[:expected_count]` - Replace text in a file
+- `grep:<pattern>[:directory[:file_filter]]` - Search text in files
+- `search:<query>` - Search the web
+- `remember:<fact>` - Save a fact to memory
+- `analyze:<path>` - Analyze project structure
+- `components:<path>` - Find main components
+- `todos:<path>` - Find task comments
+- `tree:<path>` - Show directory tree
+- `git:log` - Show git history
+- `git:status` - Show git status
+- `git:analyze` - Analyze git repository
 
-## Hard Rules
+## Runtime Help Integration
 
-- No new files unless explicitly told
-- No comments in code unless necessary
-- No new dependencies
-- No documentation files unless asked
+This file is the single live runtime help document for cursor.
 
-## GitHub Secrets Required
-
-| Secret | Used By | Purpose |
-|--------|---------|---------|
-| `NPM_TOKEN` | release.yml | Publish @bniladridas/cursor |
-| `DOCKER_USERNAME` | ci.yml | Push Docker images |
-| `DOCKER_PASSWORD` | ci.yml | Push Docker images |
-| `CLA_BOT_TOKEN` | cla.yml | CLA comment bot |
-| `CLA_SIGNED_JSON` | cla.yml | Signed CLA storage path |
-| `CURSOR_BOT_CLIENT_ID` | formula-sha.yml | GitHub App for PR creation |
-| `CURSOR_BOT_PRIVATE_KEY` | formula-sha.yml | GitHub App for PR creation |
+Do not add an additional runtime help file.
