@@ -197,11 +197,17 @@ void Agent::run() {
     if (user_input == "exit" || user_input == "quit")
       break;
 
-    // Clear input bar
+    // Clear input bar and move cursor to after last message
     if (tty) {
       int h = Utils::UI::get_terminal_height();
+      int scroll_bot = h - 3;
       Utils::UI::cursor_to(h - 1, 1);
       Utils::UI::clear_line();
+      // Append new output right after the last drawn message
+      if (msg_cursor_row_ <= scroll_bot)
+        Utils::UI::cursor_to(msg_cursor_row_, 1);
+      else
+        Utils::UI::cursor_to(scroll_bot, 1);
     }
 
     if (user_input == "help") {
@@ -452,6 +458,8 @@ void Agent::redraw_messages() {
     Utils::UI::clear_line();
   }
   Utils::UI::draw_scrollbar(total_lines_, visible, scroll_offset_);
+
+  msg_cursor_row_ = 2 + used;
 }
 
 std::string Agent::process_user_input(const std::string &input) {
