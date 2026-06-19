@@ -43,8 +43,14 @@ function download(url) {
       console.log('extracting...');
       if (process.platform === 'win32') {
         execSync(`tar -xf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+        const extracted = path.join(binaryDir, 'cursor-windows.exe');
+        const target = path.join(binaryDir, 'cursor-agent.exe');
+        fs.renameSync(extracted, target);
       } else {
         execSync(`tar -xzf "${path.join(binaryDir, archive)}" -C "${binaryDir}"`, { stdio: 'inherit' });
+        const extracted = path.join(binaryDir, process.platform === 'darwin' ? 'cursor-macos' : 'cursor-linux');
+        const target = path.join(binaryDir, 'cursor-agent');
+        fs.renameSync(extracted, target);
       }
       fs.unlinkSync(path.join(binaryDir, archive));
       console.log('done');
