@@ -1,4 +1,5 @@
 #include "services/ai_service.h"
+#include "memory_manager.h"
 #include "agent.h"
 #include "version.h"
 #include <gtest/gtest.h>
