@@ -3,7 +3,8 @@
   "version": "0.1.17",
   "description": "Cross-platform AI coding agent",
   "bin": {
-    "cursor": "cli.js"
+    "cursor": "cli.js",
+    "cursor-agent": "cli.js"
   },
   "scripts": {
     "postinstall": "node install.js"
