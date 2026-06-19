@@ -54,6 +54,7 @@ function download(url) {
       }
       fs.unlinkSync(path.join(binaryDir, archive));
       console.log('done');
+      console.log('Run "cursor" or "cursor-agent" to start.');
     });
   }).on('error', (err) => {
     console.error(`download failed: ${err.message}`);
