@@ -14,7 +14,7 @@ Cursor is a cross-platform AI coding agent that works with codebases, files, com
 npm i -g @bniladridas/cursor
 ```
 
-**Homebrew** (binary: `cursor-agent`):
+**Homebrew** (binary: `cursor-agent` / `cursor`):
 ```bash
 brew tap palmshed/cursor
 brew install palmshed/cursor/cursor --formula
