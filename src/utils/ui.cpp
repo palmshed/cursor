@@ -286,7 +286,7 @@ void UI::print_system_info(const std::string &mode, const std::string &model) {
 // ===== Ready Interface =====
 void UI::print_ready_interface(const std::string &mode,
                                const std::string &model) {
-  std::cout << Color::DIM << "[" << mode << " | " << model << "]" << Color::RESET << " ";
+  std::cout << Color::DIM << "[" << mode << " | " << model << "]" << Color::RESET << "\n";
 }
 
 // ===== Prompted Input =====
