@@ -1,7 +1,7 @@
 # Cursor
 
 [![CI](https://github.com/bniladridas/cursor/actions/workflows/ci.yml/badge.svg)](https://github.com/bniladridas/cursor/actions/workflows/ci.yml)
-[![Release](https://github.com/bniladridas/cursor/actions/workflows/release.yml/badge.svg)](https://github.com/bniladridas/cursor/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/bniladridas/cursor?label=release&logo=github)](https://github.com/bniladridas/cursor/releases)
 [![npm](https://img.shields.io/npm/v/@bniladridas/cursor)](https://www.npmjs.com/package/@bniladridas/cursor)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
