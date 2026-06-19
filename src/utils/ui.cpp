@@ -328,17 +328,10 @@ void UI::clear_screen() {
 
 void UI::enter_chat_mode() {
   clear_screen();
-  int h = get_terminal_height();
-  // Scroll region: lines 2 through h-3
-  // Lines 1 (StatusLine), h-2 (ContextLine), h-1 (InputBar) are fixed
-  int scroll_bot = h - 3;
-  if (scroll_bot > 1) {
-    std::cout << "\033[2;" << scroll_bot << "r";
-  }
 }
 
 void UI::exit_chat_mode() {
-  std::cout << "\033[?25h\033[r";
+  std::cout << "\033[?25h";
 }
 
 void UI::clear_line() {
