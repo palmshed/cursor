@@ -164,11 +164,12 @@ bool download_and_install(const std::string &version) {
   }
 
   {
-    std::string cmd;
 #ifdef _WIN32
-    cmd = "tar -xf \"" + tmp + "\" -C \"" + tmpDir + "\"";
+    std::string cmd =
+        "powershell -NoProfile -Command \"Expand-Archive -LiteralPath '" +
+        tmp + "' -DestinationPath '" + tmpDir + "' -Force\"";
 #else
-    cmd = "tar -xzf \"" + tmp + "\" -C \"" + tmpDir + "\"";
+    std::string cmd = "tar -xzf \"" + tmp + "\" -C \"" + tmpDir + "\"";
 #endif
     int rc = std::system(cmd.c_str());
     if (rc != 0) {
