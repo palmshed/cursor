@@ -72,6 +72,37 @@ static void print_tty_user_msg(const std::string &text) {
             << text << "\n\n";
 }
 
+static std::string read_line() {
+  std::string buf;
+  struct termios oldt, newt;
+  tcgetattr(STDIN_FILENO, &oldt);
+  newt = oldt;
+  newt.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+  while (true) {
+    int ch = std::cin.get();
+    if (ch == EOF) {
+      break;
+    }
+    if (ch == '\n' || ch == '\r') {
+      break;
+    }
+    if (ch == 127 || ch == '\b') {
+      if (!buf.empty()) {
+        buf.pop_back();
+        Utils::UI::draw_input_bar(buf);
+      }
+    } else if (ch >= 32 && ch < 127) {
+      buf.push_back((char)ch);
+      Utils::UI::draw_input_bar(buf);
+    }
+  }
+
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  return buf;
+}
+
 void Agent::run() {
   initialize_mode();
 
@@ -107,12 +138,14 @@ void Agent::run() {
           "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
       Utils::UI::draw_input_bar();
       std::cout << "\033[?25h" << std::flush;
+      user_input = read_line();
+      // Hide cursor during response processing
+      std::cout << "\033[?25l";
     } else {
       std::cout << "> " << std::flush;
-    }
-
-    if (!std::getline(std::cin, user_input)) {
-      break;
+      if (!std::getline(std::cin, user_input)) {
+        break;
+      }
     }
 
     user_input = trim_copy(user_input);
