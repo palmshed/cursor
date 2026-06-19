@@ -327,11 +327,17 @@ void UI::clear_screen() {
 }
 
 void UI::enter_chat_mode() {
+  std::cout << "\033[?1049h";
   clear_screen();
+  int h = get_terminal_height();
+  int scroll_bot = h - 3;
+  if (scroll_bot > 1) {
+    std::cout << "\033[2;" << scroll_bot << "r";
+  }
 }
 
 void UI::exit_chat_mode() {
-  std::cout << "\033[?25h";
+  std::cout << "\033[?25h\033[r\033[?1049l";
 }
 
 void UI::clear_line() {

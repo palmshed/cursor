@@ -155,11 +155,12 @@ void Agent::run() {
     if (user_input == "exit" || user_input == "quit")
       break;
 
-    // Clear input bar for new output
+    // Clear input bar and move to bottom of scroll region for new output
     if (tty) {
       int h = Utils::UI::get_terminal_height();
       Utils::UI::cursor_to(h - 1, 1);
       Utils::UI::clear_line();
+      Utils::UI::cursor_to(h - 3, 1);
       std::cout << "\n";
     }
 
