@@ -115,8 +115,9 @@ jobs:
           sudo apt update
           sudo apt install -y nlohmann-json3-dev cmake build-essential libcurl4-openssl-dev libpqxx-dev lcov
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-          cmake --build build --target coverage
+          cmake --build build --target cursor-agent
           chmod +x build/bin/cursor-agent || true
+          cmake --build build --target coverage
       - uses: codecov/codecov-action@v7
         with:
           files: build/coverage/coverage.info
