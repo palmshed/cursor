@@ -1,12 +1,12 @@
 class Cursor < Formula
   desc "Professional AI agent with command execution and file operations"
   homepage "https://github.com/bniladridas/cursor"
-  url "https://github.com/bniladridas/cursor/archive/refs/tags/v0.1.12.tar.gz"
-  sha256 "3bd20c26f2efee7dacb13611c6827490b13600d0d3fe37aae8f2ef04f53315b0"
+  url "https://github.com/bniladridas/cursor/archive/refs/tags/v0.1.13.tar.gz"
+  sha256 "11aa460a091e963cd09ac245eb10d0ed32997754687768b90c0c916f31b44552"
   license "Apache-2.0"
 
   bottle do
-    root_url "https://github.com/bniladridas/cursor/releases/download/v0.1.13"
+    root_url "https://github.com/bniladridas/cursor/archive/refs/tags/v0.1.13.tar.gz"
     sha256 arm64_sequoia: "PLACEHOLDER"
   end
 
