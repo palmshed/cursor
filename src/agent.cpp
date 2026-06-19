@@ -66,7 +66,7 @@ static inline std::string trim_copy(const std::string &s) {
 }
 
 std::string Agent::format_message(const std::string &sender,
-                                  const std::string &content) {
+                                   const std::string &content) {
   std::string color;
   if (sender == "Cursor")
     color = Utils::Color::GREEN;
@@ -74,7 +74,7 @@ std::string Agent::format_message(const std::string &sender,
     color = Utils::Color::CYAN;
   return color + "\u2502 " + Utils::Color::RESET + Utils::Color::BOLD +
          sender + Utils::Color::RESET + "\n" + color + "\u2502 " +
-         Utils::Color::RESET + content + "\n\n";
+         Utils::Color::RESET + content;
 }
 
 static std::string read_line() {
@@ -196,18 +196,18 @@ void Agent::run() {
 
     if (user_input == "help") {
       if (tty) {
-        std::cout << format_message("You", "asked for help");
+        std::cout << format_message("You", "asked for help") << "\n\n";
         Utils::UI::print_help();
       } else {
         Utils::UI::print_help();
       }
     } else if (user_input == "version") {
       if (tty)
-        std::cout << format_message("You", "checked version");
+        std::cout << format_message("You", "checked version") << "\n";
       Version::print_version_info();
     } else if (user_input == "update") {
       if (tty)
-        std::cout << format_message("You", "checked for updates");
+        std::cout << format_message("You", "checked for updates") << "\n";
       std::cout << "Checking for updates...\n";
       std::string latest = Version::check_update();
       if (latest.empty()) {
@@ -220,7 +220,7 @@ void Agent::run() {
       if (tty) {
         std::string user_msg = format_message("You", user_input);
         store_message("You", user_input);
-        std::cout << user_msg;
+        std::cout << user_msg << "\n\n";
 
         std::string cursor_hdr =
             Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET +
@@ -410,6 +410,7 @@ void Agent::redraw_messages() {
     Utils::UI::clear_line();
     std::cout << format_message(messages_[i].sender, messages_[i].content);
     row += messages_[i].lines;
+    row++;  // blank separator between messages
   }
 
   // Clear remaining lines below messages
