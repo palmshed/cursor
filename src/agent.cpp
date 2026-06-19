@@ -82,20 +82,13 @@ void Agent::run() {
   bool tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
 
   if (tty) {
+    std::cout << "\033[?25l";
     Utils::UI::enter_chat_mode();
     struct sigaction sa;
     sa.sa_handler = handle_sigwinch;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    sa.sa_flags = SA_RESTART;
     sigaction(SIGWINCH, &sa, nullptr);
-    std::error_code ec;
-    auto cwd = std::filesystem::current_path(ec);
-    std::string dir = ec ? "~" : cwd.filename().string();
-    Utils::UI::draw_status_line(mode_name, model_name, dir);
-    Utils::UI::draw_context_line(
-        "\xE2\x8C\x98P palette  :cmd  !shell  ? help");  // ⌘P
-    Utils::UI::draw_input_bar();
-    std::cout << "\033[?25l";
   } else {
     Utils::UI::print_ready_interface(mode_name, model_name);
   }
@@ -103,15 +96,15 @@ void Agent::run() {
   while (true) {
     if (g_resized.exchange(false)) {
       Utils::UI::enter_chat_mode();
+    }
+    std::string user_input;
+    if (tty) {
       std::error_code ec;
       auto cwd = std::filesystem::current_path(ec);
       std::string dir = ec ? "~" : cwd.filename().string();
       Utils::UI::draw_status_line(mode_name, model_name, dir);
       Utils::UI::draw_context_line(
           "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
-    }
-    std::string user_input;
-    if (tty) {
       Utils::UI::draw_input_bar();
       std::cout << "\033[?25h" << std::flush;
     } else {
@@ -251,6 +244,8 @@ int Agent::show_menu(const std::string &title,
 
   int selected = std::clamp(default_index, 0, (int)items.size() - 1);
 
+  std::cout << "\033[?25l";
+
   struct termios oldt, newt;
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
@@ -293,6 +288,7 @@ int Agent::show_menu(const std::string &title,
   std::cout << "\033[" << items.size() << "A\033[J";
   std::cout << Utils::Color::GREEN << title << ": " << Utils::Color::RESET
             << items[selected] << "\n";
+  std::cout << "\033[?25h";
 
   return selected;
 }
