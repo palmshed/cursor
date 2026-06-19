@@ -1,7 +1,6 @@
 #pragma once
 #include "agent_mode.h"
 #include "utils/config.h" // For CURSOR_API
-#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,12 +19,6 @@ class CURSOR_API Agent {
 public:
   using Mode = AgentMode; // Type alias for backward compatibility
 
-  struct MessageBlock {
-    std::string sender;
-    std::string content;
-    int lines;
-  };
-
 private:
   Mode mode_{Mode::MODE_UNSET};
   std::string api_key_;
@@ -36,10 +29,6 @@ private:
   std::unique_ptr<Services::AIService> ai_service_;
   int command_count_{0};
   long long token_usage_{0};
-
-  std::deque<MessageBlock> messages_;
-  int msg_cursor_row_{2};
-  bool needs_screen_reset_{false};
 
 public:
   // Move operations
@@ -95,10 +84,6 @@ public:
 
   void run();
 
-  // Scroll management
-  void store_message(const std::string &sender, const std::string &content);
-  void redraw_messages();
-  static int count_lines(const std::string &text);
   static std::string format_message(const std::string &sender,
                                     const std::string &content);
 };

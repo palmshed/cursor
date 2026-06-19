@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cstdlib>
 #include <iostream>
 #include <thread>
 #include <unistd.h>
@@ -31,7 +32,6 @@
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
-#include <signal.h>
 #include <sstream>
 #include <termios.h>
 #include <vector>
@@ -39,10 +39,10 @@
 // Constants for response handling
 const size_t MAX_RESPONSE_LENGTH = 8000;
 
-static std::atomic<bool> g_resized{false};
-extern "C" void handle_sigwinch(int) {
-  g_resized = true;
-}
+#ifdef CURSOR_USE_LIBEDIT
+extern "C" char *readline(const char *);
+extern "C" void add_history(const char *);
+#endif
 
 // Using the Mode enum from agent.h instead of separate constants
 
@@ -65,6 +65,202 @@ static inline std::string trim_copy(const std::string &s) {
   return s.substr(a, b - a);
 }
 
+static bool starts_with_at(const std::string &s, size_t pos,
+                           const std::string &prefix) {
+  return pos + prefix.size() <= s.size() &&
+         s.compare(pos, prefix.size(), prefix) == 0;
+}
+
+static std::string replace_inline_markdown(const std::string &line) {
+  std::string out;
+  bool bold = false;
+  bool code = false;
+  for (size_t i = 0; i < line.size(); i++) {
+    if (starts_with_at(line, i, "**")) {
+      out += bold ? Utils::Color::RESET : Utils::Color::BOLD;
+      bold = !bold;
+      i++;
+    } else if (line[i] == '`') {
+      out += code ? Utils::Color::RESET : Utils::Color::YELLOW;
+      code = !code;
+    } else {
+      out += line[i];
+    }
+  }
+  if (bold || code) {
+    out += Utils::Color::RESET;
+  }
+  return out;
+}
+
+static std::string highlight_code_line(const std::string &line,
+                                       const std::string &language) {
+  std::string out;
+  std::string token;
+  auto flush_token = [&]() {
+    if (token.empty()) {
+      return;
+    }
+    static const std::vector<std::string> keywords = {
+        "auto", "bool", "break", "case", "class", "const", "continue",
+        "else", "false", "for", "function", "if", "int", "let", "return",
+        "std", "string", "struct", "true", "var", "void", "while"};
+    bool is_keyword =
+        std::find(keywords.begin(), keywords.end(), token) != keywords.end();
+    if (is_keyword) {
+      out += Utils::Color::CYAN + token + Utils::Color::RESET;
+    } else {
+      out += token;
+    }
+    token.clear();
+  };
+
+  for (size_t i = 0; i < line.size(); i++) {
+    char ch = line[i];
+    if (language == "html" && (ch == '<' || ch == '>')) {
+      flush_token();
+      out += Utils::Color::CYAN;
+      out += ch;
+      out += Utils::Color::RESET;
+    } else if (ch == '"' || ch == '\'') {
+      flush_token();
+      char quote = ch;
+      out += Utils::Color::YELLOW;
+      out += ch;
+      i++;
+      while (i < line.size()) {
+        out += line[i];
+        if (line[i] == quote) {
+          break;
+        }
+        i++;
+      }
+      out += Utils::Color::RESET;
+    } else if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_') {
+      token += ch;
+    } else {
+      flush_token();
+      out += ch;
+    }
+  }
+  flush_token();
+  return out;
+}
+
+static std::string render_markdown(const std::string &text) {
+  std::stringstream input(text);
+  std::ostringstream output;
+  std::string line;
+  bool in_code = false;
+  std::string language;
+
+  while (std::getline(input, line)) {
+    std::string trimmed = trim_copy(line);
+    if (trimmed.starts_with("```")) {
+      in_code = !in_code;
+      language = in_code ? trim_copy(trimmed.substr(3)) : "";
+      if (in_code && !language.empty()) {
+        output << Utils::Color::DIM << language << Utils::Color::RESET << "\n";
+      }
+      continue;
+    }
+
+    if (in_code) {
+      output << "  " << highlight_code_line(line, language) << "\n";
+    } else if (trimmed.starts_with("#")) {
+      size_t pos = trimmed.find_first_not_of("# ");
+      output << Utils::Color::BOLD
+             << (pos == std::string::npos ? trimmed : trimmed.substr(pos))
+             << Utils::Color::RESET << "\n";
+    } else {
+      output << replace_inline_markdown(line) << "\n";
+    }
+  }
+  return output.str();
+}
+
+static std::string read_prompt(const std::string &prompt,
+                               const std::vector<std::string> &history) {
+#ifdef CURSOR_USE_LIBEDIT
+  (void)history;
+  char *line = readline(prompt.c_str());
+  if (line == nullptr) {
+    std::cin.setstate(std::ios::eofbit);
+    return {};
+  }
+  std::string input(line);
+  if (!input.empty()) {
+    add_history(line);
+  }
+  std::free(line);
+  return input;
+#else
+  std::string buf;
+  std::string saved;
+  int cursor = 0;
+  int history_index = (int)history.size();
+  struct termios oldt, newt;
+  tcgetattr(STDIN_FILENO, &oldt);
+  newt = oldt;
+  newt.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+  auto redraw = [&]() {
+    Utils::UI::clear_line();
+    std::cout << prompt << buf;
+    std::cout << "\r\033[" << ((int)prompt.size() + cursor) << "C"
+              << std::flush;
+  };
+
+  while (true) {
+    int ch = std::cin.get();
+    if (ch == EOF || ch == '\n' || ch == '\r') {
+      break;
+    }
+    if (ch == 127 || ch == '\b') {
+      if (cursor > 0) {
+        buf.erase(cursor - 1, 1);
+        cursor--;
+        redraw();
+      }
+    } else if (ch == '\033') {
+      if (std::cin.get() == '[') {
+        int c = std::cin.get();
+        if (c == 'A' && history_index > 0) {
+          if (history_index == (int)history.size()) {
+            saved = buf;
+          }
+          history_index--;
+          buf = history[history_index];
+          cursor = (int)buf.size();
+          redraw();
+        } else if (c == 'B' && history_index < (int)history.size()) {
+          history_index++;
+          buf = history_index == (int)history.size() ? saved
+                                                     : history[history_index];
+          cursor = (int)buf.size();
+          redraw();
+        } else if (c == 'D' && cursor > 0) {
+          cursor--;
+          redraw();
+        } else if (c == 'C' && cursor < (int)buf.size()) {
+          cursor++;
+          redraw();
+        }
+      }
+    } else if (ch >= 32 && ch < 127) {
+      buf.insert(cursor, 1, (char)ch);
+      cursor++;
+      redraw();
+    }
+  }
+
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  std::cout << "\n";
+  return buf;
+#endif
+}
+
 std::string Agent::format_message(const std::string &sender,
                                    const std::string &content) {
   std::string color;
@@ -77,57 +273,6 @@ std::string Agent::format_message(const std::string &sender,
          Utils::Color::RESET + content;
 }
 
-static std::string read_line() {
-  std::string buf;
-  int cursor = 0;
-  struct termios oldt, newt;
-  tcgetattr(STDIN_FILENO, &oldt);
-  newt = oldt;
-  newt.c_lflag &= ~(ICANON | ECHO);
-  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-
-  while (true) {
-    int ch = std::cin.get();
-    if (ch == EOF) {
-      break;
-    }
-    if (ch == '\n' || ch == '\r') {
-      break;
-    }
-    if (ch == 127 || ch == '\b') {
-      if (cursor > 0) {
-        buf.erase(cursor - 1, 1);
-        cursor--;
-        Utils::UI::draw_input_bar(buf, cursor);
-      }
-    } else if (ch == '\033') {
-      if (std::cin.get() == '[') {
-        int c = std::cin.get();
-        if (c == 'D' && cursor > 0) {
-          cursor--;
-          Utils::UI::draw_input_bar(buf, cursor);
-        } else if (c == 'C' && cursor < (int)buf.size()) {
-          cursor++;
-          Utils::UI::draw_input_bar(buf, cursor);
-        } else if (c == 'H') {
-          cursor = 0;
-          Utils::UI::draw_input_bar(buf, 0);
-        } else if (c == 'F') {
-          cursor = (int)buf.size();
-          Utils::UI::draw_input_bar(buf, cursor);
-        }
-      }
-    } else if (ch >= 32 && ch < 127) {
-      buf.insert(cursor, 1, (char)ch);
-      cursor++;
-      Utils::UI::draw_input_bar(buf, cursor);
-    }
-  }
-
-  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-  return buf;
-}
-
 void Agent::run() {
   initialize_mode();
 
@@ -138,39 +283,22 @@ void Agent::run() {
   bool tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
 
   if (tty) {
-    std::cout << "\033[?25l";
-    Utils::UI::enter_chat_mode();
-    struct sigaction sa;
-    sa.sa_handler = handle_sigwinch;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    sigaction(SIGWINCH, &sa, nullptr);
+    Utils::UI::print_ready_interface(mode_name, model_name);
   } else {
     Utils::UI::print_ready_interface(mode_name, model_name);
   }
 
+  std::vector<std::string> input_history;
   while (true) {
-    if (g_resized.exchange(false)) {
-      Utils::UI::enter_chat_mode();
-    }
     std::string user_input;
     if (tty) {
-      if (needs_screen_reset_) {
-        needs_screen_reset_ = false;
-        Utils::UI::clear_screen();
+      std::cout << Utils::Color::DIM
+                << "\xE2\x8C\x98P palette  :cmd  !shell  ? help"
+                << Utils::Color::RESET << "\n";
+      user_input = read_prompt("> ", input_history);
+      if (std::cin.eof()) {
+        break;
       }
-      std::error_code ec;
-      auto cwd = std::filesystem::current_path(ec);
-      std::string dir = ec ? "~" : cwd.filename().string();
-      Utils::UI::draw_status_line(mode_name, model_name, dir);
-      redraw_messages();
-      Utils::UI::draw_context_line(
-          "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
-      Utils::UI::draw_input_bar();
-      std::cout << "\033[?25h" << std::flush;
-      user_input = read_line();
-      // Hide cursor during response processing
-      std::cout << "\033[?25l";
     } else {
       std::cout << "> " << std::flush;
       if (!std::getline(std::cin, user_input)) {
@@ -182,32 +310,20 @@ void Agent::run() {
     if (user_input.empty())
       continue;
 
+    if (tty) {
+      input_history.push_back(user_input);
+    }
+
     if (user_input == "exit" || user_input == "quit")
       break;
 
     // Input bar will be cleared and redrawn by draw_input_bar on next loop
 
     if (user_input == "help") {
-      if (tty) {
-        store_message("You", "asked for help");
-        redraw_messages();
-        Utils::UI::print_help();
-        needs_screen_reset_ = true;
-      } else {
-        Utils::UI::print_help();
-      }
+      Utils::UI::print_help();
     } else if (user_input == "version") {
-      if (tty) {
-        store_message("You", "checked version");
-        redraw_messages();
-      }
       Version::print_version_info();
-      if (tty) needs_screen_reset_ = true;
     } else if (user_input == "update") {
-      if (tty) {
-        store_message("You", "checked for updates");
-        redraw_messages();
-      }
       std::cout << "Checking for updates...\n";
       std::string latest = Version::check_update();
       if (latest.empty()) {
@@ -216,40 +332,13 @@ void Agent::run() {
       } else if (Version::download_and_install(latest)) {
         std::cout << "Restart cursor to use the new version.\n";
       }
-      if (tty) needs_screen_reset_ = true;
     } else {
-      if (tty) {
-        store_message("You", user_input);
-        redraw_messages();
-        Utils::UI::draw_input_bar();
-        std::cout << "\033[?25h" << std::flush;
-
-        bool is_direct_cmd = user_input.starts_with("!") ||
-                             user_input.starts_with("/") ||
-                             user_input.find('@') != std::string::npos ||
-                             user_input.find(':') != std::string::npos;
-        process_user_input(user_input);
-
-        if (is_direct_cmd) {
-          needs_screen_reset_ = true;
-        }
-        redraw_messages();
-        Utils::UI::draw_input_bar();
-        std::cout << "\033[?25h" << std::flush;
-      } else {
-        process_user_input(user_input);
-      }
-    }
-
-    if (tty) {
-      Utils::UI::draw_context_line(
-          "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
+      process_user_input(user_input);
     }
   }
 
   if (tty) {
     Utils::UI::exit_chat_mode();
-    Utils::UI::clear_screen();
   }
   std::cout << "Goodbye\n";
 }
@@ -369,63 +458,6 @@ int Agent::show_menu(const std::string &title,
   std::cout << "\033[?25h";
 
   return selected;
-}
-
-int Agent::count_lines(const std::string &text) {
-  if (text.empty()) return 0;
-  int w = Utils::UI::get_terminal_width();
-  int lines = 1;
-  int col = 0;
-  for (size_t i = 0; i < text.size(); i++) {
-    char c = text[i];
-    if (c == '\033') {
-      // Skip ANSI escape sequence
-      i++;
-      while (i < text.size() && text[i] != 'm' &&
-             !(text[i] >= 'A' && text[i] <= 'Z'))
-        i++;
-      continue;
-    }
-    if (c == '\n') {
-      lines++;
-      col = 0;
-    } else {
-      col++;
-      if (col > w) {
-        lines++;
-        col = 1;
-      }
-    }
-  }
-  return lines;
-}
-
-void Agent::store_message(const std::string &sender,
-                          const std::string &content) {
-  std::string formatted = format_message(sender, content);
-  int l = count_lines(formatted);
-  messages_.push_back({sender, content, l});
-}
-
-void Agent::redraw_messages() {
-  int h = Utils::UI::get_terminal_height();
-  int scroll_bot = h - 3;
-
-  int row = 2;
-  for (size_t i = 0; i < messages_.size(); i++) {
-    Utils::UI::cursor_to(row, 1);
-    Utils::UI::clear_line();
-    std::cout << format_message(messages_[i].sender, messages_[i].content);
-    row += messages_[i].lines;
-    row++;  // blank separator between messages
-  }
-
-  // Clear remaining lines below messages
-  for (; row <= scroll_bot; row++) {
-    Utils::UI::cursor_to(row, 1);
-    Utils::UI::clear_line();
-  }
-  msg_cursor_row_ = row;
 }
 
 std::string Agent::process_user_input(const std::string &input) {
@@ -740,11 +772,9 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     }
   }
 
-  bool tty = isatty(STDOUT_FILENO) && isatty(STDIN_FILENO);
-
   if (!ai_service_->is_available()) {
     std::string msg = "AI service unavailable\n";
-    if (!tty) std::cout << msg;
+    std::cout << msg;
     return msg;
   }
 
@@ -768,22 +798,16 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     spin.join();
 
   if (!response.empty()) {
-    if (!tty) {
+    if (isatty(STDOUT_FILENO)) {
+      std::cout << format_message("Cursor", render_markdown(response)) << "\n";
+    } else {
       std::cout << response << "\n";
     }
     memory_->save_interaction(input, response);
 
-    // Strip trailing newline for cleaner stored format
-    std::string clean = response;
-    if (!clean.empty() && clean.back() == '\n')
-      clean.pop_back();
-    store_message("Cursor", clean);
-
     return response;
   } else {
-    if (!tty) {
-      std::cout << "No response\n";
-    }
+    std::cout << "No response\n";
     return "No response\n";
   }
 }

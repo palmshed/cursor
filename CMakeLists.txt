@@ -72,6 +72,7 @@ endif()
 
 # Find dependencies
 find_package(Threads REQUIRED)
+find_library(EDIT_LIBRARY edit)
 
 # Find zlib with platform-specific logic, fallback to FetchContent
 set(zlib_is_found FALSE)
@@ -517,6 +518,11 @@ target_link_libraries(cursor_lib PRIVATE
     Threads::Threads
     $<$<BOOL:${HAVE_PQXX}>:${PQXX_LIBRARY}>
 )
+
+if(EDIT_LIBRARY)
+    target_compile_definitions(cursor_lib PRIVATE CURSOR_USE_LIBEDIT)
+    target_link_libraries(cursor_lib PRIVATE ${EDIT_LIBRARY})
+endif()
 
 # Set additional linker flags for macOS
 if(APPLE)
