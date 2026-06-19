@@ -60,23 +60,11 @@ static inline std::string trim_copy(const std::string &s) {
 void Agent::run() {
   initialize_mode();
 
-  // Data-driven model name mapping
-  // Data-driven model name mapping
-  std::map<Agent::Mode, std::string> model_names = {
-      {Agent::Mode::MODE_TOGETHER, "Together AI"},
-      {Agent::Mode::MODE_CEREBRAS, "Cerebras"},
-      {Agent::Mode::MODE_FIREWORKS, "Fireworks"},
-      {Agent::Mode::MODE_GROQ, "Groq"},
-      {Agent::Mode::MODE_DEEPSEEK, "DeepSeek"},
-      {Agent::Mode::MODE_OPENAI, "OpenAI"},
-      {Agent::Mode::MODE_LLAMA_3B, "llama3.2:3b"},
-      {Agent::Mode::MODE_LLAMA_LATEST, "llama3.2:latest"},
-      {Agent::Mode::MODE_LLAMA_31, "llama3.1:latest"}};
-
-  // Show enhanced ready interface with system info and quick help
+  // Show minimal ready interface
   std::string mode_name = is_online_mode() ? "Online" : "Offline";
-  std::string model_name =
-      model_names.count(mode_) ? model_names[mode_] : "Unknown";
+  std::string model_name = ollama_model_.empty()
+      ? "local"
+      : ollama_model_;
   Utils::UI::print_ready_interface(mode_name, model_name);
 
   while (true) {
