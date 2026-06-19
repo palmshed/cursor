@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -35,6 +36,22 @@
 #include <sstream>
 #include <termios.h>
 #include <vector>
+
+class TeeBuf : public std::streambuf {
+  std::streambuf *target_;
+  std::string &capture_;
+public:
+  TeeBuf(std::streambuf *t, std::string &c) : target_(t), capture_(c) {}
+protected:
+  int overflow(int c) override {
+    if (c != EOF) {
+      capture_ += (char)c;
+      if (target_->sputc(c) == EOF) return EOF;
+    }
+    return c;
+  }
+  int sync() override { return target_->pubsync(); }
+};
 
 // Constants for response handling
 const size_t MAX_RESPONSE_LENGTH = 8000;
@@ -72,7 +89,8 @@ static void print_tty_user_msg(const std::string &text) {
             << text << "\n\n";
 }
 
-static std::string read_line() {
+static std::string read_line(
+    std::function<void(int)> on_scroll = nullptr) {
   std::string buf;
   struct termios oldt, newt;
   tcgetattr(STDIN_FILENO, &oldt);
@@ -94,12 +112,33 @@ static std::string read_line() {
         Utils::UI::draw_input_bar(buf);
       }
     } else if (ch == '\033') {
-      // Discard escape sequences (arrow keys, etc.)
       if (std::cin.get() == '[') {
-        while (true) {
-          int c = std::cin.get();
-          if (c == EOF || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
-            break;
+        int c = std::cin.get();
+        if (c == '5' && std::cin.get() == '~' && on_scroll) {
+          // PgUp
+          on_scroll(Utils::UI::get_terminal_height() - 4);
+        } else if (c == '6' && std::cin.get() == '~' && on_scroll) {
+          // PgDn
+          on_scroll(-(Utils::UI::get_terminal_height() - 4));
+        } else if (c == '<') {
+          // SGR mouse event: <button;col;row M/m
+          std::string params;
+          while (true) {
+            int p = std::cin.get();
+            if (p == EOF) break;
+            if (p == 'M' || p == 'm') break;
+            params += (char)p;
+          }
+          if (on_scroll) {
+            auto sep = params.find(';');
+            if (sep != std::string::npos) {
+              int btn = std::stoi(params.substr(0, sep));
+              if (btn == 64)      on_scroll(3);   // wheel up
+              else if (btn == 65) on_scroll(-3);  // wheel down
+            }
+          }
+        } else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+          // Regular arrow/function key, discard
         }
       }
     } else if (ch >= 32 && ch < 127) {
@@ -146,8 +185,16 @@ void Agent::run() {
       Utils::UI::draw_context_line(
           "\xE2\x8C\x98P palette  :cmd  !shell  ? help");
       Utils::UI::draw_input_bar();
+      redraw_messages();
       std::cout << "\033[?25h" << std::flush;
-      user_input = read_line();
+      user_input = read_line([this](int delta) {
+        int h = Utils::UI::get_terminal_height();
+        int visible = h - 4;
+        int max_offset = std::max(0, total_lines_ - visible);
+        scroll_offset_ = std::clamp(scroll_offset_ + delta, 0, max_offset);
+        redraw_messages();
+        Utils::UI::draw_input_bar();
+      });
       // Hide cursor during response processing
       std::cout << "\033[?25l";
     } else {
@@ -161,16 +208,16 @@ void Agent::run() {
     if (user_input.empty())
       continue;
 
+    scroll_offset_ = 0;
+
     if (user_input == "exit" || user_input == "quit")
       break;
 
-    // Clear input bar and move to bottom of scroll region for new output
+    // Clear input bar
     if (tty) {
       int h = Utils::UI::get_terminal_height();
       Utils::UI::cursor_to(h - 1, 1);
       Utils::UI::clear_line();
-      Utils::UI::cursor_to(h - 3, 1);
-      std::cout << "\n";
     }
 
     if (user_input == "help") {
@@ -196,14 +243,34 @@ void Agent::run() {
         std::cout << "Restart cursor to use the new version.\n";
       }
     } else {
-      if (tty)
-        print_tty_user_msg(user_input);
       if (tty) {
-        std::cout << Utils::Color::GREEN << "\u2502 " << Utils::Color::RESET
-                  << Utils::Color::BOLD << "Cursor" << Utils::Color::RESET << "\n"
-                  << Utils::Color::GREEN << "\u2502 " << Utils::Color::RESET;
+        // Build and store user message
+        std::string user_msg =
+            Utils::Color::CYAN + "\u2502 " + Utils::Color::RESET +
+            Utils::Color::BOLD + "You" + Utils::Color::RESET + "\n" +
+            Utils::Color::CYAN + "\u2502 " + Utils::Color::RESET +
+            user_input + "\n\n";
+        store_message(user_msg);
+
+        // Print user message and Cursor header
+        std::cout << user_msg;
+        std::string cursor_hdr =
+            Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET +
+            Utils::Color::BOLD + "Cursor" + Utils::Color::RESET + "\n" +
+            Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET;
+
+        std::string ai_capture;
+        TeeBuf tee(std::cout.rdbuf(), ai_capture);
+        auto old = std::cout.rdbuf(&tee);
+
+        std::cout << cursor_hdr;
+        process_user_input(user_input);
+        std::cout.rdbuf(old);
+
+        store_message(cursor_hdr + ai_capture);
+      } else {
+        process_user_input(user_input);
       }
-      process_user_input(user_input);
     }
 
     if (tty) {
@@ -334,6 +401,115 @@ int Agent::show_menu(const std::string &title,
   std::cout << "\033[?25h";
 
   return selected;
+}
+
+int Agent::count_lines(const std::string &text) {
+  if (text.empty()) return 0;
+  int w = Utils::UI::get_terminal_width();
+  int lines = 1;
+  int col = 0;
+  for (char c : text) {
+    if (c == '\n') {
+      lines++;
+      col = 0;
+    } else {
+      col++;
+      if (col > w) {
+        lines++;
+        col = 1;
+      }
+    }
+  }
+  return lines;
+}
+
+void Agent::store_message(const std::string &text) {
+  int l = count_lines(text);
+  messages_.push_back({text, l});
+  total_lines_ += l;
+}
+
+void Agent::redraw_messages() {
+  int h = Utils::UI::get_terminal_height();
+  int w = Utils::UI::get_terminal_width();
+  int scroll_bot = h - 3;
+  int visible = scroll_bot - 1;  // rows 2..scroll_bot
+
+  if (total_lines_ <= visible) {
+    // No scrolling needed, draw all messages from top
+    int row = 2;
+    for (auto &m : messages_) {
+      Utils::UI::cursor_to(row, 1);
+      std::cout << m.text;
+      row += m.lines;
+    }
+    // Clear remaining lines
+    for (; row <= scroll_bot; row++) {
+      Utils::UI::cursor_to(row, 1);
+      Utils::UI::clear_line();
+    }
+    Utils::UI::draw_scrollbar(total_lines_, visible, 0);
+    return;
+  }
+
+  // Find which messages to show based on scroll_offset
+  // scroll_offset = 0 means show latest (bottom)
+  int target_end = total_lines_ - scroll_offset_;  // last visible line
+  int target_start = target_end - visible;        // first visible line
+
+  int line = 0;
+  int start_idx = 0;
+  int skip = 0;
+  for (size_t i = 0; i < messages_.size(); i++) {
+    int next = line + messages_[i].lines;
+    if (next > target_start) {
+      start_idx = i;
+      skip = target_start - line;
+      break;
+    }
+    line = next;
+  }
+
+  int row = 2;
+  int drawn = 0;
+  for (size_t i = start_idx; i < messages_.size() && drawn < visible; i++) {
+    int take = messages_[i].lines - skip;
+    if (take > visible - drawn)
+      take = visible - drawn;
+    Utils::UI::cursor_to(row, 1);
+    // Print only the visible portion of this message
+    std::string_view sv(messages_[i].text);
+    size_t pos = 0;
+    int lines_consumed = 0;
+    while (lines_consumed < skip) {
+      size_t nl = sv.find('\n', pos);
+      if (nl == std::string_view::npos) break;
+      pos = nl + 1;
+      lines_consumed++;
+    }
+    int lines_taken = 0;
+    while (lines_taken < take) {
+      size_t nl = sv.find('\n', pos);
+      std::cout << sv.substr(pos, nl == std::string_view::npos
+                                     ? sv.size() - pos
+                                     : nl - pos);
+      if (nl != std::string_view::npos) {
+        std::cout << '\n';
+        pos = nl + 1;
+      }
+      lines_taken++;
+    }
+    row += take;
+    drawn += take;
+    skip = 0;
+  }
+
+  // Clear remaining lines
+  for (; row <= scroll_bot; row++) {
+    Utils::UI::cursor_to(row, 1);
+    Utils::UI::clear_line();
+  }
+  Utils::UI::draw_scrollbar(total_lines_, visible, scroll_offset_);
 }
 
 void Agent::process_user_input(const std::string &input) {
