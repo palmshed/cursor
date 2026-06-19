@@ -25,12 +25,14 @@
 #include <cctype>
 #include <iostream>
 #include <thread>
+#include <unistd.h>
 
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#include <termios.h>
 #include <vector>
 
 // Constants for response handling
@@ -107,114 +109,51 @@ void Agent::run() {
 }
 
 void Agent::initialize_mode() {
-  // Data-driven provider configuration
-  struct ProviderInfo {
-    int choice;
-    Mode mode;
-    std::string env_var;
-    std::string display_name;
-  };
+  std::vector<std::string> modes = {"Online", "Offline"};
+  int choice = show_menu("Mode", modes, 1);
 
-  std::vector<ProviderInfo> providers = {
-      {1, Agent::Mode::MODE_TOGETHER, "TOGETHER_API_KEY", "Together AI"},
-      {2, Agent::Mode::MODE_CEREBRAS, "CEREBRAS_API_KEY", "Cerebras"},
-      {3, Agent::Mode::MODE_FIREWORKS, "FIREWORKS_API_KEY", "Fireworks"},
-      {4, Agent::Mode::MODE_GROQ, "GROQ_API_KEY", "Groq"},
-      {5, Agent::Mode::MODE_DEEPSEEK, "DEEPSEEK_API_KEY", "DeepSeek"},
-      {6, Agent::Mode::MODE_OPENAI, "OPENAI_API_KEY", "OpenAI"}};
+  if (choice == 0) {
+    std::vector<std::string> providers = {
+        "Together AI", "Cerebras", "Fireworks",
+        "Groq", "DeepSeek", "OpenAI"};
+    std::vector<Mode> provider_modes = {
+        Agent::Mode::MODE_TOGETHER, Agent::Mode::MODE_CEREBRAS,
+        Agent::Mode::MODE_FIREWORKS, Agent::Mode::MODE_GROQ,
+        Agent::Mode::MODE_DEEPSEEK, Agent::Mode::MODE_OPENAI};
+    std::vector<std::string> provider_keys = {
+        "TOGETHER_API_KEY", "CEREBRAS_API_KEY", "FIREWORKS_API_KEY",
+        "GROQ_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"};
 
-  // Simplified mode selection with consistent numbering
-  int choice =
-      get_user_choice("Mode [1=Online / 2=Offline] (default 2): ", {1, 2}, 2);
-
-  if (choice == 1) {
-    // Online mode: pick provider
-    std::string prompt = "Provider [";
-    for (size_t i = 0; i < providers.size(); ++i) {
-      if (i > 0)
-        prompt += " / ";
-      prompt +=
-          std::to_string(providers[i].choice) + "=" + providers[i].display_name;
-    }
-    prompt += "] (default 1): ";
-
-    std::vector<int> valid_choices;
-    for (const auto &p : providers)
-      valid_choices.push_back(p.choice);
-
-    int provider_choice = get_user_choice(prompt, valid_choices, 1);
-
-    // Find and configure the selected provider
-    for (const auto &provider : providers) {
-      if (provider.choice == provider_choice) {
-        mode_ = provider.mode;
-        api_key_ = Utils::Config::get_env_var(provider.env_var);
-        if (api_key_.empty()) {
-          throw std::runtime_error(provider.env_var + " not set");
-        }
-        Utils::UI::print_success(provider.display_name);
-        break;
-      }
+    int p = show_menu("Provider", providers, 0);
+    mode_ = provider_modes[p];
+    api_key_ = Utils::Config::get_env_var(provider_keys[p]);
+    if (api_key_.empty()) {
+      throw std::runtime_error(provider_keys[p] + " not set");
     }
   } else {
-    // Offline mode: dynamically fetch available Ollama models
-    struct ModelInfo {
-      int choice;
-      Mode mode;
-      std::string display_name;
-    };
-
-    std::vector<ModelInfo> models;
-    std::string default_model = "llama3.2:3b";
-
+    std::vector<std::string> models;
     try {
       auto response = Services::WebService::fetch_url("http://localhost:11434/api/tags");
       if (response.success && !response.content.empty()) {
         auto json = nlohmann::json::parse(response.content);
         if (json.contains("models") && json["models"].is_array()) {
-          int idx = 1;
           for (const auto &m : json["models"]) {
             if (m.contains("name")) {
-              models.push_back({idx++, Mode::MODE_LLAMA_3B, m["name"]});
+              models.push_back(m["name"]);
             }
           }
         }
       }
     } catch (...) {
-      // Ollama not available, fall back to defaults
     }
 
     if (models.empty()) {
-      models = {
-          {1, Mode::MODE_LLAMA_3B, "llama3.2:3b"},
-          {2, Mode::MODE_LLAMA_LATEST, "llama3.2:latest"},
-          {3, Mode::MODE_LLAMA_31, "llama3.1:latest"}};
+      models = {"llama3.2:3b", "llama3.2:latest", "llama3.1:latest"};
     }
 
-    // Offline mode: pick model
-    std::string prompt = "Model [";
-    for (size_t i = 0; i < models.size(); ++i) {
-      if (i > 0)
-        prompt += " / ";
-      prompt += std::to_string(models[i].choice) + "=" + models[i].display_name;
-    }
-    prompt += "] (default 1): ";
-
-    std::vector<int> valid_choices;
-    for (const auto &m : models)
-      valid_choices.push_back(m.choice);
-
-    int model_choice = get_user_choice(prompt, valid_choices, 1);
-
-    // Find and configure the selected model
-    for (const auto &model : models) {
-      if (model.choice == model_choice) {
-        mode_ = model.mode;
-        ollama_model_ = model.display_name;
-        Utils::UI::print_success(model.display_name);
-        break;
-      }
-    }
+    int m = show_menu("Model", models, 0);
+    mode_ = Mode::MODE_LLAMA_3B;
+    ollama_model_ = models[m];
   }
 }
 
@@ -227,34 +166,60 @@ bool Agent::is_online_mode() const {
          mode_ == Agent::Mode::MODE_OPENAI;
 }
 
-int Agent::get_user_choice(const std::string &prompt,
-                           const std::vector<int> &valid_choices,
-                           int default_choice) {
-  while (true) {
-    std::cout << prompt;
-    std::string input;
-    if (!std::getline(std::cin, input)) {
-      // EOF -> return default
-      return default_choice;
-    }
-
-    input = trim_copy(input);
-
-    // Accept empty line as confirmation of default choice
-    if (input.empty())
-      return default_choice;
-
-    try {
-      int choice = std::stoi(input);
-      if (std::find(valid_choices.begin(), valid_choices.end(), choice) !=
-          valid_choices.end()) {
-        return choice;
-      }
-    } catch (const std::exception &) {
-      // fallthrough -> invalid input, prompt again
-    }
-    Utils::UI::print_warning("Invalid choice, please try again.");
+int Agent::show_menu(const std::string &title,
+                     const std::vector<std::string> &items,
+                     int default_index) {
+  bool tty = isatty(STDIN_FILENO) && isatty(STDOUT_FILENO);
+  if (!tty || items.empty()) {
+    return default_index;
   }
+
+  int selected = std::clamp(default_index, 0, (int)items.size() - 1);
+
+  struct termios oldt, newt;
+  tcgetattr(STDIN_FILENO, &oldt);
+  newt = oldt;
+  newt.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+  std::cout << title << ":\n";
+  for (size_t i = 0; i < items.size(); i++) {
+    std::cout << (i == (size_t)selected ? "> " : "  ") << items[i] << "\n";
+  }
+
+  int ch;
+  while (true) {
+    ch = std::cin.get();
+
+    if (ch == '\n' || ch == '\r') {
+      break;
+    }
+
+    if (ch == 0x1B && std::cin.get() == '[') {
+      int arrow = std::cin.get();
+      if (arrow == 'A' && selected > 0) {
+        selected--;
+      } else if (arrow == 'B' && selected < (int)items.size() - 1) {
+        selected++;
+      } else {
+        continue;
+      }
+      // Move back to first item line and redraw
+      std::cout << "\033[" << items.size() << "A";
+      for (size_t i = 0; i < items.size(); i++) {
+        std::cout << (i == (size_t)selected ? "> " : "  ") << items[i] << "\033[K\n";
+      }
+    }
+  }
+
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+
+  // Clear menu and print selection
+  std::cout << "\033[" << items.size() << "A\033[J";
+  std::cout << Utils::Color::GREEN << title << ": " << Utils::Color::RESET
+            << items[selected] << "\n";
+
+  return selected;
 }
 
 void Agent::process_user_input(const std::string &input) {

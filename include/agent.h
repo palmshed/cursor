@@ -40,9 +40,9 @@ public:
   Agent &operator=(const Agent &) = delete;
 
   void initialize_mode();
-  int get_user_choice(const std::string &prompt,
-                      const std::vector<int> &valid_choices,
-                      int default_choice);
+  int show_menu(const std::string &title,
+                const std::vector<std::string> &items,
+                int default_index);
   void process_user_input(const std::string &input);
   void handle_direct_command(const std::string &input);
   void handle_ai_chat(const std::string &input);
