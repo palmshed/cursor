@@ -216,3 +216,14 @@ jobs:
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           npm publish --access public --provenance 2>&1 || echo "already published"
+
+      - name: Create version update PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          base: main
+          branch: release/${{ github.ref_name }}
+          title: "chore: bump package version for ${{ github.ref_name }}"
+          body: "Bumps package.json version for ${{ github.ref_name }}."
+          add-paths: package.json
+          commit-message: "chore: bump package version to ${{ github.ref_name }}"
