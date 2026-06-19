@@ -66,11 +66,16 @@ static inline std::string trim_copy(const std::string &s) {
   return s.substr(a, b - a);
 }
 
-static void print_tty_user_msg(const std::string &text) {
-  std::cout << Utils::Color::CYAN << "\u2502 " << Utils::Color::RESET  // │
-            << Utils::Color::BOLD << "You" << Utils::Color::RESET << "\n"
-            << Utils::Color::CYAN << "\u2502 " << Utils::Color::RESET
-            << text << "\n\n";
+std::string Agent::format_message(const std::string &sender,
+                                  const std::string &content) {
+  std::string color;
+  if (sender == "Cursor")
+    color = Utils::Color::GREEN;
+  else
+    color = Utils::Color::CYAN;
+  return color + "\u2502 " + Utils::Color::RESET + Utils::Color::BOLD +
+         sender + Utils::Color::RESET + "\n" + color + "\u2502 " +
+         Utils::Color::RESET + content + "\n\n";
 }
 
 static std::string read_line(
@@ -212,18 +217,18 @@ void Agent::run() {
 
     if (user_input == "help") {
       if (tty) {
-        print_tty_user_msg("asked for help");
+        std::cout << format_message("You", "asked for help");
         Utils::UI::print_help();
       } else {
         Utils::UI::print_help();
       }
     } else if (user_input == "version") {
       if (tty)
-        print_tty_user_msg("checked version");
+        std::cout << format_message("You", "checked version");
       Version::print_version_info();
     } else if (user_input == "update") {
       if (tty)
-        print_tty_user_msg("checked for updates");
+        std::cout << format_message("You", "checked for updates");
       std::cout << "Checking for updates...\n";
       std::string latest = Version::check_update();
       if (latest.empty()) {
@@ -234,12 +239,8 @@ void Agent::run() {
       }
     } else {
       if (tty) {
-        std::string user_msg =
-            Utils::Color::CYAN + "\u2502 " + Utils::Color::RESET +
-            Utils::Color::BOLD + "You" + Utils::Color::RESET + "\n" +
-            Utils::Color::CYAN + "\u2502 " + Utils::Color::RESET +
-            user_input + "\n\n";
-        store_message(user_msg);
+        std::string user_msg = format_message("You", user_input);
+        store_message("You", user_input);
         std::cout << user_msg;
 
         std::string cursor_hdr =
@@ -413,9 +414,11 @@ int Agent::count_lines(const std::string &text) {
   return lines;
 }
 
-void Agent::store_message(const std::string &text) {
-  int l = count_lines(text);
-  messages_.push_back({text, l});
+void Agent::store_message(const std::string &sender,
+                          const std::string &content) {
+  std::string formatted = format_message(sender, content);
+  int l = count_lines(formatted);
+  messages_.push_back({sender, content, l});
   total_lines_ += l;
 }
 
@@ -469,7 +472,7 @@ void Agent::redraw_messages() {
     if (msg_lines <= remaining) {
       Utils::UI::cursor_to(row, 1);
       Utils::UI::clear_line();
-      std::cout << messages_[i].text;
+      std::cout << format_message(messages_[i].sender, messages_[i].content);
       row += msg_lines;
       remaining -= msg_lines;
     } else {
@@ -823,11 +826,7 @@ std::string Agent::handle_ai_chat(const std::string &input) {
     memory_->save_interaction(input, response);
 
     // Store formatted message for scroll history
-    std::string formatted =
-        Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET +
-        Utils::Color::BOLD + "Cursor" + Utils::Color::RESET + "\n" +
-        Utils::Color::GREEN + "\u2502 " + Utils::Color::RESET + response;
-    store_message(formatted);
+    store_message("Cursor", response);
 
     return response;
   } else {

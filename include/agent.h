@@ -21,7 +21,8 @@ public:
   using Mode = AgentMode; // Type alias for backward compatibility
 
   struct MessageBlock {
-    std::string text;
+    std::string sender;
+    std::string content;
     int lines;
   };
 
@@ -96,8 +97,10 @@ public:
   void run();
 
   // Scroll management
-  void store_message(const std::string &text);
+  void store_message(const std::string &sender, const std::string &content);
   void redraw_messages();
   static int count_lines(const std::string &text);
+  static std::string format_message(const std::string &sender,
+                                    const std::string &content);
 };
 } // namespace Core
