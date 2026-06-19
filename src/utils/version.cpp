@@ -22,13 +22,13 @@ size_t write_to_file(void *ptr, size_t size, size_t nmemb, void *userdata) {
   return fwrite(ptr, size, nmemb, file);
 }
 
-std::string get_platform_binary_name() {
+std::pair<std::string, std::string> get_release_asset_names(const std::string &version) {
 #ifdef _WIN32
-  return "cursor-windows.exe";
+  return {"cursor_v" + version + "_windows_amd64.zip", "cursor-windows.exe"};
 #elif defined(__APPLE__)
-  return "cursor-macos";
+  return {"cursor_v" + version + "_darwin_arm64.tar.gz", "cursor-macos"};
 #else
-  return "cursor-linux";
+  return {"cursor_v" + version + "_linux_amd64.tar.gz", "cursor-linux"};
 #endif
 }
 
@@ -103,14 +103,15 @@ std::string check_update() {
 }
 
 bool download_and_install(const std::string &version) {
-  std::string binary_name = get_platform_binary_name();
+  auto [archive, binary_name] = get_release_asset_names(version);
   std::string url =
-      "https://github.com/bniladridas/cursor/releases/download/" + version +
-      "/" + binary_name;
+      "https://github.com/bniladridas/cursor/releases/download/v" + version +
+      "/" + archive;
 
   std::string tmp = "/tmp/cursor-update-" + version;
+  std::string tmpDir = "/tmp/cursor-update-extract-" + version;
 #ifdef _WIN32
-  tmp += ".exe";
+  tmp += ".zip";
 #endif
 
   std::cout << "Downloading v" << version << "...\n";
@@ -139,12 +140,6 @@ bool download_and_install(const std::string &version) {
     return false;
   }
 
-  std::filesystem::permissions(tmp,
-                               std::filesystem::perms::owner_exec |
-                                   std::filesystem::perms::owner_read |
-                                   std::filesystem::perms::owner_write,
-                               std::filesystem::perm_options::add);
-
   std::string exe = get_exe_path();
   if (exe.empty()) {
     std::cerr << "Downloaded to: " << tmp << "\nManually replace binary.\n";
@@ -160,14 +155,51 @@ bool download_and_install(const std::string &version) {
     return false;
   }
 
-  std::filesystem::rename(tmp, exe, ec);
+  std::filesystem::create_directories(tmpDir, ec);
   if (ec) {
-    std::cerr << "Failed to install: " << ec.message() << "\n";
+    std::cerr << "Failed to create extract dir: " << ec.message() << "\n";
     std::filesystem::rename(backup, exe);
     std::filesystem::remove(tmp);
     return false;
   }
 
+  {
+    std::string cmd;
+#ifdef _WIN32
+    cmd = "tar -xf \"" + tmp + "\" -C \"" + tmpDir + "\"";
+#else
+    cmd = "tar -xzf \"" + tmp + "\" -C \"" + tmpDir + "\"";
+#endif
+    int rc = std::system(cmd.c_str());
+    if (rc != 0) {
+      std::cerr << "Extract failed\n";
+      std::filesystem::rename(backup, exe);
+      std::filesystem::remove(tmp);
+      std::filesystem::remove_all(tmpDir);
+      return false;
+    }
+  }
+
+  std::string extracted = tmpDir + std::filesystem::path::preferred_separator + binary_name;
+  if (!std::filesystem::exists(extracted)) {
+    std::cerr << "Extracted binary not found: " << extracted << "\n";
+    std::filesystem::rename(backup, exe);
+    std::filesystem::remove(tmp);
+    std::filesystem::remove_all(tmpDir);
+    return false;
+  }
+
+  std::filesystem::rename(extracted, exe, ec);
+  if (ec) {
+    std::cerr << "Failed to install: " << ec.message() << "\n";
+    std::filesystem::rename(backup, exe);
+    std::filesystem::remove(tmp);
+    std::filesystem::remove_all(tmpDir);
+    return false;
+  }
+
+  std::filesystem::remove(tmp);
+  std::filesystem::remove_all(tmpDir);
   std::cout << "Updated to v" << version << " successfully!\n";
   return true;
 }
