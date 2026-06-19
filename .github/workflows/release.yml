@@ -188,8 +188,8 @@ jobs:
           if [ -n "${BOTTLE_SHA}" ]; then
             sed -i "s|sha256 arm64_sequoia: \".*\"|sha256 arm64_sequoia: \"${BOTTLE_SHA}\"|" Formula/cursor.rb
           fi
-          git config user.name "${{ steps.tap-token.outputs.app-slug }}[bot]"
-          git config user.email "${{ steps.tap-token.outputs.app-id }}+${{ steps.tap-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+          git config user.name "brand-cursor[bot]"
+          git config user.email "4087321+brand-cursor[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/palmshed/homebrew-cursor
           branch="release/${GITHUB_REF_NAME}"
           git checkout -b "$branch"
