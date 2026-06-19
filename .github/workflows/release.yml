@@ -196,14 +196,15 @@ jobs:
           git add Formula/cursor.rb
           git commit -m "chore: update formula for ${GITHUB_REF_NAME}"
           git push origin "$branch"
-          gh pr create \
+          pr_url=$(gh pr create \
             --repo palmshed/homebrew-cursor \
             --base main \
             --head "$branch" \
             --title "chore: update formula for ${GITHUB_REF_NAME}" \
             --body "Automated formula update for ${GITHUB_REF_NAME}." \
-            --fill
-          gh pr merge --squash --delete-branch --repo palmshed/homebrew-cursor || \
+            --fill)
+          echo "Created PR: $pr_url"
+          gh pr merge "$pr_url" --squash --delete-branch || \
             echo "merge failed (race or conflict), PR is open for manual merge"
 
       - name: Update package version
