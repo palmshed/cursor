@@ -17,15 +17,20 @@ npm i -g @bniladridas/cursor
 **Homebrew** (binary: `cursor-agent`):
 ```bash
 brew tap palmshed/cursor
-brew install cursor
+brew install palmshed/cursor/cursor --formula
 ```
 
 **Curl** (binary: `cursor-agent`):
 ```bash
-curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sh
+curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sudo sh
 ```
 
-**From source** (binary: `cursor`):
+To install to a writable directory without `sudo`:
+```bash
+curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | INSTALL_DIR=~/.local/bin sh
+```
+
+**From source** (binary: `cursor-agent`):
 ```bash
 cmake -S . -B build && cmake --build build
 ./build/cursor-tests   # run tests
