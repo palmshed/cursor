@@ -424,8 +424,20 @@ endif()
 include_directories(include)
 
 # Source files organized by modules
+set(APP_SOURCES
+    src/app/menu.cpp
+    src/app/startup.cpp
+    src/app/command_router.cpp
+    src/app/session.cpp
+)
+
+set(UI_SOURCES
+    src/ui/ui_manager.cpp
+)
+
 set(CORE_SOURCES
     src/agent.cpp
+    src/core/session_state.cpp
 )
 
 set(SERVICE_SOURCES
@@ -445,6 +457,7 @@ set(SERVICE_SOURCES
     src/services/error_service.cpp
     src/services/sandbox_service.cpp
     src/services/database_service.cpp
+    src/services/replay_service.cpp
 )
 
 set(UTILS_SOURCES
@@ -461,6 +474,8 @@ set(DATA_SOURCES
 
 set(ALL_SOURCES
     ${CORE_SOURCES}
+    ${APP_SOURCES}
+    ${UI_SOURCES}
     ${SERVICE_SOURCES}
     ${UTILS_SOURCES}
     ${DATA_SOURCES}
