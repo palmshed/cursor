@@ -57,6 +57,34 @@ footer {
   color: #555;
 }
 .flag { display: inline-block; }
+#cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #151515;
+  border-top: 1px solid var(--border);
+  padding: .6rem 1.5rem;
+  font-size: .8rem;
+  color: var(--dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+}
+#cookie-banner button {
+  background: none;
+  border: 1px solid var(--pink);
+  color: var(--pink);
+  padding: .2rem .8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .8rem;
+  flex-shrink: 0;
+}
+#cookie-banner button:hover { background: var(--pink); color: #000; }
 </style>
 
 <h1><span>brand-cursor[bot]</span></h1>
@@ -91,6 +119,13 @@ CURSOR_BOT_PRIVATE_KEY</pre>
 <h2>🇺🇦</h2>
 <p>Built with support from Ukraine. The Cursor project and its automation infrastructure are developed by a team with deep ties to the Ukrainian tech community — engineering talent, open-source contribution, and resilience at the core.</p>
 
+<div id="cookie-banner">
+  <span>No cookies. No tracking. No data collection.</span>
+  <button onclick="this.parentElement.style.display='none'; localStorage.setItem('cookie-banner','1')">[ OK ]</button>
+</div>
+<script>
+if(localStorage.getItem('cookie-banner')) document.getElementById('cookie-banner').style.display='none';
+</script>
 <footer>
   <a href="index.html">Cursor</a> ·
   <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
