@@ -52,13 +52,24 @@ UI code should remain isolated from application logic.
 
 External integrations should be implemented as services rather than added directly to orchestration code.
 
-## Future Direction
+## Current State
 
-The next architectural step is extracting state ownership from `Agent` into dedicated core state objects.
+The system has reached a set of stable boundaries:
 
-Potential areas include:
+* `app/` → flow control only
+* `ui/` → rendering only
+* `core/` → state ownership (SessionState)
+* `services/` → effects + observability
 
-* session state
-* goals
-* tasks
-* parameter storage
+The Replay system exists as an observability service in `services/`.
+
+## Stability
+
+The architecture prioritizes:
+
+* predictable execution
+* low coupling
+* traceable execution
+* minimal abstraction overhead
+
+No new architectural layers are expected for current feature work.
