@@ -105,7 +105,7 @@ assert_not_contains() {
   fi
 }
 
-assert_contains "Choose a mode."
+assert_contains "CURSOR"
 assert_contains "Commands"
 assert_contains "Cursor v"
 assert_contains "File 'e2e.txt' written successfully"
