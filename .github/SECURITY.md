@@ -2,23 +2,24 @@
 
 ## Supported Versions
 
-| Version | Supported |
-| ------- | --------- |
-| 1.x.x   | Yes       |
-| < 1.0   | No        |
+Only the latest release is supported.
 
 ## Reporting a Vulnerability
 
-Do not create public issues. Email bniladridas@icloud.com with:
-- Steps to reproduce
-- Potential impact
-- Suggested fixes
+Please do not disclose security vulnerabilities publicly.
 
-We acknowledge within 48 hours and respond within 7 days.
+Report vulnerabilities to:
+
+[bniladridas@icloud.com](mailto:bniladridas@icloud.com)
+
+Include:
+
+* Description of the issue
+* Steps to reproduce
+* Potential impact
+
+Reports will be reviewed as soon as possible.
 
 ## Security Updates
 
-Released ASAP after fixes. Communicated via:
-- GitHub Security Advisories
-- Release notes
-- Email notifications
+Security fixes are released in new versions of Cursor and documented in release notes and GitHub Security Advisories when applicable.
