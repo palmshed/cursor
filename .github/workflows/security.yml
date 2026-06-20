@@ -5,10 +5,6 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
-  release:
-    types: ["published"]
-  schedule:
-    - cron: '0 0 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -51,44 +47,3 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-  release:
-    name: release
-    if: github.event_name == 'release' && github.repository_owner == 'bniladridas'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - run: |
-          sudo apt update
-          sudo apt install -y nlohmann-json3-dev cmake build-essential \
-            libcurl4-openssl-dev libpqxx-dev
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release
-          make preflight
-          mkdir -p release
-          cp build/bin/cursor-agent README.md LICENSE CHANGELOG.md release/
-          tar -czf cursor-${{ github.event.release.tag_name }}.tar.gz -C release .
-      - uses: softprops/action-gh-release@v3
-        with:
-          files: cursor-${{ github.event.release.tag_name }}.tar.gz
-
-  agent:
-    name: agent
-    if: >
-      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-      && github.repository_owner == 'bniladridas'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - run: |
-          sudo apt update
-          sudo apt install -y nlohmann-json3-dev cmake build-essential \
-            libcurl4-openssl-dev libpqxx-dev
-          cmake -S . -B build
-          cmake --build build
-          timeout 30s ./build/bin/cursor-agent << EOF
-          2
-          exit
-          EOF
-          echo "Build size: $(stat -c%s build/bin/cursor-agent) bytes"
-          echo "Build date: $(date)"
-          echo "Commit: ${{ github.sha }}"
