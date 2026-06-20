@@ -33,7 +33,7 @@ public:
   void show_agentic_help();
   void show_available_tools();
   void show_agent_documentation();
-  void show_memory_context();
+  void show_memory_context(const std::string &context);
   void show_session_stats();
 
   // Goal / task / param display

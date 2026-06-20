@@ -23,7 +23,6 @@ namespace Core {
 class Startup;
 class CommandRouter;
 class Session;
-class UIManager;
 
 class CURSOR_API Agent {
 public:
@@ -46,15 +45,13 @@ private:
 
   friend class Startup;
   friend class CommandRouter;
-  friend class Session;
-  friend class UIManager;
 
 public:
   SessionState state_;
 
   // Move operations
-  Agent(Agent &&) noexcept = default;
-  Agent &operator=(Agent &&) noexcept = default;
+  Agent(Agent &&) noexcept;
+  Agent &operator=(Agent &&) noexcept;
 
   // Disable copying
   Agent(const Agent &) = delete;
@@ -64,6 +61,11 @@ public:
   ~Agent();
 
   void run();
+
+  bool shell_mode() const noexcept;
+  const std::string &active_goal() const noexcept;
+  const std::vector<AgentTask> &tasks() const noexcept;
+  const std::map<std::string, std::string> &agent_params() const noexcept;
 
   static std::string format_message(const std::string &sender,
                                      const std::string &content);

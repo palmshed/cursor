@@ -7,6 +7,7 @@ Cursor is organized around four top-level modules.
 | Module | Location | Responsibility |
 |---|---|---|
 | `app/` | `src/app/` | Startup, session lifecycle, command routing, menus |
+| `core/` | `src/core/` | Runtime state ownership |
 | `ui/` | `src/ui/` | Terminal rendering, markdown output, spinners, prompts |
 | `services/` | `src/services/` | AI, Git, GitHub, Web, File, Auth, MCP, and other integrations |
 | `utils/` | `src/utils/` | Shared utilities and low-level helpers |
@@ -38,6 +39,7 @@ Session flow belongs in `app/`.
 ### Separation of Concerns
 
 * `app/` controls flow
+* `core/` owns runtime state
 * `ui/` controls presentation
 * `services/` provide capabilities
 * `utils/` provide shared helpers
@@ -58,7 +60,7 @@ The system has reached a set of stable boundaries:
 
 * `app/` → flow control only
 * `ui/` → rendering only
-* `core/` → state ownership (SessionState)
+* `core/` → runtime state ownership (`SessionState`)
 * `services/` → effects + observability
 
 The Replay system exists as an observability service in `services/`.

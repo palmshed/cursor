@@ -16,6 +16,10 @@ namespace Core {
 Agent::Agent()
     : memory_(std::make_unique<Data::MemoryManager>()), ai_service_(nullptr) {}
 
+Agent::Agent(Agent &&) noexcept = default;
+
+Agent &Agent::operator=(Agent &&) noexcept = default;
+
 Agent::~Agent() {
   // Destructor defined here because unique_ptr types are forward declared
 }
@@ -26,6 +30,19 @@ void Agent::run() {
   CommandRouter router(*this, ui, &replay);
   Session session(*this, router, ui, &replay);
   session.run();
+}
+
+bool Agent::shell_mode() const noexcept { return shell_mode_; }
+
+const std::string &Agent::active_goal() const noexcept { return active_goal_; }
+
+const std::vector<Agent::AgentTask> &Agent::tasks() const noexcept {
+  return tasks_;
+}
+
+const std::map<std::string, std::string> &Agent::agent_params()
+    const noexcept {
+  return agent_params_;
 }
 
 std::string Agent::format_message(const std::string &sender,

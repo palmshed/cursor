@@ -1,5 +1,4 @@
 #include "ui/ui_manager.h"
-#include "memory_manager.h"
 #include "services/file_service.h"
 #include "utils/ui.h"
 
@@ -205,21 +204,21 @@ void UIManager::show_context_state() {
   if (!is_verbose()) return;
   std::cout << Utils::Color::PINK << "Agent Context:" << Utils::Color::RESET
             << std::endl;
-  if (!agent_.active_goal_.empty()) {
-    std::cout << "  Goal: " << agent_.active_goal_ << std::endl;
+  if (!agent_.active_goal().empty()) {
+    std::cout << "  Goal: " << agent_.active_goal() << std::endl;
   }
-  if (!agent_.tasks_.empty()) {
-    std::cout << "  Tasks: " << agent_.tasks_.size() << " active";
+  if (!agent_.tasks().empty()) {
+    std::cout << "  Tasks: " << agent_.tasks().size() << " active";
     int completed = 0;
-    for (const auto &t : agent_.tasks_) {
+    for (const auto &t : agent_.tasks()) {
       if (t.completed) completed++;
     }
     if (completed > 0)
       std::cout << " (" << completed << " completed)";
     std::cout << std::endl;
   }
-  if (!agent_.agent_params_.empty()) {
-    std::cout << "  Params: " << agent_.agent_params_.size() << " set" << std::endl;
+  if (!agent_.agent_params().empty()) {
+    std::cout << "  Params: " << agent_.agent_params().size() << " set" << std::endl;
   }
 }
 
@@ -436,8 +435,7 @@ void UIManager::show_agent_documentation() {
   std::cout << "Runtime help from AGENTS.md:\n" << doc << std::endl;
 }
 
-void UIManager::show_memory_context() {
-  std::string context = agent_.memory_->get_context_string();
+void UIManager::show_memory_context(const std::string &context) {
   if (context.empty()) {
     std::cout << "No memory context available." << std::endl;
   } else {
@@ -460,7 +458,7 @@ void UIManager::show_session_stats() {
                                                      : "Local Ollama");
   std::cout << "Session Statistics:" << std::endl;
   std::cout << "  Mode: " << mode_str << std::endl;
-  std::cout << "  Shell Mode: " << (agent_.shell_mode_ ? "Active" : "Inactive")
+  std::cout << "  Shell Mode: " << (agent_.shell_mode() ? "Active" : "Inactive")
             << std::endl;
   std::cout << "  Commands Processed: " << agent_.state_.command_count_ << std::endl;
   std::cout << "  Token Usage: " << agent_.state_.token_usage_ << std::endl;
@@ -471,47 +469,47 @@ void UIManager::show_session_stats() {
 // ---------------------------------------------------------------------------
 
 void UIManager::show_goal() {
-  if (agent_.active_goal_.empty()) {
+  if (agent_.active_goal().empty()) {
     std::cout << "No active goal set." << std::endl;
     return;
   }
-  std::cout << "Active goal: " << agent_.active_goal_ << std::endl;
-  if (agent_.tasks_.empty()) {
+  std::cout << "Active goal: " << agent_.active_goal() << std::endl;
+  if (agent_.tasks().empty()) {
     std::cout << "No tasks added yet." << std::endl;
   } else {
     std::cout << "Tasks:" << std::endl;
-    for (const auto &task : agent_.tasks_) {
+    for (const auto &task : agent_.tasks()) {
       std::cout << "  [" << (task.completed ? "x" : " ") << "] "
                 << task.id << ": " << task.description << std::endl;
     }
   }
-  if (!agent_.agent_params_.empty()) {
+  if (!agent_.agent_params().empty()) {
     std::cout << "Parameters:" << std::endl;
-    for (const auto &pair : agent_.agent_params_) {
+    for (const auto &pair : agent_.agent_params()) {
       std::cout << "  " << pair.first << " = " << pair.second << std::endl;
     }
   }
 }
 
 void UIManager::list_tasks() {
-  if (agent_.tasks_.empty()) {
+  if (agent_.tasks().empty()) {
     std::cout << "No active tasks." << std::endl;
     return;
   }
   std::cout << "Active tasks:" << std::endl;
-  for (const auto &task : agent_.tasks_) {
+  for (const auto &task : agent_.tasks()) {
     std::cout << "  [" << (task.completed ? "x" : " ") << "] "
               << task.id << ": " << task.description << std::endl;
   }
 }
 
 void UIManager::show_params() {
-  if (agent_.agent_params_.empty()) {
+  if (agent_.agent_params().empty()) {
     std::cout << "No parameters set." << std::endl;
     return;
   }
   std::cout << "Agent parameters:" << std::endl;
-  for (const auto &pair : agent_.agent_params_) {
+  for (const auto &pair : agent_.agent_params()) {
     std::cout << "  " << pair.first << " = " << pair.second << std::endl;
   }
 }
