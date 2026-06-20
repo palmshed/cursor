@@ -1,154 +1,167 @@
-# Cursor Runtime Help
+# Agents Architecture Guide
 
-Use `/help` or `/docs` to display this document.
+This document describes the current system architecture and rules.
 
-## Core Commands
+It is not runtime help and does not describe CLI commands.
 
-```text
-/help           Show help
-/tools          Show available tools
-/clear          Clear the screen
-/exit           Exit Cursor
-/quit           Exit Cursor
+---
+
+## System Structure
+
+```
+app/       execution flow (startup, session, routing)
+ui/        terminal rendering
+core/      session state ownership
+services/  external effects + observability
 ```
 
-## Files
+---
 
-```text
-@<path>                         Include file or directory content
-/files <patterns>              Read multiple files
-read:<file>                    Read a file
-write:<file> <content>         Write a file
-replace:<file>:<old>:<new>     Replace text in a file
-grep:<pattern>                 Search text in files
-tree:<path>                    Show directory tree
-```
+## Agent
 
-Example:
+Agent is a thin orchestrator.
 
-```text
-@src/main.cpp Explain this code.
-```
+Responsibilities:
+- initialize startup flow
+- run session loop
+- delegate input to CommandRouter
+- hold SessionState
 
-## Shell
+No business logic lives here.
 
-```text
-!<command>                     Run a shell command
-!                              Toggle shell mode
-cmd:<command>                  Execute a command safely
-build:<command>                Run build commands
-```
+---
+
+## SessionState (core/SessionState)
+
+Single source of truth for runtime state.
+
+Includes:
+- mode
+- model selection
+- flags (debug, verbose)
+- counters (commands, tokens)
+
+Rules:
+- only shared mutable state object
+- no duplication elsewhere
+- passed by reference where needed
+
+---
+
+## UI Layer
+
+UI is pure rendering.
+
+Responsibilities:
+- prompts
+- menus
+- logs
+- formatting
+
+Rules:
+- no state mutation
+- no command execution
+- no service calls directly
+
+---
+
+## Command Router (app/command_router)
+
+Central command dispatcher.
+
+Responsibilities:
+- parse input
+- route commands
+- call services and UI
+- update SessionState when needed
+
+Rules:
+- all command logic stays here
+- no routing in UI or Session
+
+---
+
+## Session Loop
+
+Minimal execution loop:
+
+- read input
+- send to router
+- update state
+- repeat until exit
+
+Rules:
+- no feature logic in loop
+- loop remains stable and small
+
+---
+
+## Services Layer
+
+External effects only.
 
 Examples:
+- replay logging
+- file IO
+- system integration
 
-```text
-!git status
-cmd:ls -la
-build:cmake --build build
+Rules:
+- no ownership of core state
+- preferably stateless
+- invoked from router/session only
+
+---
+
+## Replay System
+
+Append-only execution log system.
+
+Stores:
+- input
+- state_before
+- state_after
+- timestamp
+
+Capabilities:
+- list sessions
+- step through execution
+- deterministic replay
+
+Rules:
+- does not modify execution flow
+- uses normal router execution path
+
+---
+
+## Boundaries
+
+Strict separation:
+
+- app → flow only
+- ui → rendering only
+- core → state only
+- services → effects + observability
+
+No cross-layer ownership.
+
+---
+
+## Extension Rule
+
+When adding features:
+
+- prefer extending existing modules
+- do not introduce new layers without duplication evidence
+- keep Agent minimal
+
+---
+
+## Stability Goal
+
+System is optimized for:
+
+- predictability
+- low coupling
+- traceable execution
+- minimal abstraction overhead
 ```
-
-## Web
-
-```text
-search:<query>                 Search the web
-/fetch <url> [format]          Fetch web content
-```
-
-Examples:
-
-```text
-search:c++20 modules
-/fetch https://example.com
-```
-
-## Git
-
-```text
-git:status                     Repository status
-git:log                        Commit history
-git:analyze                    Repository analysis
-```
-
-## GitHub
-
-```text
-/github repo:owner/repo
-/github issues:owner/repo
-/github health:owner/repo
-```
-
-Examples:
-
-```text
-/github repo:bniladridas/cursor
-/github issues:llvm/llvm-project
-```
-
-## Memory
-
-```text
-/memory show                   Show memory
-/memory add <text>             Add memory
-remember:<fact>                Save a fact
-/compress                      Compress conversation context
-```
-
-## Sessions
-
-```text
-/chat save <tag>               Save session
-/chat resume <tag>             Resume session
-/chat list                     List saved sessions
-```
-
-## Tasks
-
-```text
-/goal show                     Show current goal
-/goal clear                    Clear goal
-
-/task add <description>        Add task
-/task list                     List tasks
-/task complete <id>            Complete task
-/task remove <id>              Remove task
-
-/params set key=value          Set parameters
-/params show                   Show parameters
-/params clear                  Clear parameters
-```
-
-## Advanced
-
-```text
-/debug                         Toggle diagnostics
-/stats                         Session statistics
-
-/context show                  Show context
-/context refresh               Refresh context
-/context create                Create CURSOR.md
-
-/checkpoint <cmd>              Manage checkpoints
-/restore [id]                  Restore checkpoint
-
-/mcp <cmd>                     MCP management
-/auth <cmd>                    Authentication
-/theme <cmd>                   Themes
-/sandbox <cmd>                 Sandbox management
-/error <cmd>                   Error management
-```
-
-## Philosophy
-
-Cursor is a terminal-native AI coding agent.
-
-The primary interface is conversation:
-
-```text
-> explain this code
-
-cursor
-
-Here's what the function does...
-```
-
-Commands are available when needed, but should stay out of the way during normal use.
