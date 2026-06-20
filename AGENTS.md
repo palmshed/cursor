@@ -1,79 +1,154 @@
 # Cursor Runtime Help
 
-This file is the live runtime help source for the Cursor agent.
+Use `/help` or `/docs` to display this document.
 
-Use `/help` or `/docs` to display this content at runtime. If this file cannot be loaded,
-the agent falls back to built-in help output.
+## Core Commands
 
-## Available Meta Commands
+```text
+/help           Show help
+/tools          Show available tools
+/clear          Clear the screen
+/exit           Exit Cursor
+/quit           Exit Cursor
+```
 
-- `/help` or `/?` - Show runtime help
-- `/docs` - Show runtime help
-- `/debug` - Toggle verbose/debug mode (shows all agent reasoning)
-- `/tools` - Show available tools
-- `/clear` - Clear screen
-- `/chat save <tag>` - Save conversation state
-- `/chat resume <tag>` - Resume conversation state
-- `/chat list` - List saved conversations
-- `/memory show` - Show memory context
-- `/memory add <text>` - Add a fact to memory
-- `/compress` - Compress conversation context
-- `/stats` - Show session statistics
-- `/context show` - Show hierarchical context
-- `/context refresh` - Refresh context cache
-- `/context create` - Create `CURSOR.md`
-- `/files <patterns>` - Read multiple files via glob or path patterns
-- `/fetch <url> [format]` - Fetch web content (text/json/raw)
-- `/checkpoint <cmd>` - Manage checkpoints (create/list/delete)
-- `/restore [id]` - List or restore checkpoints
-- `/mcp <cmd>` - MCP server management
-- `/theme <cmd>` - Theme management
-- `/auth <cmd>` - Authentication management
-- `/sandbox <cmd>` - Sandboxed execution management
-- `/error <cmd>` - Error management and reporting
-- `/goal show` - Show the current goal and task status
-- `/goal clear` - Clear current goal, tasks, and params
-- `/task add <description>` - Add a task for the current goal
-- `/task list` - List active tasks
-- `/task complete <id>` - Mark a task complete
-- `/task remove <id>` - Remove a task
-- `/params set key=value` - Set goal/task parameters
-- `/params show` - Show current parameters
-- `/params clear` - Clear current parameters- `/github repo:owner/repo` - Repository info
-- `/github issues:owner/repo` - List repository issues
-- `/github health:owner/repo` - Run repository health check
-- `/quit` or `/exit` - Exit the program
+## Files
 
-## File Injection
+```text
+@<path>                         Include file or directory content
+/files <patterns>              Read multiple files
+read:<file>                    Read a file
+write:<file> <content>         Write a file
+replace:<file>:<old>:<new>     Replace text in a file
+grep:<pattern>                 Search text in files
+tree:<path>                    Show directory tree
+```
 
-- `@<path>` - Include file or directory content in the prompt
-- Example: `@src/main.cpp What does this code do?`
+Example:
 
-## Shell Commands
+```text
+@src/main.cpp Explain this code.
+```
 
-- `!<command>` - Execute shell command
-- `!` - Toggle shell mode
-- `build:command` - Execute build or shell commands
+## Shell
 
-## Direct Commands
+```text
+!<command>                     Run a shell command
+!                              Toggle shell mode
+cmd:<command>                  Execute a command safely
+build:<command>                Run build commands
+```
 
-- `cmd:<command>` - Execute shell command safely
-- `read:<file>[:start:count]` - Read file contents
-- `write:<file> <content>` - Write content to a file
-- `replace:<file>:<old>:<new>[:expected_count]` - Replace text in a file
-- `grep:<pattern>[:directory[:file_filter]]` - Search text in files
-- `search:<query>` - Search the web
-- `remember:<fact>` - Save a fact to memory
-- `analyze:<path>` - Analyze project structure
-- `components:<path>` - Find main components
-- `todos:<path>` - Find task comments
-- `tree:<path>` - Show directory tree
-- `git:log` - Show git history
-- `git:status` - Show git status
-- `git:analyze` - Analyze git repository
+Examples:
 
-## Runtime Help Integration
+```text
+!git status
+cmd:ls -la
+build:cmake --build build
+```
 
-This file is the single live runtime help document for cursor.
+## Web
 
-Do not add an additional runtime help file.
+```text
+search:<query>                 Search the web
+/fetch <url> [format]          Fetch web content
+```
+
+Examples:
+
+```text
+search:c++20 modules
+/fetch https://example.com
+```
+
+## Git
+
+```text
+git:status                     Repository status
+git:log                        Commit history
+git:analyze                    Repository analysis
+```
+
+## GitHub
+
+```text
+/github repo:owner/repo
+/github issues:owner/repo
+/github health:owner/repo
+```
+
+Examples:
+
+```text
+/github repo:bniladridas/cursor
+/github issues:llvm/llvm-project
+```
+
+## Memory
+
+```text
+/memory show                   Show memory
+/memory add <text>             Add memory
+remember:<fact>                Save a fact
+/compress                      Compress conversation context
+```
+
+## Sessions
+
+```text
+/chat save <tag>               Save session
+/chat resume <tag>             Resume session
+/chat list                     List saved sessions
+```
+
+## Tasks
+
+```text
+/goal show                     Show current goal
+/goal clear                    Clear goal
+
+/task add <description>        Add task
+/task list                     List tasks
+/task complete <id>            Complete task
+/task remove <id>              Remove task
+
+/params set key=value          Set parameters
+/params show                   Show parameters
+/params clear                  Clear parameters
+```
+
+## Advanced
+
+```text
+/debug                         Toggle diagnostics
+/stats                         Session statistics
+
+/context show                  Show context
+/context refresh               Refresh context
+/context create                Create CURSOR.md
+
+/checkpoint <cmd>              Manage checkpoints
+/restore [id]                  Restore checkpoint
+
+/mcp <cmd>                     MCP management
+/auth <cmd>                    Authentication
+/theme <cmd>                   Themes
+/sandbox <cmd>                 Sandbox management
+/error <cmd>                   Error management
+```
+
+## Philosophy
+
+Cursor is a terminal-native AI coding agent.
+
+The primary interface is conversation:
+
+```text
+> explain this code
+
+cursor
+
+Here's what the function does...
+```
+
+Commands are available when needed, but should stay out of the way during normal use.
