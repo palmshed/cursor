@@ -82,6 +82,35 @@ footer {
   font-size: .8rem;
   color: #555;
 }
+#cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #151515;
+  border-top: 1px solid var(--border);
+  padding: .6rem 1.5rem;
+  font-size: .8rem;
+  color: var(--dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+}
+#cookie-banner button {
+  background: none;
+  border: 1px solid var(--pink);
+  color: var(--pink);
+  padding: .2rem .8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .8rem;
+  flex-shrink: 0;
+}
+#cookie-banner button:hover { background: var(--pink); color: #000; }
+
 </style>
 
 <pre class="logo">        ▄▄▄▄▄▄▄▄▄▄▄
@@ -151,6 +180,13 @@ cmake -S . -B build && cmake --build build</pre>
 <h2>Design</h2>
 <p>Input-first, progressive disclosure, zero-config startup. Every pixel serves one goal: reduce friction between thought and action. Read the full <a href="https://github.com/bniladridas/cursor/blob/main/DESIGN.md">design spec</a>.</p>
 
+<div id="cookie-banner">
+  <span>No cookies. No tracking. No data collection.</span>
+  <button onclick="this.parentElement.style.display='none'; localStorage.setItem('cookie-banner','1')">[ OK ]</button>
+</div>
+<script>
+if(localStorage.getItem('cookie-banner')) document.getElementById('cookie-banner').style.display='none';
+</script>
 <footer>
   <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
   <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
