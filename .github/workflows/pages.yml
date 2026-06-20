@@ -2,12 +2,13 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['.github/index.html']
+    paths: ['.github/index.html', '.github/github-app.html']
   workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
+  deployments: write
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -25,3 +26,13 @@ jobs:
           path: .github
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  brand-cursor:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    environment:
+      name: bot
+      url: https://github.com/bniladridas/cursor/blob/main/.github/github-app.html
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Deployment complete for bot environment."
