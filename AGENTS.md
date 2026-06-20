@@ -26,6 +26,8 @@ Responsibilities:
 - run session loop
 - delegate input to CommandRouter
 - hold SessionState
+- own planning state until a clearer boundary emerges
+- own MemoryManager wiring
 
 No business logic lives here.
 
@@ -33,7 +35,7 @@ No business logic lives here.
 
 ## SessionState (core/SessionState)
 
-Single source of truth for runtime state.
+Single source of truth for runtime session state.
 
 Includes:
 - mode
@@ -42,9 +44,13 @@ Includes:
 - counters (commands, tokens)
 
 Rules:
-- only shared mutable state object
-- no duplication elsewhere
+- do not duplicate runtime session fields elsewhere
 - passed by reference where needed
+
+Does not include:
+- goal/task/parameter planning state
+- memory persistence
+- service clients
 
 ---
 
@@ -62,6 +68,7 @@ Rules:
 - no state mutation
 - no command execution
 - no service calls directly
+- render supplied data rather than retrieving it from services
 
 ---
 
@@ -78,6 +85,7 @@ Responsibilities:
 Rules:
 - all command logic stays here
 - no routing in UI or Session
+- service data needed by UI should be fetched here and passed to UI as values
 
 ---
 

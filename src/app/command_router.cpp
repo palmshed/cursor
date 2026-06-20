@@ -510,7 +510,7 @@ void CommandRouter::handle_meta_command(const std::string &input) {
   } else if (command == "tools") {
     ui_.show_available_tools();
   } else if (command == "memory show") {
-    ui_.show_memory_context();
+    ui_.show_memory_context(agent_.memory_->get_context_string());
   } else if (command.starts_with("memory add ")) {
     add_to_memory(command.substr(11));
   } else if (command == "compress") {
