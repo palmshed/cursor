@@ -1,6 +1,8 @@
 #include "services/ai_service.h"
 #include "memory_manager.h"
 #include "agent.h"
+#include "app/command_router.h"
+#include "ui/ui_manager.h"
 #include "version.h"
 #include <gtest/gtest.h>
 #include <functional>
@@ -19,51 +21,53 @@ static std::string capture_stdout(const std::function<void()> &fn) {
 TEST(BasicTest, SanityCheck) { EXPECT_EQ(1 + 1, 2); }
 
 TEST(AgentTest, DirectCommandRouting) {
-  EXPECT_TRUE(Core::Agent::is_direct_command_input("cmd:ls"));
-  EXPECT_TRUE(Core::Agent::is_direct_command_input("build:make"));
-  EXPECT_TRUE(Core::Agent::is_direct_command_input("grep:main:src"));
-  EXPECT_FALSE(Core::Agent::is_direct_command_input("foo:bar"));
-  EXPECT_FALSE(Core::Agent::is_direct_command_input("abc:def:ghi"));
-  EXPECT_TRUE(Core::Agent::is_direct_command_input("memory"));
-  EXPECT_TRUE(Core::Agent::is_direct_command_input("clear"));
-  EXPECT_TRUE(Core::Agent::is_direct_command_input("forget"));
-  EXPECT_FALSE(Core::Agent::is_direct_command_input("memory show"));
-  EXPECT_FALSE(Core::Agent::is_direct_command_input("clear the build cache"));
-  EXPECT_FALSE(Core::Agent::is_direct_command_input("forget about that error"));
+  EXPECT_TRUE(Core::CommandRouter::is_direct_command_input("cmd:ls"));
+  EXPECT_TRUE(Core::CommandRouter::is_direct_command_input("build:make"));
+  EXPECT_TRUE(Core::CommandRouter::is_direct_command_input("grep:main:src"));
+  EXPECT_FALSE(Core::CommandRouter::is_direct_command_input("foo:bar"));
+  EXPECT_FALSE(Core::CommandRouter::is_direct_command_input("abc:def:ghi"));
+  EXPECT_TRUE(Core::CommandRouter::is_direct_command_input("memory"));
+  EXPECT_TRUE(Core::CommandRouter::is_direct_command_input("clear"));
+  EXPECT_TRUE(Core::CommandRouter::is_direct_command_input("forget"));
+  EXPECT_FALSE(Core::CommandRouter::is_direct_command_input("memory show"));
+  EXPECT_FALSE(Core::CommandRouter::is_direct_command_input("clear the build cache"));
+  EXPECT_FALSE(Core::CommandRouter::is_direct_command_input("forget about that error"));
 }
 
 TEST(AgentTest, MapNaturalLanguageToDirectCommands) {
-  EXPECT_TRUE(Core::Agent::map_nl_to_direct_command(
+  EXPECT_TRUE(Core::CommandRouter::map_nl_to_direct_command(
                   "can you check the files we changed").has_value());
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command(
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command(
                 "can you check the files we changed"), "git:status");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command(
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command(
                 "show changed files in repo"), "git:status");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command(
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command(
                 "what is the commit history"), "git:log");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command(
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command(
                 "find TODO in code"), "todos:.");
 }
 
 TEST(AgentTest, MapAllNaturalLanguageToDirectCommands) {
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("run make test"), "cmd:make test");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("build the project"), "build:make");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("read file src/main.cpp"), "read:src/main.cpp");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("save file notes.txt as hello world"), "write:notes.txt hello world");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("remember the api key is secret"), "remember:the api key is secret");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("forget everything"), "forget");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("show memory"), "memory");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("clear memory"), "clear");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("replace foo with bar in file README.md"), "replace:README.md:foo:bar");
-  EXPECT_EQ(*Core::Agent::map_nl_to_direct_command("open owner/repo on github"), "github:repo:owner/repo");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("run make test"), "cmd:make test");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("build the project"), "build:make");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("read file src/main.cpp"), "read:src/main.cpp");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("save file notes.txt as hello world"), "write:notes.txt hello world");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("remember the api key is secret"), "remember:the api key is secret");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("forget everything"), "forget");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("show memory"), "memory");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("clear memory"), "clear");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("replace foo with bar in file README.md"), "replace:README.md:foo:bar");
+  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("open owner/repo on github"), "github:repo:owner/repo");
 }
 
 TEST(AgentTest, AgenticWorkflowCommands) {
   Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
   std::string output = capture_stdout([&] {
-    agent.process_user_input("/goal set Fix the issue");
-    agent.process_user_input("/task add Investigate logs");
-    agent.process_user_input("/task list");
+    router.process_user_input("/goal set Fix the issue");
+    router.process_user_input("/task add Investigate logs");
+    router.process_user_input("/task list");
   });
   EXPECT_NE(output.find("Goal set: Fix the issue"), std::string::npos);
   EXPECT_NE(output.find("Task added: [1] Investigate logs"), std::string::npos);
@@ -72,24 +76,26 @@ TEST(AgentTest, AgenticWorkflowCommands) {
 
 TEST(AgentTest, DebugModeTogglesVerbosePipelineOutput) {
   Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
 
   std::string output = capture_stdout([&] {
-    agent.process_user_input("git status");
+    router.process_user_input("git status");
   });
   EXPECT_EQ(output.find("INPUT RECEIVED"), std::string::npos);
   EXPECT_EQ(output.find("Input classification"), std::string::npos);
 
   output = capture_stdout([&] {
-    agent.process_user_input("/debug");
-    agent.process_user_input("git status");
+    router.process_user_input("/debug");
+    router.process_user_input("git status");
   });
   EXPECT_NE(output.find("Verbose mode ON"), std::string::npos);
   EXPECT_NE(output.find("INPUT RECEIVED"), std::string::npos);
   EXPECT_NE(output.find("Input classification"), std::string::npos);
 
   output = capture_stdout([&] {
-    agent.process_user_input("/debug");
-    agent.process_user_input("git status");
+    router.process_user_input("/debug");
+    router.process_user_input("git status");
   });
   EXPECT_NE(output.find("Verbose mode OFF"), std::string::npos);
   size_t off_pos = output.find("Verbose mode OFF");
@@ -98,22 +104,23 @@ TEST(AgentTest, DebugModeTogglesVerbosePipelineOutput) {
 }
 
 TEST(AgentTest, DetectGitStatusQuery) {
-  EXPECT_TRUE(Core::Agent::is_git_status_query(
+  EXPECT_TRUE(Core::CommandRouter::is_git_status_query(
       "can you check the files we changed"));
-  EXPECT_TRUE(Core::Agent::is_git_status_query("what changed in the repo"));
-  EXPECT_TRUE(Core::Agent::is_git_status_query("show changed files"));
-  EXPECT_FALSE(Core::Agent::is_git_status_query("please help me with a diagram"));
+  EXPECT_TRUE(Core::CommandRouter::is_git_status_query("what changed in the repo"));
+  EXPECT_TRUE(Core::CommandRouter::is_git_status_query("show changed files"));
+  EXPECT_FALSE(Core::CommandRouter::is_git_status_query("please help me with a diagram"));
 }
 
 TEST(AgentTest, ShowAgentDocumentation) {
   Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
   std::string output = capture_stdout([&] {
-    agent.show_agent_documentation();
+    ui.show_agent_documentation();
   });
 
-  EXPECT_NE(output.find("Runtime help from AGENTS.md:"),
-            std::string::npos);
-  EXPECT_NE(output.find("Runtime Help Integration"), std::string::npos);
+  EXPECT_NE(output.find("Agents Architecture Guide"), std::string::npos);
+  EXPECT_NE(output.find("This document describes the current system architecture and rules."), std::string::npos);
 }
 
 // Test for version functionality
@@ -124,19 +131,21 @@ TEST(VersionTest, VersionCommand) {
 
 TEST(AgentTest, FormattedGitStatusOutput) {
   Core::Agent agent;
-  capture_stdout([&] { agent.process_user_input("/debug"); });
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+  capture_stdout([&] { router.process_user_input("/debug"); });
   std::vector<std::string> empty_files;
   std::vector<std::string> files = {"src/main.cpp", "include/agent.h", "CMakeLists.txt"};
 
   // Test with empty files (should show clean status)
   std::string output = capture_stdout([&] {
-    agent.show_git_status_results(empty_files);
+    ui.show_git_status_results(empty_files);
   });
   EXPECT_NE(output.find("clean"), std::string::npos);
 
   // Test with files (should show file list with numbers)
   output = capture_stdout([&] {
-    agent.show_git_status_results(files);
+    ui.show_git_status_results(files);
   });
   EXPECT_NE(output.find("src/main.cpp"), std::string::npos);
   EXPECT_NE(output.find("include/agent.h"), std::string::npos);
@@ -145,12 +154,14 @@ TEST(AgentTest, FormattedGitStatusOutput) {
 
 TEST(AgentTest, FormattedFilePreview) {
   Core::Agent agent;
-  capture_stdout([&] { agent.process_user_input("/debug"); });
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+  capture_stdout([&] { router.process_user_input("/debug"); });
   std::string content = "int main() {\n  std::cout << \"Hello\";\n  return 0;\n}\n";
 
   // Test file preview with syntax highlighting
   std::string output = capture_stdout([&] {
-    agent.show_file_preview("test.cpp", content, 10);
+    ui.show_file_preview("test.cpp", content, 10);
   });
 
   // Should show filename
@@ -162,12 +173,14 @@ TEST(AgentTest, FormattedFilePreview) {
 
 TEST(AgentTest, FormattedFilePreviewHandlesErrors) {
   Core::Agent agent;
-  capture_stdout([&] { agent.process_user_input("/debug"); });
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+  capture_stdout([&] { router.process_user_input("/debug"); });
   std::string error_msg = "Error: File 'nonexistent.txt' does not exist";
 
   // Test that error messages are displayed
   std::string output = capture_stdout([&] {
-    agent.show_file_preview("nonexistent.txt", error_msg, 10);
+    ui.show_file_preview("nonexistent.txt", error_msg, 10);
   });
 
   EXPECT_NE(output.find("Error:"), std::string::npos);
