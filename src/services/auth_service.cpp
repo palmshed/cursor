@@ -1,4 +1,5 @@
 #include "services/auth_service.h"
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>

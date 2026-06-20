@@ -1,4 +1,5 @@
 #include "services/checkpoint_service.h"
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
