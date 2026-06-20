@@ -1,195 +1,139 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cursor — AI coding agent</title>
+<title>Cursor</title>
 <link rel="icon" href="packaging/brand-cursor.png">
+
 <style>
-:root {
-  --pink: #ff69b4;
-  --bg: #0d0d0d;
-  --fg: #e0e0e0;
-  --dim: #888;
-  --border: #222;
+:root{
+  --bg:#0d0d0d;
+  --fg:#e6e6e6;
+  --dim:#777;
+  --border:#1f1f1f;
 }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  background: var(--bg);
-  color: var(--fg);
-  font: 16px/1.6 system-ui, -apple-system, sans-serif;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
-}
-::selection { background: var(--pink); color: #000; }
-a { color: var(--pink); text-decoration: none; }
-a:hover { text-decoration: underline; }
-h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; }
-h1 span { color: var(--pink); }
-h2 { font-size: 1.1rem; font-weight: 600; margin: 2em 0 .5em; color: var(--pink); }
-p, li { color: var(--dim); }
-p { margin: .5em 0; }
-ul { list-style: none; }
-ul li::before { content: "▸ "; color: var(--pink); }
-pre {
-  background: #151515;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: .8rem 1rem;
-  font: 13px/1.5 SF Mono, Consolas, monospace;
-  overflow-x: auto;
-  margin: .5em 0;
-}
-code { font: 13px/1.5 SF Mono, Consolas, monospace; }
-pre .cmt { color: #555; }
-pre .fn { color: var(--pink); }
-.btn {
-  display: inline-block;
-  background: var(--pink);
-  color: #000;
-  font-weight: 600;
-  padding: .6rem 1.4rem;
-  border-radius: 6px;
-  margin: 1em .5em 1em 0;
-}
-.btn:hover { opacity: .85; text-decoration: none; }
-.btn-outline {
-  background: none;
-  border: 1px solid var(--pink);
-  color: var(--pink);
-}
-.logo {
-  display: block;
-  font-family: SF Mono, Consolas, monospace;
-  white-space: pre;
-  line-height: 1.3;
-  color: var(--pink);
-  font-size: 12px;
-  margin: 1rem 0;
-}
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .8rem; margin: 1em 0; }
-.card {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1rem;
-  background: #111;
-}
-.card h3 { font-size: .9rem; margin-bottom: .3rem; }
-.card p { font-size: .8rem; }
-footer {
-  margin-top: 3rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-  font-size: .8rem;
-  color: #555;
-}
-#cookie-banner {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #151515;
-  border-top: 1px solid var(--border);
-  padding: .6rem 1.5rem;
-  font-size: .8rem;
-  color: var(--dim);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  z-index: 100;
-}
-#cookie-banner button {
-  background: none;
-  border: 1px solid var(--pink);
-  color: var(--pink);
-  padding: .2rem .8rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font: inherit;
-  font-size: .8rem;
-  flex-shrink: 0;
-}
-#cookie-banner button:hover { background: var(--pink); color: #000; }
 
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  max-width:680px;
+  margin:0 auto;
+  padding:48px 24px 96px;
+  background:var(--bg);
+  color:var(--fg);
+  font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+}
+
+a{
+  color:inherit;
+}
+
+a:hover{
+  opacity:.8;
+}
+
+header{
+  margin-bottom:48px;
+}
+
+.logo{
+  font-weight:700;
+  letter-spacing:.02em;
+}
+
+.meta{
+  color:var(--dim);
+  margin-top:4px;
+}
+
+h2{
+  font-size:1rem;
+  margin:40px 0 12px;
+}
+
+h3{
+  font-size:.85rem;
+  font-weight:600;
+  margin:20px 0 8px;
+  color:var(--dim);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+
+p{
+  margin:12px 0;
+  color:#cfcfcf;
+}
+
+pre{
+  margin:0 0 16px;
+  padding:16px;
+  border:1px solid var(--border);
+  overflow:auto;
+  white-space:pre;
+  font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+
+footer{
+  margin-top:64px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+  color:var(--dim);
+}
 </style>
+</head>
+<body>
 
-<pre class="logo">        ▄▄▄▄▄▄▄▄▄▄▄
-       █           █
-      █   ▄▄▄▄▄▄   █
-     █   █      █   █
-    █   █   ██   █   █
-    █   █  █  █  █   █
-    █   █  █  █  █   █
-    █   █   ██   █   █
-     █   █       █  █
-      █   ▀▀▀▀▀▀  █
-       █         █
-        ▀▀▀▀▀▀▀▀▀
-          <span style="font-size:14px;font-weight:700">CURSOR</span></pre>
+<header>
+  <div class="logo">▌ CURSOR</div>
+  <div class="meta">AI coding agent</div>
+</header>
 
-<h1><span>Cursor</span> — AI coding agent</h1>
-<p>Cross-platform CLI agent that works with codebases, files, commands, and repositories. Keyboard-native. Zero-config startup. No bloat.</p>
+<p>
+Cursor is a terminal-native AI coding agent.
+</p>
 
-<a class="btn" href="https://github.com/bniladridas/cursor/releases">Download</a>
-<a class="btn btn-outline" href="https://github.com/bniladridas/cursor">GitHub</a>
+<p>
+Work with codebases, files, repositories, and shell commands through a conversation-first interface.
+</p>
 
 <h2>Install</h2>
 
-<pre><span class="cmt"># npm</span>
-npm i -g @bniladridas/cursor
+<h3>npm</h3>
+<pre>npm i -g @bniladridas/cursor</pre>
 
-<span class="cmt"># brew</span>
-brew tap palmshed/cursor && brew install palmshed/cursor/cursor
+<h3>Homebrew</h3>
+<pre>brew tap palmshed/cursor
+brew install palmshed/cursor/cursor</pre>
 
-<span class="cmt"># curl (Linux/macOS)</span>
-curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sudo sh
+<h3>Linux / macOS</h3>
+<pre>curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sudo sh</pre>
 
-<span class="cmt"># from source</span>
-cmake -S . -B build && cmake --build build</pre>
+<h3>Run</h3>
+<pre>cursor</pre>
 
-<h2>What it does</h2>
-<div class="grid">
-  <div class="card">
-    <h3>Chat</h3>
-    <p>Ask questions about your codebase. AI answers with context-aware responses and markdown rendering.</p>
-  </div>
-  <div class="card">
-    <h3>Commands</h3>
-    <p>Search web, run git, read files, execute shell commands — all from the prompt.</p>
-  </div>
-  <div class="card">
-    <h3>Agentic</h3>
-    <p>Set goals, track tasks, and let Cursor work through complex workflows autonomously.</p>
-  </div>
-  <div class="card">
-    <h3>Multi-service</h3>
-    <p>Ollama, OpenAI-compatible APIs, GitHub, MCP servers — plug in what you need.</p>
-  </div>
-</div>
+<h2>Example</h2>
 
-<h2>Quick start</h2>
-<pre><span class="fn">cursor</span>
-<span class="cmt"># picks mode (Online/Offline) and model, drops you in</span>
-&gt; what does this project do?
-│ <span style="color:var(--pink)">Cursor</span>
-│ Cursor is an AI coding agent for the terminal...</pre>
+<pre>▌ CURSOR
+offline · qwen2.5-coder:1.5b
 
-<h2>Platforms</h2>
-<p>Pre-built binaries for <strong>Linux</strong> (amd64), <strong>macOS</strong> (arm64), and <strong>Windows</strong> (amd64) — on the <a href="https://github.com/bniladridas/cursor/releases">releases page</a>.</p>
+&gt; hello
 
-<h2>Design</h2>
-<p>Input-first, progressive disclosure, zero-config startup. Every pixel serves one goal: reduce friction between thought and action. Read the full <a href="https://github.com/bniladridas/cursor/blob/main/DESIGN.md">design spec</a>.</p>
+cursor
 
-<div id="cookie-banner">
-  <span>No cookies. No tracking. No data collection.</span>
-  <button onclick="this.parentElement.style.display='none'; localStorage.setItem('cookie-banner','1')">[ OK ]</button>
-</div>
-<script>
-if(localStorage.getItem('cookie-banner')) document.getElementById('cookie-banner').style.display='none';
-</script>
+Hello! How can I assist you today?</pre>
+
 <footer>
   <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
   <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
   <a href="github-app.html">brand-cursor[bot]</a> ·
   Apache 2.0
 </footer>
+
+</body>
+</html>
