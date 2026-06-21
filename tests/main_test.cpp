@@ -90,30 +90,28 @@ TEST(AgentTest, DebugModeTogglesVerbosePipelineOutput) {
   std::string output = capture_stdout([&] {
     router.process_user_input("git status");
   });
-  // Pipeline sections and reasoning headers are now always visible
-  // (they represent the system's execution flow, not debug internals)
-  EXPECT_NE(output.find("INPUT RECEIVED"), std::string::npos);
-  EXPECT_NE(output.find("Input classification"), std::string::npos);
+  // Verbose-gated content (parsed_input, context_state) hidden by default
+  EXPECT_EQ(output.find("Heard"), std::string::npos);
+  EXPECT_EQ(output.find("Parsed as"), std::string::npos);
 
   output = capture_stdout([&] {
     router.process_user_input("/debug");
     router.process_user_input("git status");
   });
   EXPECT_NE(output.find("Verbose mode ON"), std::string::npos);
-  // Verbose mode now controls context_state, parsed_input, plan_progress — not flow headers
-  EXPECT_NE(output.find("INPUT RECEIVED"), std::string::npos);
-  EXPECT_NE(output.find("Input classification"), std::string::npos);
+  // Verbose-gated content now visible
+  EXPECT_NE(output.find("Heard"), std::string::npos);
+  EXPECT_NE(output.find("Parsed as"), std::string::npos);
 
   output = capture_stdout([&] {
     router.process_user_input("/debug");
     router.process_user_input("git status");
   });
   EXPECT_NE(output.find("Verbose mode OFF"), std::string::npos);
-  // Flow headers are now always visible (verbose controls debug internals like context_state)
-  // Verify that verbose mode still controls debug-level content
+  // Verbose-gated content hidden again
   size_t off_pos = output.find("Verbose mode OFF");
-  EXPECT_NE(output.find("INPUT RECEIVED", off_pos), std::string::npos);
-  EXPECT_NE(output.find("Input classification", off_pos), std::string::npos);
+  EXPECT_EQ(output.find("Heard", off_pos), std::string::npos);
+  EXPECT_EQ(output.find("Parsed as", off_pos), std::string::npos);
 }
 
 TEST(AgentTest, DetectGitStatusQuery) {

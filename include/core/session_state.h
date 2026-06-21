@@ -11,6 +11,7 @@ struct SessionState {
   AgentMode mode_{AgentMode::MODE_UNSET};
   std::string ollama_model_;
   bool verbose_mode_{false};
+  bool inspect_mode_{false};
   PermissionMode perm_mode_{PermissionMode::APPLY};
   int command_count_{0};
   long long token_usage_{0};
