@@ -71,6 +71,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   ui_.show_parsed_input(input, trimmed_input);
 
   if (agent_.shell_mode_ && !trimmed_input.starts_with("!")) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::ShellEscape;
     ui_.show_pipeline_section("Shell mode handling");
     ui_.show_reasoning_step("Shell mode", "active");
     ui_.show_reasoning_step("Command", "!" + trimmed_input);
@@ -80,6 +81,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
 
   // Handle @ file injection commands
   if (trimmed_input.find('@') != std::string::npos) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::DirectService;
     ui_.show_pipeline_section("File injection detection");
     ui_.show_reasoning_step("Detected", "file injection");
     handle_file_injection_command(trimmed_input);
@@ -88,6 +90,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
 
   // Handle ! shell commands
   if (trimmed_input.starts_with("!")) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::ShellEscape;
     ui_.show_pipeline_section("Shell command execution");
     ui_.show_reasoning_step("Command", trimmed_input);
     handle_shell_command(trimmed_input);
@@ -96,6 +99,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
 
   // Handle / meta commands
   if (trimmed_input.starts_with("/")) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::MetaCommand;
     ui_.show_pipeline_section("Meta command execution");
     ui_.show_reasoning_step("Command", trimmed_input);
     handle_meta_command(trimmed_input);
@@ -103,6 +107,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   }
 
   if (is_direct_command_input(trimmed_input)) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::DirectService;
     ui_.show_reasoning_header("DIRECT COMMAND");
     ui_.show_pipeline_section("Direct command execution");
     ui_.show_parsed_input(trimmed_input, "direct command: " + trimmed_input);
@@ -111,6 +116,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     return {};
   }
   if (auto mapped_command = map_nl_to_direct_command(trimmed_input)) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::DirectService;
     ui_.show_reasoning_header("NATURAL LANGUAGE TOOLING");
     ui_.show_pipeline_section("Natural language mapping");
     ui_.show_reasoning_step("User intent", trimmed_input);
@@ -177,11 +183,19 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   agent_.state_.last_recovery_metrics = engine_result.recovery_metrics;
   agent_.state_.last_trust_metrics = engine_result.trust_metrics;
 
-  // Route based on goal type classification
+  // Set execution path based on engine results
   if (engine_result.goal_type ==
       static_cast<int>(Services::ExecutionEngine::CodeChange)) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::TaskPipeline;
     ui_.show_pipeline_section("Full task pipeline");
     return handle_task_with_planning(trimmed_input);
+  }
+
+  // ChatOnly if engine ran no tools (GeneralChat, no investigation)
+  if (engine_result.recovery_metrics.attempts == 0) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::ChatOnly;
+  } else {
+    agent_.state_.last_execution_path = Core::ExecutionPath::Engine;
   }
 
   if (!engine_result.evidence.facts.empty()) {

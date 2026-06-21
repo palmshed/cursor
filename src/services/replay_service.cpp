@@ -40,6 +40,7 @@ static json state_to_json(const Core::SessionState &s) {
       {"last_confidence_before", s.last_confidence_before},
       {"last_confidence_after", s.last_confidence_after},
       {"last_outcome", Core::outcome_name(s.last_outcome)},
+      {"last_execution_path", Core::execution_path_name(s.last_execution_path)},
   };
 }
 
@@ -54,6 +55,8 @@ static Core::SessionState json_to_state(const json &j) {
   s.last_confidence_after = j.value("last_confidence_after", 0.0);
   if (j.contains("last_outcome"))
     s.last_outcome = Core::outcome_from_name(j.value("last_outcome", "insufficient_evidence"));
+  if (j.contains("last_execution_path"))
+    s.last_execution_path = Core::execution_path_from_name(j.value("last_execution_path", "chat_only"));
   return s;
 }
 
@@ -88,7 +91,8 @@ long long ReplayService::epoch_seconds() { return now_epoch(); }
 void ReplayService::log_input(
     const Core::SessionState &state_before,
     const Core::SessionState &state_after, const std::string &input,
-    Core::Outcome outcome, const Core::RecoveryMetrics &recovery,
+    Core::Outcome outcome, Core::ExecutionPath exec_path,
+    const Core::RecoveryMetrics &recovery,
     const Core::TrustMetrics &trust, double confidence_before,
     double confidence_after) {
   json entry;
@@ -98,6 +102,7 @@ void ReplayService::log_input(
   entry["state_before"] = state_to_json(state_before);
   entry["state_after"] = state_to_json(state_after);
   entry["outcome"] = Core::outcome_name(outcome);
+  entry["execution_path"] = Core::execution_path_name(exec_path);
 
   json rec_json;
   rec_json["attempts"] = recovery.attempts;
@@ -185,6 +190,8 @@ std::vector<ReplayEvent> ReplayService::load_session(const std::string &id) cons
         ev.state_after = json_to_state(j["state_after"]);
       if (j.contains("outcome"))
         ev.outcome = Core::outcome_from_name(j.value("outcome", "insufficient_evidence"));
+      if (j.contains("execution_path"))
+        ev.execution_path = Core::execution_path_from_name(j.value("execution_path", "chat_only"));
       if (j.contains("recovery_metrics")) {
         auto r = j["recovery_metrics"];
         ev.recovery_metrics.attempts = r.value("attempts", 0);

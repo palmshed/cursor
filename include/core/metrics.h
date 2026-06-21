@@ -3,6 +3,37 @@
 
 namespace Core {
 
+enum class ExecutionPath {
+  ChatOnly,
+  Engine,
+  TaskPipeline,
+  DirectService,
+  MetaCommand,
+  ShellEscape
+};
+
+inline const char *execution_path_name(ExecutionPath p) {
+  switch (p) {
+    case ExecutionPath::ChatOnly: return "chat_only";
+    case ExecutionPath::Engine: return "engine";
+    case ExecutionPath::TaskPipeline: return "task_pipeline";
+    case ExecutionPath::DirectService: return "direct_service";
+    case ExecutionPath::MetaCommand: return "meta_command";
+    case ExecutionPath::ShellEscape: return "shell_escape";
+  }
+  return "unknown";
+}
+
+inline ExecutionPath execution_path_from_name(const std::string &n) {
+  if (n == "chat_only") return ExecutionPath::ChatOnly;
+  if (n == "engine") return ExecutionPath::Engine;
+  if (n == "task_pipeline") return ExecutionPath::TaskPipeline;
+  if (n == "direct_service") return ExecutionPath::DirectService;
+  if (n == "meta_command") return ExecutionPath::MetaCommand;
+  if (n == "shell_escape") return ExecutionPath::ShellEscape;
+  return ExecutionPath::ChatOnly;
+}
+
 enum class Outcome {
   Success,
   Failure,

@@ -128,7 +128,7 @@ TEST(AgentTest, ShowAgentDocumentation) {
   });
 
   EXPECT_NE(output.find("AGENTS Architecture Guide"), std::string::npos);
-  EXPECT_NE(output.find("This document defines the current system architecture."), std::string::npos);
+  EXPECT_NE(output.find("This document describes the current architecture as it exists today."), std::string::npos);
 }
 
 // Test for version functionality
@@ -285,7 +285,8 @@ TEST(InstrumentationTest, ReplayEventRoundtrip) {
 
   // Log event with full instrumentation
   replay.log_input(before, after, "test input",
-                   Core::Outcome::UserRejected, r, t);
+                   Core::Outcome::UserRejected,
+                   Core::ExecutionPath::Engine, r, t);
 
   // Load back
   auto events = replay.load_session(replay.session_id());

@@ -13,6 +13,7 @@ struct ReplayEvent {
   Core::SessionState state_before;
   Core::SessionState state_after;
   Core::Outcome outcome{Core::Outcome::InsufficientEvidence};
+  Core::ExecutionPath execution_path{Core::ExecutionPath::ChatOnly};
   Core::RecoveryMetrics recovery_metrics;
   Core::TrustMetrics trust_metrics;
   double confidence_before{0.0};
@@ -35,6 +36,7 @@ public:
                  const Core::SessionState &state_after,
                  const std::string &input,
                  Core::Outcome outcome = Core::Outcome::InsufficientEvidence,
+                 Core::ExecutionPath exec_path = Core::ExecutionPath::ChatOnly,
                  const Core::RecoveryMetrics &recovery = Core::RecoveryMetrics{},
                  const Core::TrustMetrics &trust = Core::TrustMetrics{},
                  double confidence_before = 0.0,
