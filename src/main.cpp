@@ -319,19 +319,19 @@ int main(int argc, char *argv[]) {
 
       // Confidence band calibration (confidence_before)
       bool has_cb = false;
-      for (int i = 0; i < 5; i++) if (agg.band_cb[i] > 0) has_cb = true;
+      for (int j = 0; j < 5; j++) if (agg.band_cb[j] > 0) has_cb = true;
 
       if (has_cb) {
         const char *band_labels[5] = {"0.0-0.2", "0.2-0.4", "0.4-0.6", "0.6-0.8", "0.8-1.0"};
         std::cout << "  Calibration by confidence_before\n";
         std::cout << "  --------------------------------\n";
         std::cout << "  Band       Events   Success   Rate\n";
-        for (int i = 0; i < 5; i++) {
-          if (agg.band_cb[i] == 0) continue;
-          double rate = 100.0 * agg.band_success_cb[i] / agg.band_cb[i];
-          std::cout << "  " << band_labels[i]
-                    << std::right << std::setw(10) << agg.band_cb[i]
-                    << std::setw(9) << agg.band_success_cb[i]
+        for (int j = 0; j < 5; j++) {
+          if (agg.band_cb[j] == 0) continue;
+          double rate = 100.0 * agg.band_success_cb[j] / agg.band_cb[j];
+          std::cout << "  " << band_labels[j]
+                    << std::right << std::setw(10) << agg.band_cb[j]
+                    << std::setw(9) << agg.band_success_cb[j]
                     << std::setw(7) << std::fixed << std::setprecision(1) << rate << "%\n";
         }
         std::cout << "\n";
