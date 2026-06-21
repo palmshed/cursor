@@ -50,8 +50,7 @@ public:
   void print_logo();
   void print_divider();
   void print_ready_interface(const std::string &mode,
-                              const std::string &model,
-                              const std::string &perm_mode = "");
+                              const std::string &model);
 
   // Discovery display
   struct DiscoveryLines {
@@ -137,6 +136,7 @@ public:
   // Spinner
   void spinner(const std::string &message, int duration_ms);
   void spinner(std::atomic<bool> &done);
+  void spinner(const std::string &message, std::atomic<bool> &done);
 
   // Markdown rendering
   static std::string render_markdown(const std::string &text);

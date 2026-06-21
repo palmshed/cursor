@@ -66,8 +66,6 @@ CommandRouter::CommandRouter(Agent &agent, UIManager &ui,
 std::string CommandRouter::process_user_input(const std::string &input) {
   agent_.state_.command_count_++;
   std::string trimmed_input = trim_copy(input);
-  ui_.show_reasoning_header("INPUT RECEIVED");
-  ui_.show_pipeline_section("Input classification");
   ui_.show_parsed_input(input, trimmed_input);
 
   if (agent_.shell_mode_ && !trimmed_input.starts_with("!")) {
@@ -130,6 +128,18 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   Services::ExecutionEngine engine;
   std::vector<Services::FileSearchResult> last_grep_results;
   agent_.state_.last_confidence_before = agent_.state_.last_confidence_after;
+
+  // Show investigation spinner in normal mode
+  std::atomic<bool> investigating(false);
+  std::thread investigation_spinner;
+  if (agent_.state_.verbose_mode_) {
+    // verbose mode shows tool traces instead of spinner
+  } else {
+    investigating.store(true);
+    investigation_spinner = std::thread(
+        [&]() { ui_.spinner("Investigating repository…", investigating); });
+  }
+
   auto engine_result = engine.execute(trimmed_input,
       [&](const Services::ToolCall &tc) -> std::string {
         if (tc.tool == "grep") {
@@ -178,6 +188,11 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       },
       ui_);
 
+  if (investigation_spinner.joinable()) {
+    investigating.store(false);
+    investigation_spinner.join();
+  }
+
   agent_.state_.last_confidence_after = engine_result.confidence;
   agent_.state_.last_outcome = engine_result.outcome;
   agent_.state_.last_recovery_metrics = engine_result.recovery_metrics;
@@ -198,25 +213,112 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     agent_.state_.last_execution_path = Core::ExecutionPath::Engine;
   }
 
+  // Evidence-missing rule: for investigation goals, if no evidence was collected,
+  // return InsufficientEvidence directly instead of falling back to generic LLM
+  int goal_type = engine_result.goal_type;
+  bool is_investigation_goal =
+      goal_type == static_cast<int>(Services::ExecutionEngine::CodebaseQuery) ||
+      goal_type == static_cast<int>(Services::ExecutionEngine::GitHubInvestigation);
+  bool has_useful_evidence =
+      engine_result.evidence.has_fact_containing("grep:results") ||
+      engine_result.evidence.has_fact_containing("gh:results");
+  if (is_investigation_goal && !has_useful_evidence) {
+    agent_.state_.last_outcome = Core::Outcome::InsufficientEvidence;
+    std::string msg = "I searched the repository but couldn't find evidence "
+                      "matching your question.\n";
+    std::cout << agent_.format_message("cursor", msg) << "\n";
+    return msg;
+  }
+
   if (!engine_result.evidence.facts.empty()) {
-    ui_.show_reasoning_header("EVIDENCE COLLECTED");
-    for (auto &f : engine_result.evidence.facts) {
-      if (f.size() > 120)
-        ui_.show_reasoning_step("", f.substr(0, 120) + "...");
-      else
-        ui_.show_reasoning_step("", f);
+    if (agent_.state_.verbose_mode_) {
+      std::cout << "\n" << Utils::Color::BOLD << "Evidence"
+                << Utils::Color::RESET << "\n";
+      for (auto &f : engine_result.evidence.facts) {
+        // Skip internal tracking facts
+        if (f.find(":results") != std::string::npos)
+          continue;
+        std::string display = f.size() > 100 ? f.substr(0, 100) + "..." : f;
+        std::cout << "  " << display << "\n";
+      }
     }
-    // Feed evidence into AI context so response is evidence-backed
-    engine_evidence_context_ = "Evidence collected:\n" + engine_result.summary;
+    // Always feed evidence into AI context (hidden from UX but grounds the answer)
+    engine_evidence_context_ =
+        "REPOSITORY EVIDENCE (found in the current repository):\n"
+        + engine_result.summary
+        + "\n\nThe answer to the user's question is in the evidence above. "
+          "Base your answer on this repository evidence. "
+          "Do not suggest generic commands or search strategies — "
+          "the evidence was already collected from this repository.";
   } else {
     engine_evidence_context_.clear();
   }
 
+  // Build investigation summary for inspect mode
+  std::string inv_summary;
+  if (agent_.state_.inspect_mode_) {
+    std::set<std::string> files;
+    int evidence_count = 0;
+    for (auto &f : engine_result.evidence.facts) {
+      if (f.find(":results") != std::string::npos) {
+        evidence_count++;
+        continue;
+      }
+      if (f.starts_with("[grep ")) {
+        // Extract file paths from grep results
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string content = f.substr(pos + 2);
+          std::istringstream lines(content);
+          std::string line;
+          while (std::getline(lines, line)) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+              files.insert(line.substr(0, colon));
+            }
+          }
+        }
+      } else if (f.starts_with("[read")) {
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string content = f.substr(pos + 2);
+          if (!content.starts_with("no file") && !content.starts_with("---")) {
+            files.insert(content.substr(0, content.find('\n')));
+          }
+        }
+      }
+    }
+
+    inv_summary += "\n" + Utils::Color::DIM;
+    inv_summary += "Repository evidence\n";
+    if (!files.empty()) {
+      inv_summary += "  Files examined:\n";
+      int count = 0;
+      for (auto &f : files) {
+        if (count++ > 5) { inv_summary += "  ..."; break; }
+        inv_summary += "  • " + f + "\n";
+      }
+    }
+    if (evidence_count > 0) {
+      double score = engine_result.confidence;
+      std::string label = score >= 0.8 ? "high" :
+                          score >= 0.5 ? "medium" :
+                          score >= 0.2 ? "low" : "very low";
+      inv_summary += "  Confidence: " + label + "\n";
+    }
+    inv_summary += Utils::Color::RESET;
+  }
+
   // Route to AI chat with evidence context
-  ui_.show_reasoning_header("AI CHAT");
-  ui_.show_pipeline_section("AI reasoning flow");
   ui_.show_context_state();
-  return handle_ai_chat(trimmed_input);
+  std::string answer = handle_ai_chat(trimmed_input);
+
+  // Show investigation summary in inspect mode (hidden in normal mode)
+  if (!inv_summary.empty()) {
+    std::cout << inv_summary << std::flush;
+  }
+
+  return answer;
 }
 
 void CommandRouter::handle_direct_command(const std::string &input) {
@@ -621,6 +723,8 @@ void CommandRouter::handle_meta_command(const std::string &input) {
     ui_.show_agent_documentation();
   } else if (command == "debug") {
     toggle_verbose_mode();
+  } else if (command == "inspect") {
+    toggle_inspect_mode();
   } else if (command.starts_with("mode ")) {
     handle_mode_command(command.substr(5));
   } else if (command == "clear") {
@@ -687,6 +791,14 @@ void CommandRouter::toggle_verbose_mode() {
   std::cout << (agent_.state_.verbose_mode_ ? Utils::Color::GREEN : Utils::Color::YELLOW)
             << (agent_.state_.verbose_mode_ ? "[debug] Verbose mode ON"
                                  : "[debug] Verbose mode OFF")
+            << Utils::Color::RESET << std::endl;
+}
+
+void CommandRouter::toggle_inspect_mode() {
+  agent_.state_.inspect_mode_ = !agent_.state_.inspect_mode_;
+  std::cout << (agent_.state_.inspect_mode_ ? Utils::Color::GREEN : Utils::Color::YELLOW)
+            << (agent_.state_.inspect_mode_ ? "[inspect] Showing investigation summary"
+                                 : "[inspect] Investigation summary hidden")
             << Utils::Color::RESET << std::endl;
 }
 

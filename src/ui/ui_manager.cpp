@@ -171,18 +171,21 @@ std::string UIManager::detect_language_from_filename(
 // ---------------------------------------------------------------------------
 
 void UIManager::show_reasoning_header(const std::string &operation_type) {
+  if (!is_verbose()) return;
   std::cout << "\n" << Utils::Color::CYAN << "=== " << Utils::Color::BOLD
             << operation_type << Utils::Color::RESET << Utils::Color::CYAN
             << " ===" << Utils::Color::RESET << std::endl;
 }
 
 void UIManager::show_pipeline_section(const std::string &section_title) {
+  if (!is_verbose()) return;
   std::cout << "\n" << Utils::Color::BOLD << Utils::Color::CYAN << "[ "
             << section_title << " ]" << Utils::Color::RESET << std::endl;
 }
 
 void UIManager::show_reasoning_step(const std::string &label,
                                     const std::string &detail) {
+  if (!is_verbose()) return;
   std::cout << Utils::Color::CYAN << "  - " << Utils::Color::RESET << label;
   if (!detail.empty()) {
     std::cout << ": " << Utils::Color::YELLOW << detail << Utils::Color::RESET;
@@ -551,12 +554,9 @@ void UIManager::print_divider() {
 }
 
 void UIManager::print_ready_interface(const std::string &mode,
-                                       const std::string &model,
-                                       const std::string &perm_mode) {
-  std::cout << Utils::Color::DIM << "[" << mode << " | " << model;
-  if (!perm_mode.empty())
-    std::cout << " | " << perm_mode;
-  std::cout << "]" << Utils::Color::RESET << "\n";
+                                       const std::string &model) {
+  std::cout << Utils::Color::DIM << "[" << mode << " | " << model
+            << "]" << Utils::Color::RESET << "\n";
 }
 
 void UIManager::spinner(const std::string &message, int duration_ms) {
@@ -591,6 +591,20 @@ void UIManager::spinner(std::atomic<bool> &done) {
     std::this_thread::sleep_for(std::chrono::milliseconds(80));
   }
   std::cout << "\r \r" << std::flush;
+}
+
+void UIManager::spinner(const std::string &message, std::atomic<bool> &done) {
+  const std::array<std::string_view, 10> frames = {
+      "⠋","⠙","⠹","⠸","⠼",
+      "⠴","⠦","⠧","⠇","⠏"};
+  int frame = 0;
+
+  while (!done) {
+    std::cout << "\r" << message << " " << frames[frame % 10] << std::flush;
+    frame++;
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+  }
+  std::cout << "\r" << std::string(message.size() + 3, ' ') << "\r" << std::flush;
 }
 
 // ---------------------------------------------------------------------------
@@ -776,6 +790,7 @@ void UIManager::show_execution_summary(const ExecutionSummaryData &data) {
 
 void UIManager::show_tool_invocation(const std::string &tool,
                                      const std::string &args) {
+  if (!is_verbose()) return;
   std::cout << "  " << Utils::Color::DIM << "Running: " << tool;
   if (!args.empty())
     std::cout << " " << args;

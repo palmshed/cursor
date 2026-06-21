@@ -180,19 +180,12 @@ void Session::run() {
   std::string model_name = agent_.state_.ollama_model_.empty()
       ? "local"
       : agent_.state_.ollama_model_;
-  std::string perm_name;
-  switch (agent_.state_.perm_mode_) {
-    case Core::PermissionMode::REVIEW: perm_name = "review"; break;
-    case Core::PermissionMode::APPLY:  perm_name = "apply";  break;
-    case Core::PermissionMode::AGENT:  perm_name = "agent";  break;
-  }
 
   if (tty) {
     std::cout << "\033[90m" << mode_name << " · " << model_name
-              << " · " << perm_name
               << Utils::Color::RESET << "\n\n";
   } else {
-    ui_.print_ready_interface(mode_name, model_name, perm_name);
+    ui_.print_ready_interface(mode_name, model_name);
   }
 
   std::vector<std::string> input_history;
