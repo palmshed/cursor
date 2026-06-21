@@ -348,6 +348,74 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     inv_summary += Utils::Color::RESET;
   }
 
+  // Light evidence summary in normal mode (trust UX)
+  if (agent_.state_.inspect_mode_ == false && agent_.state_.verbose_mode_ == false &&
+      engine_result.outcome == Core::Outcome::Success &&
+      engine_result.goal_type == static_cast<int>(Services::ExecutionEngine::CodebaseQuery) &&
+      !engine_result.evidence.facts.empty()) {
+
+    // Extract up to 5 concrete files mentioned by evidence facts.
+    std::set<std::string> files;
+    for (auto &f : engine_result.evidence.facts) {
+      if (f.find(":results") != std::string::npos)
+        continue;
+
+      if (f.starts_with("[grep ")) {
+        // Evidence format looks like: "[grep <term>:results] ...", where
+        // results are stored after a ':' in the fact.
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string content = f.substr(pos + 2);
+          std::istringstream lines(content);
+          std::string line;
+          while (std::getline(lines, line)) {
+            // Expected: "<file>:<line>: <content>"
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+              files.insert(line.substr(0, colon));
+            }
+            if (files.size() >= 5)
+              break;
+          }
+        }
+      } else if (f.starts_with("[read")) {
+        // Evidence format: "[read <file>] ...", so take filename after ']'
+        // but avoid large raw output.
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string after = f.substr(pos + 2);
+          // after is either " <file>"-like or includes "--- <file> ---"
+          // Try to find a line starting with "--- ".
+          size_t dash = after.find("--- ");
+          if (dash != std::string::npos) {
+            size_t name_start = dash + 4;
+            size_t name_end = after.find('\n', name_start);
+            if (name_end != std::string::npos) {
+              std::string name = after.substr(name_start, name_end - name_start);
+              if (!name.empty())
+                files.insert(name);
+            }
+          }
+        }
+      }
+
+      if (files.size() >= 5)
+        break;
+    }
+
+    if (!files.empty()) {
+      std::cout << "\n" << Utils::Color::BOLD << "Repository evidence" << Utils::Color::RESET << "\n";
+      std::cout << "Files examined:\n";
+      int shown = 0;
+      for (auto &fn : files) {
+        if (shown++ >= 5)
+          break;
+        std::cout << "  • " << fn << "\n";
+      }
+      std::cout << std::flush;
+    }
+  }
+
   // Route to AI chat with evidence context
   ui_.show_context_state();
   std::string answer = handle_ai_chat(trimmed_input);
