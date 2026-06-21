@@ -65,9 +65,19 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
                           "ci/cd", "actions"}))
     return CICheck;
 
-  if (contains_any(goal, {"where", "what is", "how does", "find",
-                           "search", "grep", "locate", "show me",
-                           "list", "tell me about",
+  // Exclude general chat patterns before checking codebase keywords
+  if (contains_any(goal, {"how are you", "how do you", "how do i",
+                           "how does one", "how can i", "how can you",
+                           "what is the difference", "what is a",
+                           "who are you", "what can you"}))
+    return GeneralChat;
+
+  if (contains_any(goal, {"where", "what is", "what does", "what's",
+                           "how does", "how is", "how are",
+                           "find", "search", "grep", "locate",
+                           "show me", "list", "tell me about",
+                           "explain", "describe", "overview",
+                           "architecture",
                            "in this project", "in this repo"}))
     return CodebaseQuery;
 
