@@ -468,6 +468,8 @@ set(SERVICE_SOURCES
     src/services/workflow_benchmark_service.cpp
     src/services/confidence_service.cpp
     src/services/dashboard_service.cpp
+    src/services/dependency_service.cpp
+    src/services/symbol_service.cpp
 )
 
 set(DIAGNOSTICS_SOURCES
