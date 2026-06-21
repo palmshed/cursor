@@ -217,15 +217,19 @@ DashboardOutcomeAggregate DashboardService::generate(
           agg.total_read_success += r.value("read_success", 0);
 
           // Search recovery cluster classification
-          if (o == Core::Outcome::InsufficientEvidence && grep_att > 0) {
-            if (grep_ok == 0 && grep_zero > 0) {
-              agg.cluster_no_matches++;
-            } else if (grep_ok > 0 && grep_hits <= 20) {
-              agg.cluster_wrong_matches++;
-            } else if (grep_ok > 0 && grep_hits > 20) {
-              agg.cluster_too_many_matches++;
+          if (o == Core::Outcome::InsufficientEvidence) {
+            if (grep_att > 0) {
+              if (grep_ok == 0 && grep_zero > 0) {
+                agg.cluster_no_matches++;
+              } else if (grep_ok > 0 && grep_hits <= 20) {
+                agg.cluster_wrong_matches++;
+              } else if (grep_ok > 0 && grep_hits > 20) {
+                agg.cluster_too_many_matches++;
+              } else {
+                agg.cluster_low_confidence++;
+              }
             } else {
-              agg.cluster_low_confidence++;
+              agg.cluster_unclassified++;
             }
           }
         }

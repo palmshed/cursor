@@ -313,25 +313,31 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      if (agg.insufficient_evidence_count > 0 && agg.total_grep_attempts > 0) {
+      if (agg.insufficient_evidence_count > 0) {
         int total_clusters = agg.cluster_no_matches + agg.cluster_wrong_matches +
-                             agg.cluster_too_many_matches + agg.cluster_low_confidence;
-        if (total_clusters > 0) {
-          std::cout << "\n  Search Recovery Clusters\n";
-          std::cout << "  --------------------------\n";
-          std::cout << "  no matches            "
-                    << agg.cluster_no_matches << "  ("
-                    << std::fixed << std::setprecision(1)
-                    << (100.0 * agg.cluster_no_matches / total_clusters) << "%)\n";
-          std::cout << "  wrong matches         "
-                    << agg.cluster_wrong_matches << "  ("
-                    << (100.0 * agg.cluster_wrong_matches / total_clusters) << "%)\n";
-          std::cout << "  too many matches      "
-                    << agg.cluster_too_many_matches << "  ("
-                    << (100.0 * agg.cluster_too_many_matches / total_clusters) << "%)\n";
-          std::cout << "  low confidence        "
-                    << agg.cluster_low_confidence << "  ("
-                    << (100.0 * agg.cluster_low_confidence / total_clusters) << "%)\n";
+                             agg.cluster_too_many_matches + agg.cluster_low_confidence +
+                             agg.cluster_unclassified;
+        std::cout << "\n  Search Recovery Clusters\n";
+        std::cout << "  --------------------------\n";
+        std::cout << "  no matches            "
+                  << agg.cluster_no_matches << "  ("
+                  << std::fixed << std::setprecision(1)
+                  << (total_clusters > 0 ? 100.0 * agg.cluster_no_matches / total_clusters : 0.0) << "%)\n";
+        std::cout << "  wrong matches         "
+                  << agg.cluster_wrong_matches << "  ("
+                  << (total_clusters > 0 ? 100.0 * agg.cluster_wrong_matches / total_clusters : 0.0) << "%)\n";
+        std::cout << "  too many matches      "
+                  << agg.cluster_too_many_matches << "  ("
+                  << (total_clusters > 0 ? 100.0 * agg.cluster_too_many_matches / total_clusters : 0.0) << "%)\n";
+        std::cout << "  low confidence        "
+                  << agg.cluster_low_confidence << "  ("
+                  << (total_clusters > 0 ? 100.0 * agg.cluster_low_confidence / total_clusters : 0.0) << "%)\n";
+        std::cout << "  unclassified*         "
+                  << agg.cluster_unclassified << "  ("
+                  << (total_clusters > 0 ? 100.0 * agg.cluster_unclassified / total_clusters : 0.0) << "%)\n";
+        if (agg.cluster_unclassified > 0) {
+          std::cout << "  *per-tool grep/read counters began collection as of last commit;\n"
+                    << "   historical replay events default to 0 and cannot be classified.\n";
         }
       }
 
