@@ -3114,9 +3114,13 @@ std::string CommandRouter::generate_search_terms(const std::string &input) const
     "where is ", "where are ", "where do ",
     "why does ", "why is ", "why are ",
     "show me ", "what files ", "what is ", "what are ",
+    "what does ", "what's ",
     "find where ", "find ",
-    "tell me how ", "tell me where ",
-    "explain how ", "explain where ",
+    "tell me about ", "tell me how ", "tell me where ",
+    "explain how ", "explain where ", "explain ",
+    "describe how ", "describe ", "overview of ",
+    "can you tell ", "can you show ", "can you find ",
+    "i need to ", "i need a ", "give me ",
   };
 
   size_t start = 0;
