@@ -409,6 +409,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       while (std::getline(ss, line))
         if (!line.empty() && line != "no matches")
           hits++;
+      result.recovery_metrics.grep_total_hits += hits;
+      if (hits > result.recovery_metrics.grep_max_hits)
+        result.recovery_metrics.grep_max_hits = hits;
       cr = ConfidenceService::after_search(tc.args, hits);
     } else if (tc.tool == "read") {
       cr = ConfidenceService::after_read(1, true);

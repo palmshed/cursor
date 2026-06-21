@@ -33,8 +33,19 @@ struct DashboardOutcomeAggregate {
   int total_grep_attempts{0};
   int total_grep_success{0};
   int total_grep_zero_hit{0};
+  long long total_grep_hits{0};
+  int max_grep_hits{0};
   int total_read_attempts{0};
   int total_read_success{0};
+
+  // Query rewording: sessions where InsufficientEvidence → Success
+  int query_rewording_count{0};
+
+  // Search recovery clusters (InsufficientEvidence breakdown)
+  int cluster_no_matches{0};
+  int cluster_wrong_matches{0};
+  int cluster_too_many_matches{0};
+  int cluster_low_confidence{0};
 
   // Confidence bands (for calibration)
   // band[0..4] = 0.0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0

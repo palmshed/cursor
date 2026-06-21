@@ -295,16 +295,51 @@ int main(int argc, char *argv[]) {
         if (agg.total_grep_attempts > 0 || agg.total_read_attempts > 0) {
           std::cout << "\n  Evidence Metrics\n";
           std::cout << "  -----------------\n";
-          if (agg.total_grep_attempts > 0)
+          if (agg.total_grep_attempts > 0) {
             std::cout << "  grep attempts         " << agg.total_grep_attempts
                       << "  (" << agg.total_grep_success << " ok, "
                       << agg.total_grep_zero_hit << " no matches)\n";
+            double avg_files = agg.recovery_events > 0
+                ? static_cast<double>(agg.total_grep_hits) / agg.recovery_events
+                : 0.0;
+            std::cout << "  avg files examined    " << std::fixed << std::setprecision(1)
+                      << avg_files << "\n";
+            std::cout << "  max grep hits         " << agg.max_grep_hits << "\n";
+          }
           if (agg.total_read_attempts > 0)
             std::cout << "  read attempts         " << agg.total_read_attempts
                       << "  (" << agg.total_read_success << " ok, "
                       << (agg.total_read_attempts - agg.total_read_success) << " empty)\n";
         }
-        std::cout << "\n";
+      }
+
+      if (agg.insufficient_evidence_count > 0 && agg.total_grep_attempts > 0) {
+        int total_clusters = agg.cluster_no_matches + agg.cluster_wrong_matches +
+                             agg.cluster_too_many_matches + agg.cluster_low_confidence;
+        if (total_clusters > 0) {
+          std::cout << "\n  Search Recovery Clusters\n";
+          std::cout << "  --------------------------\n";
+          std::cout << "  no matches            "
+                    << agg.cluster_no_matches << "  ("
+                    << std::fixed << std::setprecision(1)
+                    << (100.0 * agg.cluster_no_matches / total_clusters) << "%)\n";
+          std::cout << "  wrong matches         "
+                    << agg.cluster_wrong_matches << "  ("
+                    << (100.0 * agg.cluster_wrong_matches / total_clusters) << "%)\n";
+          std::cout << "  too many matches      "
+                    << agg.cluster_too_many_matches << "  ("
+                    << (100.0 * agg.cluster_too_many_matches / total_clusters) << "%)\n";
+          std::cout << "  low confidence        "
+                    << agg.cluster_low_confidence << "  ("
+                    << (100.0 * agg.cluster_low_confidence / total_clusters) << "%)\n";
+        }
+      }
+
+      if (agg.query_rewording_count > 0) {
+        std::cout << "\n  Query Rewording\n";
+        std::cout << "  -----------------\n";
+        std::cout << "  sessions with IE→Success "
+                  << agg.query_rewording_count << "\n";
       }
 
       if (!agg.matching_sessions.empty()) {
