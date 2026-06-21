@@ -4,6 +4,7 @@
 namespace Core {
 
 enum class ExecutionPath {
+  Unknown,
   ChatOnly,
   Engine,
   TaskPipeline,
@@ -14,6 +15,7 @@ enum class ExecutionPath {
 
 inline const char *execution_path_name(ExecutionPath p) {
   switch (p) {
+    case ExecutionPath::Unknown: return "unknown";
     case ExecutionPath::ChatOnly: return "chat_only";
     case ExecutionPath::Engine: return "engine";
     case ExecutionPath::TaskPipeline: return "task_pipeline";
@@ -31,7 +33,7 @@ inline ExecutionPath execution_path_from_name(const std::string &n) {
   if (n == "direct_service") return ExecutionPath::DirectService;
   if (n == "meta_command") return ExecutionPath::MetaCommand;
   if (n == "shell_escape") return ExecutionPath::ShellEscape;
-  return ExecutionPath::ChatOnly;
+  return ExecutionPath::Unknown;
 }
 
 enum class Outcome {

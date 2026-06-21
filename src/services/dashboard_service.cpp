@@ -134,8 +134,9 @@ DashboardOutcomeAggregate DashboardService::generate(
 
         // Execution path
         if (j.contains("execution_path")) {
-          auto ep = Core::execution_path_from_name(j.value("execution_path", "chat_only"));
+          auto ep = Core::execution_path_from_name(j.value("execution_path", "unknown"));
           switch (ep) {
+            case Core::ExecutionPath::Unknown: agg.unknown_count++; break;
             case Core::ExecutionPath::ChatOnly: agg.chat_only_count++; break;
             case Core::ExecutionPath::Engine: agg.engine_count++; break;
             case Core::ExecutionPath::TaskPipeline: agg.task_pipeline_count++; break;
