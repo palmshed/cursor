@@ -1265,6 +1265,26 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
       return extract_grep_command(*g, "");
   }
 
+  // NL: "find <term> in files" -> grep:<term>:
+  if (lower.rfind("find ", 0) == 0) {
+    // Keep scope tight: only when " in files" (or " in the files") is a suffix.
+    const std::vector<std::string> suffixes = {" in files", " in the files"};
+    for (const auto &suffix : suffixes) {
+      if (lower.size() >= 5 + suffix.size() &&
+          lower.rfind(suffix) == lower.size() - suffix.size()) {
+        // Extract original-cased term between "find " and the suffix
+        size_t start = std::string("find ").size();
+        size_t end = input.size() - suffix.size();
+        if (end > start) {
+          std::string term = trim_copy(input.substr(start, end - start));
+          if (!term.empty()) {
+            return std::make_optional(std::string("grep:") + term);
+          }
+        }
+      }
+    }
+  }
+
   // Read/open file
   if (auto path = extract_after({"read file ", "show file ", "open file "})) {
     return std::make_optional(std::string("read:") + *path);
