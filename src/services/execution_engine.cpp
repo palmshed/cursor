@@ -4,7 +4,8 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstring>
+#include <iostream>
+#include <regex>
 #include <sstream>
 #include <vector>
 
@@ -33,6 +34,7 @@ bool EvidenceStore::has_fact_containing(const std::string &keyword) const {
 static bool word_boundary(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\0' ||
          c == '.' || c == ',' || c == '!' || c == '?' ||
+         c == '/' || c == ':' ||
          c == ')' || c == ']' || c == '}';
 }
 
@@ -61,6 +63,11 @@ static bool contains_any(const std::string &text,
 
 ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     const std::string &goal) {
+  // Check for GitHub Actions URLs before general codebase patterns
+  if (contains_any(goal, {"github.com", "actions/runs", "github action",
+                           "workflow run", "ci run"}))
+    return GitHubInvestigation;
+
   if (contains_any(goal, {"ci", "github action", "workflow", "gh run",
                           "ci/cd", "actions"}))
     return CICheck;
@@ -95,6 +102,7 @@ std::string ExecutionEngine::goal_type_name(GoalType t) {
     case CICheck: return "CI Investigation";
     case CodebaseQuery: return "Repository Investigation";
     case CodeChange: return "Code Change";
+    case GitHubInvestigation: return "GitHub Investigation";
     case GeneralChat: return "General Chat";
   }
   return "Unknown";
@@ -124,6 +132,30 @@ ToolCall ExecutionEngine::select_next_tool(
           }
         }
         return {"read", ".github/workflows/"};
+      }
+
+      return {};
+    }
+
+    case GitHubInvestigation: {
+      // Extract run ID from GitHub Actions URL in the goal
+      std::regex url_regex(R"(github\.com/[^/]+/[^/]+/actions/runs/(\d+))");
+      std::smatch match;
+      std::string run_id;
+      if (std::regex_search(goal, match, url_regex) && match.size() > 1) {
+        run_id = match[1].str();
+      }
+      if (run_id.empty()) return {}; // No run ID found, can't investigate
+
+      // 1. Fetch run details
+      if (!evidence.has_fact_containing("gh run view")) {
+        return {"gh", "run view " + run_id +
+                " --json conclusion,displayTitle,headBranch,createdAt,workflowName,jobs"};
+      }
+
+      // 2. Fetch job logs
+      if (!evidence.has_fact_containing("--log")) {
+        return {"gh", "run view " + run_id + " --log"};
       }
 
       return {};
@@ -161,8 +193,14 @@ ToolCall ExecutionEngine::select_next_tool(
             break;
           }
         }
-         // Clean the term: remove stop words and trailing noise words
-         {
+          // Clean the term: remove stop words and trailing noise words
+          {
+            // Strip trailing punctuation to prevent suffix/noise matching failures
+            while (!term.empty() && std::ispunct(static_cast<unsigned char>(term.back())))
+              term.pop_back();
+            if (term.empty()) return {};
+            lower_term = term;
+            for (auto &c : lower_term) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
            static const char *stop_words[] = {"the ", "a ", "an ", "this ", "that "};
            for (auto *sw : stop_words) {
              if (lower_term.find(sw) == 0) {
@@ -272,6 +310,11 @@ bool ExecutionEngine::check_completion(const std::string & /*goal*/,
       return evidence.has_fact_containing("gh run list") &&
              (!evidence.has_fact_containing("failure") ||
               evidence.has_fact_containing("read workflow"));
+
+    case GitHubInvestigation:
+      // Done when we've fetched run details AND fetched logs
+      return evidence.has_fact_containing("gh run view") &&
+             evidence.has_fact_containing("--log");
 
     case CodebaseQuery:
       // Done when we've searched AND found results AND read files
@@ -387,6 +430,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   summary += "Evidence collected: " + std::to_string(evidence.facts.size()) +
              " facts\n";
   for (auto &f : evidence.facts) {
+    // Skip internal tracking facts
+    if (f.find(":results") != std::string::npos)
+      continue;
     if (f.size() > 100)
       summary += "  " + f.substr(0, 100) + "...\n";
     else

@@ -85,6 +85,17 @@ static const char *QUERIES[] = {
     "search benchmark failure #9",
     "find Agent responsibilities",
     "where does decision happen",
+    // Investigation benchmarks
+    "What is this repository?",
+    "Explain this codebase.",
+    "Where is the main executable defined?",
+    "How does confidence scoring work?",
+    // Negative test (expects evidence failure)
+    "Where is the Kubernetes deployment?",
+    // GitHub Actions benchmarks
+    "can you check this log https://github.com/owner/repo/actions/runs/12345",
+    "Why did CI fail?",
+    "Which test failed?",
 };
 static constexpr int N = sizeof(QUERIES) / sizeof(QUERIES[0]);
 

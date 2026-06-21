@@ -43,7 +43,7 @@ class ExecutionEngine {
 public:
   using ToolRunner = std::function<std::string(const ToolCall &)>;
 
-  enum GoalType { GeneralChat, CodebaseQuery, CodeChange, CICheck };
+  enum GoalType { GeneralChat, CodebaseQuery, CodeChange, CICheck, GitHubInvestigation };
 
   ExecutionEngine() = default;
 
