@@ -130,19 +130,27 @@ ToolCall ExecutionEngine::select_next_tool(
     }
 
     case CodebaseQuery: {
+      // 0. Gather repository context before searching
+      if (!evidence.has_fact_containing("context")) {
+        return {"context", ""};
+      }
+
       // 1. Search the codebase
       if (!evidence.has_fact_containing("grep") &&
           !evidence.has_fact_containing("search")) {
-        // Extract search term from goal
+        // Extract search term from goal (case-insensitive prefix matching)
         std::string term = goal;
+        std::string lower_term = term;
+        for (auto &c : lower_term) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         // Remove common prefixes (longest first to handle compounds)
         for (auto &prefix : {"tell me about ", "find where ", "search for ",
                              "where is ", "what is ", "what does ",
                              "how does ", "show me ", "locate ",
                              "find ", "where ", "grep "}) {
-          size_t p = term.find(prefix);
+          size_t p = lower_term.find(prefix);
           if (p == 0) {
             term = term.substr(p + strlen(prefix));
+            lower_term = lower_term.substr(p + strlen(prefix));
             break;
           }
         }
@@ -151,9 +159,10 @@ ToolCall ExecutionEngine::select_next_tool(
                              " in this repo", " in the code",
                              " in code", " in files", " is defined",
                              " is implemented"}) {
-          size_t p = term.rfind(suffix);
-          if (p != std::string::npos && p + strlen(suffix) == term.size()) {
+          size_t p = lower_term.rfind(suffix);
+          if (p != std::string::npos && p + strlen(suffix) == lower_term.size()) {
             term = term.substr(0, p);
+            lower_term = lower_term.substr(0, p);
             break;
           }
         }
@@ -161,8 +170,9 @@ ToolCall ExecutionEngine::select_next_tool(
          {
            static const char *stop_words[] = {"the ", "a ", "an ", "this ", "that "};
            for (auto *sw : stop_words) {
-             if (term.find(sw) == 0) {
+             if (lower_term.find(sw) == 0) {
                term = term.substr(strlen(sw));
+               lower_term = lower_term.substr(strlen(sw));
                break;
              }
            }
