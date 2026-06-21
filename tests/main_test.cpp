@@ -134,6 +134,21 @@ TEST(AgentTest, ShowAgentDocumentation) {
   EXPECT_NE(output.find("This document describes the current architecture as it exists today."), std::string::npos);
 }
 
+TEST(AgentTest, ShouldCallAIByOutcome) {
+  Services::ExecutionResult r;
+  r.outcome = Core::Outcome::Success;
+  EXPECT_TRUE(Core::CommandRouter::should_call_ai(r));
+
+  r.outcome = Core::Outcome::Failure;
+  EXPECT_FALSE(Core::CommandRouter::should_call_ai(r));
+
+  r.outcome = Core::Outcome::InsufficientEvidence;
+  EXPECT_FALSE(Core::CommandRouter::should_call_ai(r));
+
+  r.outcome = Core::Outcome::UserRejected;
+  EXPECT_FALSE(Core::CommandRouter::should_call_ai(r));
+}
+
 // Test for version functionality
 TEST(VersionTest, VersionCommand) {
   const char *version = Version::get_version();
