@@ -470,6 +470,10 @@ set(SERVICE_SOURCES
     src/services/dashboard_service.cpp
 )
 
+set(DIAGNOSTICS_SOURCES
+    src/diagnostics/diagnostics.cpp
+)
+
 set(UTILS_SOURCES
     src/utils/ui.cpp
     src/utils/config.cpp
@@ -487,6 +491,7 @@ set(ALL_SOURCES
     ${APP_SOURCES}
     ${UI_SOURCES}
     ${SERVICE_SOURCES}
+    ${DIAGNOSTICS_SOURCES}
     ${UTILS_SOURCES}
     ${DATA_SOURCES}
 )

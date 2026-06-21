@@ -27,6 +27,7 @@
 #include "utils/config.h"
 #include "utils/ui.h"
 #include "version.h"
+#include "diagnostics/diagnostics.h"
 
 std::string get_exe_path() {
   try {
@@ -215,7 +216,29 @@ int main(int argc, char *argv[]) {
       }
       return result.failures.empty() ? 0 : 1;
     }
+    if (arg == "--diagnostics") {
+      std::string prompt;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        prompt = argv[++i];
+      } else {
+        std::cerr << "Missing prompt for --diagnostics\n";
+        return 2;
+      }
+      return run_diagnostics(prompt);
+    }
+    if (arg == "--trace") {
+      // Not implemented in this milestone
+      std::cerr << "--trace not implemented yet\n";
+      return 2;
+    }
+    if (arg == "--scenario") {
+      // Not implemented in this milestone
+      std::cerr << "--scenario not implemented yet\n";
+      return 2;
+    }
     if (arg == "--dashboard") {
+
+
       std::string filter;
       if (i + 1 < argc && argv[i + 1][0] != '-') {
         filter = argv[++i];
