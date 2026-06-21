@@ -3,11 +3,13 @@
 #include "app/common.h"
 #include "app/menu.h"
 #include "app/startup.h"
+#include "services/command_service.h"
 #include "services/replay_service.h"
 #include "utils/ui.h"
 #include "version.h"
 
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -145,6 +147,34 @@ void Session::run() {
 
   Startup startup;
   startup.initialize(agent_);
+
+  // Gather repository context once at startup
+  {
+    auto &s = agent_.state_;
+    try {
+      s.cwd_ = std::filesystem::current_path().string();
+    } catch (...) { s.cwd_ = "unknown"; }
+    s.git_branch_ = Services::CommandService::execute(
+        "git rev-parse --abbrev-ref HEAD 2>/dev/null");
+    if (!s.git_branch_.empty()) {
+      // Strip trailing newline
+      auto nl = s.git_branch_.find('\n');
+      if (nl != std::string::npos) s.git_branch_ = s.git_branch_.substr(0, nl);
+      // Git status
+      s.git_status_ = Services::CommandService::execute(
+          "git status --short 2>/dev/null");
+      // Repo root
+      s.repo_root_ = Services::CommandService::execute(
+          "git rev-parse --show-toplevel 2>/dev/null");
+      if (!s.repo_root_.empty()) {
+        auto nl2 = s.repo_root_.find('\n');
+        if (nl2 != std::string::npos) s.repo_root_ = s.repo_root_.substr(0, nl2);
+      }
+    }
+    // Build artifacts
+    s.build_artifacts_ = Services::CommandService::execute(
+        "ls -1 build/bin/ 2>/dev/null || echo '(no build/bin)'");
+  }
 
   std::string mode_name = Startup::is_online_mode(agent_) ? "online" : "offline";
   std::string model_name = agent_.state_.ollama_model_.empty()

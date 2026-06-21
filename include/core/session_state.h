@@ -20,6 +20,12 @@ struct SessionState {
   ExecutionPath last_execution_path{ExecutionPath::Unknown};
   RecoveryMetrics last_recovery_metrics{};
   TrustMetrics last_trust_metrics{};
+  // Repository context (gathered once at startup)
+  std::string cwd_;
+  std::string repo_root_;
+  std::string git_branch_;
+  std::string git_status_;
+  std::string build_artifacts_;
 };
 
 } // namespace Core

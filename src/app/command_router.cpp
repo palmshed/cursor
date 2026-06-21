@@ -167,21 +167,6 @@ std::string CommandRouter::process_user_input(const std::string &input) {
         if (tc.tool == "ctest") {
           return Services::CommandService::execute(tc.args);
         }
-        if (tc.tool == "context") {
-          std::string out;
-          try {
-            out += "Current directory: " + std::filesystem::current_path().string() + "\n";
-          } catch (...) { out += "Current directory: unknown\n"; }
-          // Git branch
-          std::string branch = Services::CommandService::execute(
-              "git rev-parse --abbrev-ref HEAD 2>/dev/null");
-          out += "Git branch: " + (branch.empty() ? std::string("unknown") : branch.substr(0, branch.find('\n'))) + "\n";
-          // Build artifacts
-          std::string build_bin = Services::CommandService::execute(
-              "ls -1 build/bin/ 2>/dev/null || echo '(no build/bin)'");
-          out += "Build artifacts:\n" + build_bin;
-          return out;
-        }
         if (tc.tool == "discovery") {
           auto d = Services::DiscoveryService::scan(".", trimmed_input);
           std::string out = "Project: " + d.project_type + "\n";
@@ -930,11 +915,21 @@ void CommandRouter::set_param(const std::string &param_string) {
 }
 
 std::string CommandRouter::build_agent_context() const {
-  if (agent_.active_goal_.empty() && agent_.tasks_.empty() && agent_.agent_params_.empty()) {
-    return "";
-  }
-
   std::ostringstream context;
+
+  // Repository context (always included)
+  auto &s = agent_.state_;
+  context << "Repository Context:\n";
+  context << "  cwd: " << s.cwd_ << "\n";
+  if (!s.repo_root_.empty())
+    context << "  repo root: " << s.repo_root_ << "\n";
+  if (!s.git_branch_.empty())
+    context << "  branch: " << s.git_branch_ << "\n";
+  if (!s.git_status_.empty())
+    context << "  status: " << s.git_status_.substr(0, 200) << "\n";
+  if (!s.build_artifacts_.empty())
+    context << "  build artifacts: " << s.build_artifacts_.substr(0, 200) << "\n";
+
   if (!agent_.active_goal_.empty()) {
     context << "Current objective: " << agent_.active_goal_ << "\n";
   }
@@ -951,7 +946,6 @@ std::string CommandRouter::build_agent_context() const {
       context << "- " << pair.first << " = " << pair.second << "\n";
     }
   }
-  context << "Use this goal, task list, and parameters to guide your next actions.";
   return context.str();
 }
 

@@ -130,11 +130,6 @@ ToolCall ExecutionEngine::select_next_tool(
     }
 
     case CodebaseQuery: {
-      // 0. Gather repository context before searching
-      if (!evidence.has_fact_containing("context")) {
-        return {"context", ""};
-      }
-
       // 1. Search the codebase
       if (!evidence.has_fact_containing("grep") &&
           !evidence.has_fact_containing("search")) {
