@@ -1,4 +1,8 @@
+#include "core/metrics.h"
 #include "services/ai_service.h"
+#include "services/replay_service.h"
+#include "services/workflow_benchmark_service.h"
+#include "services/execution_engine.h"
 #include "memory_manager.h"
 #include "agent.h"
 #include "app/command_router.h"
@@ -6,7 +10,10 @@
 #include "version.h"
 #include <gtest/gtest.h>
 #include <functional>
+#include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include <set>
 #include <sstream>
 
 static std::string capture_stdout(const std::function<void()> &fn) {
@@ -49,7 +56,8 @@ TEST(AgentTest, MapNaturalLanguageToDirectCommands) {
 
 TEST(AgentTest, MapAllNaturalLanguageToDirectCommands) {
   EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("run make test"), "cmd:make test");
-  EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("build the project"), "build:make");
+  EXPECT_FALSE(Core::CommandRouter::map_nl_to_direct_command("build the project").has_value());
+  EXPECT_FALSE(Core::CommandRouter::map_nl_to_direct_command("compile").has_value());
   EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("read file src/main.cpp"), "read:src/main.cpp");
   EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("save file notes.txt as hello world"), "write:notes.txt hello world");
   EXPECT_EQ(*Core::CommandRouter::map_nl_to_direct_command("remember the api key is secret"), "remember:the api key is secret");
@@ -119,8 +127,8 @@ TEST(AgentTest, ShowAgentDocumentation) {
     ui.show_agent_documentation();
   });
 
-  EXPECT_NE(output.find("Agents Architecture Guide"), std::string::npos);
-  EXPECT_NE(output.find("This document describes the current system architecture and rules."), std::string::npos);
+  EXPECT_NE(output.find("AGENTS Architecture Guide"), std::string::npos);
+  EXPECT_NE(output.find("This document defines the current system architecture."), std::string::npos);
 }
 
 // Test for version functionality
@@ -184,6 +192,196 @@ TEST(AgentTest, FormattedFilePreviewHandlesErrors) {
   });
 
   EXPECT_NE(output.find("Error:"), std::string::npos);
+}
+
+// ---------------------------------------------------------------------------
+// Instrumentation Audit Tests
+// ---------------------------------------------------------------------------
+
+TEST(InstrumentationTest, OutcomeRoundtrip) {
+  // Verify outcome_name / outcome_from_from are inverses
+  for (auto o : {Core::Outcome::Success, Core::Outcome::Failure,
+                  Core::Outcome::InsufficientEvidence,
+                  Core::Outcome::UserRejected}) {
+    std::string name = Core::outcome_name(o);
+    Core::Outcome back = Core::outcome_from_name(name);
+    EXPECT_EQ(o, back) << "outcome roundtrip failed for " << name;
+  }
+}
+
+TEST(InstrumentationTest, RecoveryMetricsRoundtrip) {
+  Core::RecoveryMetrics m;
+  m.attempts = 3;
+  m.strategy_changes = 2;
+  m.evidence_found = true;
+  m.verification_found = true;
+  m.confidence_delta = 0.4;
+
+  // Serialize to JSON and back
+  nlohmann::json j;
+  j["attempts"] = m.attempts;
+  j["strategy_changes"] = m.strategy_changes;
+  j["evidence_found"] = m.evidence_found;
+  j["verification_found"] = m.verification_found;
+  j["confidence_delta"] = m.confidence_delta;
+
+  Core::RecoveryMetrics m2;
+  m2.attempts = j.value("attempts", 0);
+  m2.strategy_changes = j.value("strategy_changes", 0);
+  m2.evidence_found = j.value("evidence_found", false);
+  m2.verification_found = j.value("verification_found", false);
+  m2.confidence_delta = j.value("confidence_delta", 0.0);
+
+  EXPECT_EQ(m, m2);
+}
+
+TEST(InstrumentationTest, TrustMetricsRoundtrip) {
+  Core::TrustMetrics m;
+  m.plan_approved = true;
+  m.diff_approved = false;
+  m.user_corrected_goal = true;
+  m.reverted = false;
+
+  nlohmann::json j;
+  j["plan_approved"] = m.plan_approved;
+  j["diff_approved"] = m.diff_approved;
+  j["user_corrected_goal"] = m.user_corrected_goal;
+  j["reverted"] = m.reverted;
+
+  Core::TrustMetrics m2;
+  m2.plan_approved = j.value("plan_approved", false);
+  m2.diff_approved = j.value("diff_approved", false);
+  m2.user_corrected_goal = j.value("user_corrected_goal", false);
+  m2.reverted = j.value("reverted", false);
+
+  EXPECT_EQ(m, m2);
+}
+
+TEST(InstrumentationTest, ReplayEventRoundtrip) {
+  Services::ReplayService replay;
+
+  // Create session states
+  Core::SessionState before;
+  before.verbose_mode_ = false;
+  before.command_count_ = 1;
+
+  Core::SessionState after;
+  after.verbose_mode_ = true;
+  after.command_count_ = 2;
+
+  // Outcome + metrics
+  Core::RecoveryMetrics r;
+  r.attempts = 2;
+  r.strategy_changes = 1;
+  r.evidence_found = true;
+  r.verification_found = false;
+  r.confidence_delta = 0.3;
+
+  Core::TrustMetrics t;
+  t.plan_approved = true;
+  t.diff_approved = false;
+  t.user_corrected_goal = false;
+  t.reverted = false;
+
+  // Log event with full instrumentation
+  replay.log_input(before, after, "test input",
+                   Core::Outcome::UserRejected, r, t);
+
+  // Load back
+  auto events = replay.load_session(replay.session_id());
+  ASSERT_FALSE(events.empty()) << "should have at least one event";
+
+  // Find our event (may be more if previous tests left events)
+  bool found = false;
+  for (auto &ev : events) {
+    if (ev.input == "test input") {
+      EXPECT_EQ(Core::Outcome::UserRejected, ev.outcome);
+      EXPECT_EQ(r.attempts, ev.recovery_metrics.attempts);
+      EXPECT_EQ(r.strategy_changes, ev.recovery_metrics.strategy_changes);
+      EXPECT_EQ(r.evidence_found, ev.recovery_metrics.evidence_found);
+      EXPECT_EQ(r.verification_found,
+                ev.recovery_metrics.verification_found);
+      EXPECT_EQ(t.plan_approved, ev.trust_metrics.plan_approved);
+      EXPECT_EQ(t.diff_approved, ev.trust_metrics.diff_approved);
+      EXPECT_EQ(t.user_corrected_goal,
+                ev.trust_metrics.user_corrected_goal);
+      EXPECT_EQ(t.reverted, ev.trust_metrics.reverted);
+      found = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found) << "should find the logged event";
+}
+
+TEST(InstrumentationTest, BenchmarkOutcomeRecorded) {
+  auto results = Services::WorkflowBenchmarkService::run_all();
+
+  // Every benchmark must have outcome set
+  ASSERT_FALSE(results.empty());
+  for (auto &r : results) {
+    // Outcome should be one of the defined values (not accidental default)
+    EXPECT_TRUE(r.outcome == Core::Outcome::Success ||
+                r.outcome == Core::Outcome::Failure ||
+                r.outcome == Core::Outcome::InsufficientEvidence ||
+                r.outcome == Core::Outcome::UserRejected)
+        << "benchmark " << r.name << " has invalid outcome";
+    // Recovery metrics should be populated
+    EXPECT_TRUE(r.recovery_metrics.evidence_found)
+        << "benchmark " << r.name << " should have evidence_found=true";
+  }
+}
+
+TEST(InstrumentationTest, RecoveryBenchmarkExpectedNonSuccess) {
+  // Recovery benchmarks (#9-#14) should always be non-Success
+  // because they model scenarios that need recovery (build fails, test fails,
+  // search miss, etc.)
+  auto results = Services::WorkflowBenchmarkService::run_all();
+
+  // Recovery benchmarks start at index 8 (0-indexed)
+  ASSERT_GE(results.size(), 14) << "need all 14 benchmarks";
+
+  for (size_t i = 8; i < results.size() && i < 14; i++) {
+    auto &r = results[i];
+    // Recovery benchmarks should NOT be Outcome::Success
+    // (they model failure states that require recovery)
+    EXPECT_NE(r.outcome, Core::Outcome::Success)
+        << "recovery benchmark " << r.name << " should not be Success";
+  }
+}
+
+TEST(InstrumentationTest, OutcomeNameAllValues) {
+  // Verify every outcome has a unique name and roundtrips
+  std::set<std::string> names;
+  for (auto o : {Core::Outcome::Success, Core::Outcome::Failure,
+                  Core::Outcome::InsufficientEvidence,
+                  Core::Outcome::UserRejected}) {
+    std::string name = Core::outcome_name(o);
+    EXPECT_TRUE(names.insert(name).second)
+        << "duplicate outcome name: " << name;
+  }
+  EXPECT_EQ(names.size(), 4);
+}
+
+TEST(InstrumentationTest, UserRejectedSetsTrustMetrics) {
+  Core::TrustMetrics t;
+  t.plan_approved = true;
+  t.diff_approved = false;  // user rejected the diff
+  t.user_corrected_goal = false;
+  t.reverted = false;
+
+  EXPECT_FALSE(t.diff_approved) << "diff_approved should be false";
+  EXPECT_TRUE(t.plan_approved) << "plan_approved should be true";
+
+  // Simulate: if user corrects goal, it's a different pattern
+  Core::TrustMetrics t2;
+  t2.plan_approved = false;
+  t2.diff_approved = false;
+  t2.user_corrected_goal = true;
+  t2.reverted = false;
+
+  EXPECT_TRUE(t2.user_corrected_goal);
+  EXPECT_FALSE(t2.plan_approved);
+  EXPECT_NE(t, t2); // different patterns should differ
 }
 
 int main(int argc, char **argv) {

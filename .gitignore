@@ -113,7 +113,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 agent
-llamaware-agent
 
 # IDE files
 .vs/

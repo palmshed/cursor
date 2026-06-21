@@ -458,6 +458,16 @@ set(SERVICE_SOURCES
     src/services/sandbox_service.cpp
     src/services/database_service.cpp
     src/services/replay_service.cpp
+    src/services/verification_service.cpp
+    src/services/self_test_service.cpp
+    src/services/discovery_service.cpp
+    src/services/planning_service.cpp
+    src/services/ci_investigation_service.cpp
+    src/services/execution_engine.cpp
+    src/services/capability_registry.cpp
+    src/services/workflow_benchmark_service.cpp
+    src/services/confidence_service.cpp
+    src/services/dashboard_service.cpp
 )
 
 set(UTILS_SOURCES
@@ -577,6 +587,17 @@ if(CURSOR_BUILD_TESTS)
         MACOSX_RPATH ON
         INSTALL_RPATH "@executable_path/lib"
         BUILD_WITH_INSTALL_RPATH TRUE
+    )
+
+    add_executable(engine_extraction_test tests/engine_extraction_test.cpp)
+    target_include_directories(engine_extraction_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+    target_link_libraries(engine_extraction_test PRIVATE cursor_lib)
+    set_target_properties(engine_extraction_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+        MACOSX_RPATH ON
     )
 endif()
 
