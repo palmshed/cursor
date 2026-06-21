@@ -277,7 +277,14 @@ ScenarioResult SelfTestService::test_nl_command_mapping() {
     total++;
     auto mapped = Core::CommandRouter::map_nl_to_direct_command(c.input);
     bool result = mapped.has_value();
-    if (result == c.should_map) passed++;
+    if (result != c.should_map) {
+      r.passed = false;
+      r.details = "failed input: '" + c.input + "', expected=" +
+                   (c.should_map ? "true" : "false") + ", actual=" +
+                   (result ? "true" : "false");
+      return r;
+    }
+    passed++;
   }
 
   r.passed = (passed == total);
