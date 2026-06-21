@@ -110,6 +110,9 @@ public:
   void show_tool_invocation(const std::string &tool,
                             const std::string &args);
 
+  // Tool output visibility — called after tool completion
+  void show_tool_output(const std::string &output);
+
   // Preview proposed changes (before apply)
   void show_preview(const std::vector<PlanTaskLine> &tasks);
 

@@ -13,11 +13,14 @@ private:
 
   // Internal method to execute a command and capture its output
   static std::string execute_command(const std::string &command,
-                                     std::FILE *pipe);
+                                     std::FILE *pipe,
+                                     size_t max_bytes);
 
 public:
   // Execute a shell command and return its output
   // Returns the command output or an error message if execution fails
-  static std::string execute(const std::string &command);
+  static std::string execute(const std::string &command,
+                             int timeout_seconds = 30,
+                             size_t max_bytes = 100 * 1024);
 };
 } // namespace Services

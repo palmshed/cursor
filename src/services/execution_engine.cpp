@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <iostream>
 #include <regex>
 #include <sstream>
@@ -368,6 +369,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     ui.show_tool_invocation(tc.tool, tc.args);
 
     std::string output = run_tool(tc);
+    ui.show_tool_output(output);
 
     std::string fact = tc.tool;
     if (!tc.args.empty())

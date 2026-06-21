@@ -29,7 +29,8 @@ bool CommandService::is_dangerous_command(const std::string &command) {
 
 std::string
 CommandService::execute_command([[maybe_unused]] const std::string &command,
-                                FILE *pipe) {
+                                FILE *pipe,
+                                size_t max_bytes) {
   if (!pipe) {
     throw std::runtime_error("Failed to execute command");
   }
@@ -37,11 +38,10 @@ CommandService::execute_command([[maybe_unused]] const std::string &command,
   std::string result;
   char buffer[256];
   size_t total_bytes = 0;
-  const size_t MAX_BYTES = 10 * 1024; // 10 KB limit
 
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
     total_bytes += strlen(buffer);
-    if (total_bytes > MAX_BYTES) {
+    if (total_bytes > max_bytes) {
       result += "\n[Output truncated]";
       break;
     }
@@ -56,7 +56,9 @@ CommandService::execute_command([[maybe_unused]] const std::string &command,
   return result.empty() ? "Command completed" : result;
 }
 
-std::string CommandService::execute(const std::string &command) {
+std::string CommandService::execute(const std::string &command,
+                                    int timeout_seconds,
+                                    size_t max_bytes) {
   if (is_dangerous_command(command)) {
     return "Error: Dangerous command blocked";
   }
@@ -66,11 +68,10 @@ std::string CommandService::execute(const std::string &command) {
       // Use platform-agnostic process handling
       FILE *pipe = Utils::Platform::open_process(
           command + Utils::Platform::get_shell_redirect_both(), "r");
-      return execute_command(command, pipe);
+      return execute_command(command, pipe, max_bytes);
     });
 
-    // Timeout: 5 seconds
-    if (future.wait_for(std::chrono::seconds(5)) ==
+    if (future.wait_for(std::chrono::seconds(timeout_seconds)) ==
         std::future_status::timeout) {
       return "Error: Command timed out";
     }

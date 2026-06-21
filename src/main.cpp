@@ -326,7 +326,6 @@ int main(int argc, char *argv[]) {
         std::cout << "  Calibration by confidence_before\n";
         std::cout << "  --------------------------------\n";
         std::cout << "  Band       Events   Success   Rate\n";
-        int cal_total = 0, cal_success = 0;
         for (int i = 0; i < 5; i++) {
           if (agg.band_cb[i] == 0) continue;
           double rate = 100.0 * agg.band_success_cb[i] / agg.band_cb[i];
@@ -334,8 +333,6 @@ int main(int argc, char *argv[]) {
                     << std::right << std::setw(10) << agg.band_cb[i]
                     << std::setw(9) << agg.band_success_cb[i]
                     << std::setw(7) << std::fixed << std::setprecision(1) << rate << "%\n";
-          cal_total += agg.band_cb[i];
-          cal_success += agg.band_success_cb[i];
         }
         std::cout << "\n";
       }

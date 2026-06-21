@@ -218,6 +218,14 @@ Here's what I found...
 
 The progress indicator disappears.
 
+### Shell Command Execution
+
+When executing native processes (e.g., compilations, test suites) during validation or verification, the agent enforces constraints to prevent terminal locking and buffer flooding:
+
+* **Hanging Prevention**: Commands have a configurable timeout (defaulting to 30 seconds) to prevent hanging the shell.
+* **Output Truncation**: Console output is capped (defaulting to 100 KB) to ensure terminal buffers are not flooded, keeping logs quiet and readable.
+* **Progress over Telemetry**: Standard output from background executions is suppressed in normal mode, presenting clean progress bars/checks instead of raw build streams.
+
 ---
 
 ## Visibility Layers

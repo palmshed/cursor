@@ -72,6 +72,9 @@ public:
   // Generate dashboard from all replay sessions.
   // filter: empty = aggregate only, "outcome=<name>" = drill-down
   static DashboardOutcomeAggregate generate(const std::string &filter = "");
+
+  // Launch interactive curses-like terminal TUI dashboard
+  static void run_interactive(const std::string &filter = "");
 };
 
 } // namespace Services

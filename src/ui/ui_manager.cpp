@@ -791,10 +791,44 @@ void UIManager::show_execution_summary(const ExecutionSummaryData &data) {
 void UIManager::show_tool_invocation(const std::string &tool,
                                      const std::string &args) {
   if (!is_verbose()) return;
-  std::cout << "  " << Utils::Color::DIM << "Running: " << tool;
-  if (!args.empty())
-    std::cout << " " << args;
-  std::cout << Utils::Color::RESET << "\n";
+
+  std::string displayName = tool;
+  if (tool == "cmake" || tool == "ctest" || tool == "gh" || tool == "bash") {
+    displayName = "Bash";
+  } else {
+    // Capitalize first letter of other tools
+    if (!displayName.empty()) {
+      displayName[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(displayName[0])));
+    }
+  }
+
+  std::cout << "● " << Utils::Color::BOLD << displayName << Utils::Color::RESET;
+  if (!args.empty()) {
+    std::cout << "(" << Utils::Color::CYAN << args << Utils::Color::RESET << ")";
+  }
+  std::cout << "\n";
+}
+
+void UIManager::show_tool_output(const std::string &output) {
+  if (!is_verbose() || output.empty()) return;
+
+  std::vector<std::string> lines;
+  std::string line;
+  std::istringstream stream(output);
+  while (std::getline(stream, line)) {
+    if (!line.empty() && line.find("Exit code:") == std::string::npos) {
+      lines.push_back(line);
+    }
+  }
+
+  if (!lines.empty()) {
+    // Print first line with the └ branch symbol
+    std::cout << "  \u2514  " << Utils::Color::DIM << lines[0] << Utils::Color::RESET << "\n";
+    // Print subsequent lines aligned under the first line
+    for (size_t i = 1; i < lines.size(); i++) {
+      std::cout << "     " << Utils::Color::DIM << lines[i] << Utils::Color::RESET << "\n";
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
