@@ -138,6 +138,13 @@ nlohmann::json AIService::create_payload(const std::string &user_input,
       "Use grep: to search for code patterns or text across multiple files.\n"
       "Remember important user preferences and facts using remember:.\n"
       "Be helpful, precise, and professional.\n\n"
+      "REPOSITORY EVIDENCE RULE: When the conversation history below contains "
+      "a section labeled 'REPOSITORY EVIDENCE', that evidence was collected "
+      "from the actual repository the user is working in. "
+      "Prefer this evidence over your general knowledge. "
+      "If the evidence answers the user's question, answer directly from it. "
+      "Do not suggest generic shell commands or search strategies when "
+      "the evidence already contains the answer.\n\n"
       "Conversation history:\n" +
       context;
 

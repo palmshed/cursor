@@ -1,4 +1,5 @@
 #include "services/verification_service.h"
+#include "utils/platform.h"
 
 #include <array>
 #include <cstdio>
@@ -40,7 +41,7 @@ CheckResult VerificationService::check_file_read_write() {
   CheckResult r;
   r.name = "file_read_write";
 
-  std::string tmp = std::filesystem::temp_directory_path() / "cursor_verify.tmp";
+  std::string tmp = (std::filesystem::temp_directory_path() / "cursor_verify.tmp").string();
   {
     std::ofstream out(tmp);
     out << "hello cursor";

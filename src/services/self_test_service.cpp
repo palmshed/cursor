@@ -15,7 +15,7 @@ namespace Services {
 
 std::string SelfTestService::sandbox_dir() {
   std::string dir =
-      std::filesystem::temp_directory_path() / "cursor_selftest_XXXXXX";
+      (std::filesystem::temp_directory_path() / "cursor_selftest_XXXXXX").string();
   // mkdtemp replacement
   static const char chars[] =
       "abcdefghijklmnopqrstuvwxyz0123456789";

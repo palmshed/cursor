@@ -1,4 +1,5 @@
 #include "services/discovery_service.h"
+#include "utils/platform.h"
 
 #include <algorithm>
 #include <array>

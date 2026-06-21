@@ -49,7 +49,7 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 if(MSVC)
-    add_compile_options(/W4 /WX /MP /EHsc)
+    add_compile_options(/W4 /WX /MP /EHsc /utf-8)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:DebugDLL>")
 else()
@@ -516,7 +516,7 @@ set_target_properties(cursor_lib PROPERTIES
 
 # Set platform-specific compiler flags
 if(MSVC)
-    target_compile_options(cursor_lib PRIVATE /W4 /WX /EHsc)
+    target_compile_options(cursor_lib PRIVATE /W4 /WX /EHsc /utf-8)
     target_compile_definitions(cursor_lib PRIVATE _CRT_SECURE_NO_WARNINGS)
     set_target_properties(cursor_lib PROPERTIES
         WINDOWS_EXPORT_ALL_SYMBOLS ON
