@@ -206,6 +206,10 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       else
         ui_.show_reasoning_step("", f);
     }
+    // Feed evidence into AI context so response is evidence-backed
+    engine_evidence_context_ = "Evidence collected:\n" + engine_result.summary;
+  } else {
+    engine_evidence_context_.clear();
   }
 
   // Route to AI chat with evidence context
@@ -524,6 +528,11 @@ std::string CommandRouter::handle_ai_chat(const std::string &input) {
   if (!discovery_context_.empty()) {
     full_context = "Project Discovery:\n" + discovery_context_ + "\n\n" + full_context;
     discovery_context_.clear();
+  }
+
+  if (!engine_evidence_context_.empty()) {
+    full_context = engine_evidence_context_ + "\n\n" + full_context;
+    engine_evidence_context_.clear();
   }
 
   std::string agent_context = build_agent_context();
