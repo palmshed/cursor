@@ -27,6 +27,8 @@
 #include "services/web_service.h"
 #include "services/workflow_benchmark_service.h"
 #include "services/confidence_service.h"
+#include "services/dependency_service.h"
+#include "services/symbol_service.h"
 #include "ui/ui_manager.h"
 #include "utils/ui.h"
 #include "utils/validation.h"
@@ -696,6 +698,35 @@ void CommandRouter::handle_direct_command(const std::string &input) {
                "github:health:owner/repo";
     }
     agent_.memory_->save_interaction("github:" + params, result);
+  } else if (input.starts_with("deps:")) {
+    auto graph = Services::DependencyService::build_graph(trim_copy(input.substr(5)));
+    result = Services::DependencyService::format_graph_text(graph);
+    agent_.memory_->save_interaction("deps:" + input.substr(5), result);
+  } else if (input.starts_with("symbols:")) {
+    auto syms = Services::SymbolService::find_symbols(trim_copy(input.substr(8)));
+    result = Services::SymbolService::format_symbols(syms);
+    agent_.memory_->save_interaction("symbols:" + input.substr(8), result);
+  } else if (input.starts_with("refs:")) {
+    std::string params = trim_copy(input.substr(5));
+    size_t space_pos = params.find(' ');
+    if (space_pos != std::string::npos) {
+      std::string symbol = params.substr(0, space_pos);
+      std::string path = params.substr(space_pos + 1);
+      auto refs = Services::SymbolService::find_references(path, symbol);
+      result = Services::SymbolService::format_references(refs);
+    } else {
+      auto refs = Services::SymbolService::find_references(".", params);
+      result = Services::SymbolService::format_references(refs);
+    }
+    agent_.memory_->save_interaction("refs:" + params, result);
+  } else if (input.starts_with("functions:")) {
+    auto funcs = Services::SymbolService::list_functions(trim_copy(input.substr(10)));
+    result = Services::SymbolService::format_symbols(funcs);
+    agent_.memory_->save_interaction("functions:" + input.substr(10), result);
+  } else if (input.starts_with("classes:")) {
+    auto cls = Services::SymbolService::list_classes(trim_copy(input.substr(8)));
+    result = Services::SymbolService::format_symbols(cls);
+    agent_.memory_->save_interaction("classes:" + input.substr(8), result);
   } else {
     result = "Unknown command";
   }
@@ -1176,10 +1207,11 @@ bool CommandRouter::is_direct_command_input(const std::string &input) {
     }
   }
 
-  static const std::array<std::string_view, 14> direct_prefixes = {
-      "search:", "cmd:",    "build:", "read:",  "write:",
+  static const std::array<std::string_view, 19> direct_prefixes = {
+      "search:", "cmd:",    "build:", "read:",    "write:",
       "replace:", "grep:",  "remember:", "analyze:", "components:",
-      "todos:",   "git:",   "tree:",  "github:"};
+      "todos:",   "git:",   "tree:",  "github:",  "deps:",
+      "symbols:", "refs:",  "functions:", "classes:"};
   for (const auto &prefix : direct_prefixes) {
     if (input.starts_with(prefix)) {
       return true;
@@ -1365,6 +1397,55 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
       if (end == std::string::npos) end = lower.size();
       std::string repo_spec = trim_copy(input.substr(start, end - start));
       return std::make_optional(std::string("github:repo:") + repo_spec);
+    }
+  }
+
+  // Dependency analysis
+  if (lower.find("dependency graph") != std::string::npos ||
+      lower.find("include graph") != std::string::npos ||
+      lower.find("import graph") != std::string::npos ||
+      lower.find("show dependencies") != std::string::npos ||
+      lower.find("list dependencies") != std::string::npos ||
+      lower.find("dependency tree") != std::string::npos) {
+    auto path = extract_after({"in ", "from ", "of "});
+    return std::make_optional(std::string("deps:") + (path ? *path : "."));
+  }
+
+  // Symbol / function / class discovery
+  if (lower.find("list functions") != std::string::npos ||
+      lower.find("show functions") != std::string::npos ||
+      lower.find("find functions") != std::string::npos ||
+      lower.find("list methods") != std::string::npos ||
+      lower.find("function definitions") != std::string::npos) {
+    auto path = extract_after({"in ", "from ", "of "});
+    return std::make_optional(std::string("functions:") + (path ? *path : "."));
+  }
+  if (lower.find("list classes") != std::string::npos ||
+      lower.find("show classes") != std::string::npos ||
+      lower.find("find classes") != std::string::npos ||
+      lower.find("class definitions") != std::string::npos) {
+    auto path = extract_after({"in ", "from ", "of "});
+    return std::make_optional(std::string("classes:") + (path ? *path : "."));
+  }
+  if (lower.find("list symbols") != std::string::npos ||
+      lower.find("show symbols") != std::string::npos ||
+      lower.find("find symbols") != std::string::npos ||
+      lower.find("symbol definition") != std::string::npos) {
+    auto path = extract_after({"in ", "from ", "of "});
+    return std::make_optional(std::string("symbols:") + (path ? *path : "."));
+  }
+
+  // Reference / where-used queries
+  if ((lower.find("find references") != std::string::npos ||
+       lower.find("where is") != std::string::npos ||
+       lower.find("where used") != std::string::npos ||
+       lower.find("references to") != std::string::npos) &&
+      !lower.starts_with("find ")) {
+    // Extract the symbol name after "references to", "where is", etc.
+    auto ref = extract_after({"references to ", "where is ", "where used ", "find references "});
+    if (ref) {
+      auto path = extract_after({"in ", "from ", "of "});
+      return std::make_optional(std::string("refs:") + *ref + " " + (path ? *path : "."));
     }
   }
 
@@ -2858,6 +2939,43 @@ void CommandRouter::handle_ci_command(const std::string &command) {
     std::cout << "  /ci repair          Diagnose and fix CI failures\n";
     std::cout << "  /ci run <id>        Show logs for a specific run\n";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Direct command handlers — dependency / symbol / reference analysis
+// ---------------------------------------------------------------------------
+
+void CommandRouter::handle_deps_command(const std::string &command) {
+  std::string path = command.empty() ? "." : command;
+  auto graph = Services::DependencyService::build_graph(path);
+  std::string result = Services::DependencyService::format_graph_text(graph);
+  ui_.show_operation_result("Dependency analysis", result);
+  std::cout << result << std::endl;
+}
+
+void CommandRouter::handle_symbols_command(const std::string &command) {
+  std::string path = command.empty() ? "." : command;
+  auto syms = Services::SymbolService::find_symbols(path);
+  std::string result = Services::SymbolService::format_symbols(syms);
+  ui_.show_operation_result("Symbol analysis", result);
+  std::cout << result << std::endl;
+}
+
+void CommandRouter::handle_refs_command(const std::string &command) {
+  std::string params = command;
+  std::string symbol, path;
+  size_t space_pos = params.find(' ');
+  if (space_pos != std::string::npos) {
+    symbol = params.substr(0, space_pos);
+    path = params.substr(space_pos + 1);
+  } else {
+    symbol = params;
+    path = ".";
+  }
+  auto refs = Services::SymbolService::find_references(path, symbol);
+  std::string result = Services::SymbolService::format_references(refs);
+  ui_.show_operation_result("Reference search", result);
+  std::cout << result << std::endl;
 }
 
 // ---------------------------------------------------------------------------
