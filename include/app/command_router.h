@@ -76,6 +76,7 @@ private:
   UIManager &ui_;
   Services::ReplayService *replay_;
   std::string discovery_context_;
+  std::string engine_evidence_context_;
 };
 
 } // namespace Core
