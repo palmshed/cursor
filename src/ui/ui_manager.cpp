@@ -171,21 +171,18 @@ std::string UIManager::detect_language_from_filename(
 // ---------------------------------------------------------------------------
 
 void UIManager::show_reasoning_header(const std::string &operation_type) {
-  if (!is_verbose()) return;
   std::cout << "\n" << Utils::Color::CYAN << "=== " << Utils::Color::BOLD
             << operation_type << Utils::Color::RESET << Utils::Color::CYAN
             << " ===" << Utils::Color::RESET << std::endl;
 }
 
 void UIManager::show_pipeline_section(const std::string &section_title) {
-  if (!is_verbose()) return;
   std::cout << "\n" << Utils::Color::BOLD << Utils::Color::CYAN << "[ "
             << section_title << " ]" << Utils::Color::RESET << std::endl;
 }
 
 void UIManager::show_reasoning_step(const std::string &label,
                                     const std::string &detail) {
-  if (!is_verbose()) return;
   std::cout << Utils::Color::CYAN << "  - " << Utils::Color::RESET << label;
   if (!detail.empty()) {
     std::cout << ": " << Utils::Color::YELLOW << detail << Utils::Color::RESET;
