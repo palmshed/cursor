@@ -179,7 +179,7 @@ std::vector<CiFailureDetail> CiInvestigationService::get_failure_details(
 // Analyze full logs for a specific run
 // ---------------------------------------------------------------------------
 
-std::string CiInvestigationService::analyze_logs(int run_id) {
+std::string CiInvestigationService::analyze_logs(long long run_id) {
   std::string logs = Services::CommandService::execute(
       "gh run view " + std::to_string(run_id) +
       " --log 2>/dev/null | grep -E \"(error|Error|ERROR|FAIL|failed|FAILED|Assertion|expected|not found|No such)\" | head -30");

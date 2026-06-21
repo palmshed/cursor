@@ -33,7 +33,7 @@ class CiInvestigationService {
 public:
   static CiInvestigationResult investigate();
   static std::string detect_repo();
-  static std::string analyze_logs(int run_id);
+  static std::string analyze_logs(long long run_id);
 
 private:
   static std::vector<CiWorkflowRun> list_recent_runs(int limit);
