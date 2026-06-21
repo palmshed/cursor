@@ -56,7 +56,7 @@ static Core::SessionState json_to_state(const json &j) {
   if (j.contains("last_outcome"))
     s.last_outcome = Core::outcome_from_name(j.value("last_outcome", "insufficient_evidence"));
   if (j.contains("last_execution_path"))
-    s.last_execution_path = Core::execution_path_from_name(j.value("last_execution_path", "chat_only"));
+    s.last_execution_path = Core::execution_path_from_name(j.value("last_execution_path", "unknown"));
   return s;
 }
 
@@ -191,7 +191,7 @@ std::vector<ReplayEvent> ReplayService::load_session(const std::string &id) cons
       if (j.contains("outcome"))
         ev.outcome = Core::outcome_from_name(j.value("outcome", "insufficient_evidence"));
       if (j.contains("execution_path"))
-        ev.execution_path = Core::execution_path_from_name(j.value("execution_path", "chat_only"));
+        ev.execution_path = Core::execution_path_from_name(j.value("execution_path", "unknown"));
       if (j.contains("recovery_metrics")) {
         auto r = j["recovery_metrics"];
         ev.recovery_metrics.attempts = r.value("attempts", 0);

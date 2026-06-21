@@ -45,6 +45,7 @@ struct DashboardOutcomeAggregate {
   int band_success_cb_benchmark[5]{0,0,0,0,0};
 
   // Execution path counts
+  int unknown_count{0};
   int chat_only_count{0};
   int engine_count{0};
   int task_pipeline_count{0};

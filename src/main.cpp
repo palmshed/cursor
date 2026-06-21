@@ -239,6 +239,7 @@ int main(int argc, char *argv[]) {
 
       std::cout << "  Execution Path\n";
       std::cout << "  --------------\n";
+      std::cout << "  Unknown               " << agg.unknown_count << "\n";
       std::cout << "  ChatOnly              " << agg.chat_only_count << "\n";
       std::cout << "  Engine                " << agg.engine_count << "\n";
       std::cout << "  Task Pipeline         " << agg.task_pipeline_count << "\n";
