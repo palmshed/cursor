@@ -6,6 +6,7 @@
 #include <vector>
 
 namespace Services {
+struct ExecutionResult;
 class CiInvestigationService;
 class DiscoveryService;
 class ExecutionEngine;
@@ -71,6 +72,10 @@ public:
   std::string handle_task_with_planning(const std::string &input);
   std::string handle_codebase_query(const std::string &input);
   std::string generate_search_terms(const std::string &input) const;
+
+public:
+  // Outcome eligibility for AI generation (used for stable unit tests)
+  static bool should_call_ai(const Services::ExecutionResult &result);
 
 private:
   Agent &agent_;
