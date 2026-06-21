@@ -16,8 +16,8 @@ namespace Services {
 // ---------------------------------------------------------------------------
 
 static std::string make_temp_dir() {
-  std::string dir = std::filesystem::temp_directory_path() /
-                    "cursor_benchmark_XXXXXX";
+  std::string dir = (std::filesystem::temp_directory_path() /
+                     "cursor_benchmark_XXXXXX").string();
   static const char chars[] =
       "abcdefghijklmnopqrstuvwxyz0123456789";
   std::random_device rd;

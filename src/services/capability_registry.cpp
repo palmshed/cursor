@@ -1,4 +1,5 @@
 #include "services/capability_registry.h"
+#include "utils/platform.h"
 
 #include <array>
 #include <cstdio>

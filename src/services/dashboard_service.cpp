@@ -94,7 +94,7 @@ DashboardOutcomeAggregate DashboardService::generate(
             std::islower(static_cast<unsigned char>(filter_outcome[i-1]))) {
           normalized += '_';
         }
-        normalized += std::tolower(static_cast<unsigned char>(filter_outcome[i]));
+        normalized += static_cast<char>(std::tolower(static_cast<unsigned char>(filter_outcome[i])));
       }
       // Normalize spaces/hyphens to underscores
       std::replace(normalized.begin(), normalized.end(), ' ', '_');
