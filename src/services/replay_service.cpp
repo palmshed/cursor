@@ -37,6 +37,9 @@ static json state_to_json(const Core::SessionState &s) {
       {"verbose_mode", s.verbose_mode_},
       {"command_count", s.command_count_},
       {"token_usage", s.token_usage_},
+      {"last_confidence_before", s.last_confidence_before},
+      {"last_confidence_after", s.last_confidence_after},
+      {"last_outcome", Core::outcome_name(s.last_outcome)},
   };
 }
 
@@ -47,6 +50,10 @@ static Core::SessionState json_to_state(const json &j) {
   s.verbose_mode_ = j.value("verbose_mode", false);
   s.command_count_ = j.value("command_count", 0);
   s.token_usage_ = j.value("token_usage", 0LL);
+  s.last_confidence_before = j.value("last_confidence_before", 0.0);
+  s.last_confidence_after = j.value("last_confidence_after", 0.0);
+  if (j.contains("last_outcome"))
+    s.last_outcome = Core::outcome_from_name(j.value("last_outcome", "insufficient_evidence"));
   return s;
 }
 
@@ -78,15 +85,37 @@ std::string ReplayService::replay_dir() {
 
 long long ReplayService::epoch_seconds() { return now_epoch(); }
 
-void ReplayService::log_input(const Core::SessionState &state_before,
-                               const Core::SessionState &state_after,
-                               const std::string &input) {
+void ReplayService::log_input(
+    const Core::SessionState &state_before,
+    const Core::SessionState &state_after, const std::string &input,
+    Core::Outcome outcome, const Core::RecoveryMetrics &recovery,
+    const Core::TrustMetrics &trust, double confidence_before,
+    double confidence_after) {
   json entry;
   entry["ts"] = now_epoch();
   entry["step"] = ++step_;
   entry["input"] = input;
   entry["state_before"] = state_to_json(state_before);
   entry["state_after"] = state_to_json(state_after);
+  entry["outcome"] = Core::outcome_name(outcome);
+
+  json rec_json;
+  rec_json["attempts"] = recovery.attempts;
+  rec_json["strategy_changes"] = recovery.strategy_changes;
+  rec_json["evidence_found"] = recovery.evidence_found;
+  rec_json["verification_found"] = recovery.verification_found;
+  rec_json["confidence_delta"] = recovery.confidence_delta;
+  entry["recovery_metrics"] = rec_json;
+
+  json tru_json;
+  tru_json["plan_approved"] = trust.plan_approved;
+  tru_json["diff_approved"] = trust.diff_approved;
+  tru_json["user_corrected_goal"] = trust.user_corrected_goal;
+  tru_json["reverted"] = trust.reverted;
+  entry["trust_metrics"] = tru_json;
+
+  entry["confidence_before"] = confidence_before;
+  entry["confidence_after"] = confidence_after;
 
   std::ofstream out(log_path_, std::ios::app);
   if (out.is_open()) {
@@ -154,6 +183,25 @@ std::vector<ReplayEvent> ReplayService::load_session(const std::string &id) cons
         ev.state_before = json_to_state(j["state_before"]);
       if (j.contains("state_after"))
         ev.state_after = json_to_state(j["state_after"]);
+      if (j.contains("outcome"))
+        ev.outcome = Core::outcome_from_name(j.value("outcome", "insufficient_evidence"));
+      if (j.contains("recovery_metrics")) {
+        auto r = j["recovery_metrics"];
+        ev.recovery_metrics.attempts = r.value("attempts", 0);
+        ev.recovery_metrics.strategy_changes = r.value("strategy_changes", 0);
+        ev.recovery_metrics.evidence_found = r.value("evidence_found", false);
+        ev.recovery_metrics.verification_found = r.value("verification_found", false);
+        ev.recovery_metrics.confidence_delta = r.value("confidence_delta", 0.0);
+      }
+      if (j.contains("trust_metrics")) {
+        auto t = j["trust_metrics"];
+        ev.trust_metrics.plan_approved = t.value("plan_approved", false);
+        ev.trust_metrics.diff_approved = t.value("diff_approved", false);
+        ev.trust_metrics.user_corrected_goal = t.value("user_corrected_goal", false);
+        ev.trust_metrics.reverted = t.value("reverted", false);
+      }
+      ev.confidence_before = j.value("confidence_before", 0.0);
+      ev.confidence_after = j.value("confidence_after", 0.0);
       result.push_back(ev);
     } catch (...) {
       // skip malformed lines

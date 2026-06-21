@@ -1,4 +1,5 @@
 #pragma once
+#include "core/metrics.h"
 #include "core/session_state.h"
 #include <string>
 #include <vector>
@@ -11,6 +12,11 @@ struct ReplayEvent {
   std::string input;
   Core::SessionState state_before;
   Core::SessionState state_after;
+  Core::Outcome outcome{Core::Outcome::InsufficientEvidence};
+  Core::RecoveryMetrics recovery_metrics;
+  Core::TrustMetrics trust_metrics;
+  double confidence_before{0.0};
+  double confidence_after{0.0};
 };
 
 struct ReplaySessionInfo {
@@ -27,7 +33,12 @@ public:
 
   void log_input(const Core::SessionState &state_before,
                  const Core::SessionState &state_after,
-                 const std::string &input);
+                 const std::string &input,
+                 Core::Outcome outcome = Core::Outcome::InsufficientEvidence,
+                 const Core::RecoveryMetrics &recovery = Core::RecoveryMetrics{},
+                 const Core::TrustMetrics &trust = Core::TrustMetrics{},
+                 double confidence_before = 0.0,
+                 double confidence_after = 0.0);
   std::vector<ReplaySessionInfo> list_sessions() const;
   std::vector<ReplayEvent> load_session(const std::string &id) const;
   const std::string &session_id() const { return session_id_; }
