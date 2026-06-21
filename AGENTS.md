@@ -478,6 +478,177 @@ If these questions cannot be answered, the capability has not yet been earned.
 
 ---
 
+## Telemetry Validation for Search Expansion
+
+Before justifying a new search capability (such as `find()` expansion, semantic search, symbol indexing, AST search, or dependency graphs), the system must validate the need through the following specific telemetry filters.
+
+**Status: These metrics are aspirational; current replay events do not capture them.**
+
+### 1. Search Success Rate
+Track:
+* `grep_attempts` – Number of grep tool invocations
+* `grep_success` – Greps returning ≥1 result
+* `grep_zero_hit` – Greps returning 0 results → `InsufficientEvidence`
+
+Current reality: Replay captures `execution_path`, `outcome`, and `recovery_metrics.evidence_found`, but not per-tool attempt counts. The `EvidenceStore` tracks whether grep produced results via `grep:results` facts, but not aggregate statistics.
+
+If the dominant failure pattern is:
+```text
+grep
+  ↓
+0 results
+  ↓
+InsufficientEvidence
+```
+then search coverage is confirmed as the bottleneck.
+
+### 2. Evidence Quality
+We must distinguish between search failure (no results) and interpretation/quality failure (wrong results).
+Currently measurable via:
+* `evidence_found = true` & `outcome = Success` → Evidence used correctly
+* `evidence_found = true` & `outcome = UserRejected` & `user_corrected_goal = true` → Evidence found but interpretation failed
+
+If evidence is found but the goal is corrected by the user, it is an interpretation/evidence-quality failure, not a search capability issue.
+
+### 3. Files Examined Distribution
+Measure search breadth vs. search depth:
+* `avg_files_examined` – Derived from `grep:results` fact counts across sessions
+* `max_files_examined` – Max grep hits per CodebaseQuery event
+
+Signals:
+* **Healthy:** 1 file examined → high confidence → success.
+* **Too Broad:** 25 files examined → low confidence → `InsufficientEvidence` (indicates filtering/ranking needs work, not new search engines).
+
+**Status:** Requires enhancement to `EvidenceStore` to track file counts per grep invocation.
+
+### 4. Query Rewording Rate
+Watch for:
+```text
+User prompt (fail with InsufficientEvidence)
+  ↓
+User rephrases (success)
+```
+High query rewording indicates a keyword/discoverability problem rather than a lack of underlying search capability.
+
+**Note:** Current replay does not correlate queries within a session. This requires session-level evidence linkage to detect query A → failure → query B → success patterns.
+
+### 5. Search Recovery Clusters
+Classify all `InsufficientEvidence` outcomes into one of four clusters:
+1. **No matches:** Search coverage issue.
+2. **Wrong matches:** Ranking/relevancy issue.
+3. **Too many matches:** Noise filtering issue.
+4. **Low confidence after matches:** Interpretation issue.
+
+### Decision Rule
+A capability is earned only when replay data shows a stable failure cluster that existing recovery strategies cannot overcome.
+
+Quantitative threshold example:
+```text
+CodebaseQuery events: 500
+Success: 58%
+InsufficientEvidence: 35%
+  ↳ of which 80% = zero matches (confirming the capability is earned)
+```
+If instead:
+* `evidence_found = true` rate is high (e.g., >90%)
+* Outcome is `UserRejected` or `user_corrected_goal = true`
+then interpretation/relevancy is the bottleneck, not search capability.
+
+---
+
+## Verification Checklist for Search Metrics
+
+Before claiming a search capability is justified, verify:
+
+### 1. Every metric is replay-backed
+For each metric in AGENTS.md, confirm there is an actual replay field or derivable query.
+
+Example:
+```text
+grep_attempts
+grep_success
+grep_zero_hit
+```
+If those are not currently stored or derivable from replay events, the doc is ahead of reality.
+
+### 2. Evidence Quality is measurable
+This one is easy to describe and hard to measure.
+
+```text
+EvidenceFound
+AnswerAccepted
+```
+
+How is "AnswerAccepted" determined?
+
+If it isn't currently observable, reword it as:
+```text
+EvidenceFound
+UserCorrectedGoal
+Outcome
+```
+Those already exist in your telemetry model.
+
+### 3. Query Rewording Detection
+Make sure a future implementation can actually connect:
+```text
+Query A
+↓
+InsufficientEvidence
+↓
+Query B
+↓
+Success
+```
+to the same session.
+
+If replay cannot correlate those events today, document it as a future measurement target rather than an active metric.
+
+### 4. Keep the Decision Rule Quantitative
+The strongest part is the capability gate.
+
+I'd make it explicit:
+```text
+Advanced search capability is not justified by
+individual failures.
+
+A capability is earned only when replay data
+shows a stable failure cluster that existing
+recovery strategies cannot overcome.
+```
+That aligns with the rest of the document.
+
+### 5. One Metric I Would Add
+Right now you're measuring:
+```text
+Can search find evidence?
+```
+
+I'd also measure:
+```text
+Was evidence actually used?
+```
+
+Something like:
+```text
+EvidenceFound
+↓
+Success
+
+vs
+
+EvidenceFound
+↓
+UserCorrectedGoal
+```
+because your recent failures were not search failures.
+
+The system found information but answered from model priors instead of repository evidence.
+
+That distinction is important.
+
+---
+
 ## Known Architectural Reality
 
 ### Split Authority
@@ -627,15 +798,16 @@ Replay prioritizes evidence.
 
 ### Visibility Layers
 
-| Layer               | Normal  | Debug   | Replay/Dashboard |
-| ------------------- | ------- | ------- | ---------------- |
-| Answer              | visible | visible | visible          |
-| Spinner             | visible | visible | n/a              |
-| Pipeline sections   | hidden  | visible | visible          |
-| Reasoning steps     | hidden  | visible | visible          |
-| Tool traces         | hidden  | visible | visible          |
-| Evidence collection | hidden  | visible | visible          |
-| Full telemetry      | n/a     | n/a     | stored           |
+| Layer               | Normal  | Inspect | Debug   | Replay/Dashboard |
+| ------------------- | ------- | ------- | ------- | ---------------- |
+| Answer              | visible | visible | visible | visible          |
+| Spinner             | visible | visible | visible | n/a              |
+| Investigation summary | hidden | visible | visible | visible        |
+| Pipeline sections   | hidden  | hidden  | visible | visible          |
+| Reasoning steps     | hidden  | hidden  | visible | visible          |
+| Tool traces         | hidden  | hidden  | visible | visible          |
+| Evidence collection | hidden  | hidden  | visible | visible          |
+| Full telemetry      | n/a     | n/a     | n/a     | stored           |
 
 ### Repository Awareness
 
