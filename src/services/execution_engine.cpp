@@ -66,8 +66,9 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     return CICheck;
 
   if (contains_any(goal, {"where", "what is", "how does", "find",
-                          "search", "grep", "locate", "show me",
-                          "list", "in this project", "in this repo"}))
+                           "search", "grep", "locate", "show me",
+                           "list", "tell me about",
+                           "in this project", "in this repo"}))
     return CodebaseQuery;
 
   if (contains_any(goal, {"add", "implement", "refactor", "fix", "migrate",
