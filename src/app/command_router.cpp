@@ -2749,7 +2749,7 @@ bool CommandRouter::is_substantial_task(const std::string &input) {
 class EvidenceCollector {
 public:
   using ToolCallback =
-      std::function<void(const std::string &tool, const std::string &args)>;
+      std::function<void(const std::string &tool, const std::string &args, const std::string &output)>;
 
   explicit EvidenceCollector(ToolCallback cb = nullptr)
       : tool_cb_(std::move(cb)) {}
@@ -2827,11 +2827,11 @@ private:
     if (diffs_collected_) return;
     diffs_collected_ = true;
 
-    if (tool_cb_)
-      tool_cb_("git diff --name-only", "");
     std::string names_output = Services::CommandService::execute(
         "git diff --name-only 2>/dev/null; "
         "git diff --staged --name-only 2>/dev/null");
+    if (tool_cb_)
+      tool_cb_("git diff --name-only", "", names_output);
     std::istringstream stream(names_output);
     std::string file;
     while (std::getline(stream, file)) {
@@ -2855,13 +2855,13 @@ private:
     if (it != diff_cache_.end())
       return it->second;
 
-    if (tool_cb_)
-      tool_cb_("git diff", "\"" + file + "\"");
     std::string raw = Services::CommandService::execute(
         "git diff -- \"" + file + "\" 2>/dev/null; "
         "git diff --cached -- \"" + file + "\" 2>/dev/null");
     std::string trimmed = trim_diff(raw);
     diff_cache_[file] = trimmed;
+    if (tool_cb_)
+      tool_cb_("git diff", "\"" + file + "\"", trimmed);
     return trimmed;
   }
 
@@ -2903,10 +2903,10 @@ private:
     if (build_collected_) return build_result_;
     build_collected_ = true;
 
-    if (tool_cb_)
-      tool_cb_("cmake --build", "build | tail -3");
     std::string output = Services::CommandService::execute(
         "cmake --build build 2>&1 | tail -3");
+    if (tool_cb_)
+      tool_cb_("cmake --build", "build", output);
     if (output.find("error") != std::string::npos ||
         output.find("Exit code:") != std::string::npos) {
       build_result_ = "failed";
@@ -2924,10 +2924,10 @@ private:
     if (tests_collected_) return test_result_;
     tests_collected_ = true;
 
-    if (tool_cb_)
-      tool_cb_("ctest", "--test-dir build | tail -5");
     std::string output = Services::CommandService::execute(
         "ctest --output-on-failure --test-dir build 2>&1 | tail -5");
+    if (tool_cb_)
+      tool_cb_("ctest", "--test-dir build", output);
     if (output.find("passed") != std::string::npos) {
       size_t pct = output.find("% tests passed");
       if (pct != std::string::npos) {
@@ -3040,8 +3040,10 @@ std::string CommandRouter::handle_task_with_planning(const std::string &input) {
 
   // 10. Collect evidence lazily per-task after execution
   EvidenceCollector collector([&](const std::string &tool,
-                                  const std::string &args) {
+                                  const std::string &args,
+                                  const std::string &output) {
     ui_.show_tool_invocation(tool, args);
+    ui_.show_tool_output(output);
   });
   int succeeded = 0, failed = 0;
   for (auto idx : selected) {
