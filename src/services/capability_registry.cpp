@@ -14,7 +14,7 @@ bool CapabilityRegistry::check_tool(const std::string &name) {
   std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"),
                                                   pclose);
   if (!pipe) return false;
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr)
     result += buffer.data();
   return result.find("__NOT_FOUND__") == std::string::npos;
 }
@@ -25,7 +25,7 @@ bool CapabilityRegistry::check_git_remote() {
   std::unique_ptr<FILE, decltype(&pclose)> pipe(
       popen("git remote -v 2>/dev/null | head -1", "r"), pclose);
   if (!pipe) return false;
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr)
     result += buffer.data();
   return !result.empty();
 }
@@ -36,7 +36,7 @@ bool CapabilityRegistry::check_git_diff() {
   std::unique_ptr<FILE, decltype(&pclose)> pipe(
       popen("git diff --stat 2>/dev/null", "r"), pclose);
   if (!pipe) return false;
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr)
     result += buffer.data();
   return true; // git diff works even with empty output
 }
@@ -47,7 +47,7 @@ bool CapabilityRegistry::check_git_status() {
   std::unique_ptr<FILE, decltype(&pclose)> pipe(
       popen("git status --porcelain 2>/dev/null", "r"), pclose);
   if (!pipe) return false;
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr)
     result += buffer.data();
   return true;
 }
@@ -59,7 +59,7 @@ bool CapabilityRegistry::check_docker() {
       popen("docker info 2>/dev/null | head -1 || echo __NOT_FOUND__", "r"),
       pclose);
   if (!pipe) return false;
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr)
     result += buffer.data();
   return result.find("__NOT_FOUND__") == std::string::npos &&
          !result.empty();
