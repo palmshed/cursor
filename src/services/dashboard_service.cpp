@@ -132,6 +132,19 @@ DashboardOutcomeAggregate DashboardService::generate(
           last_outcome = o;
         }
 
+        // Execution path
+        if (j.contains("execution_path")) {
+          auto ep = Core::execution_path_from_name(j.value("execution_path", "chat_only"));
+          switch (ep) {
+            case Core::ExecutionPath::ChatOnly: agg.chat_only_count++; break;
+            case Core::ExecutionPath::Engine: agg.engine_count++; break;
+            case Core::ExecutionPath::TaskPipeline: agg.task_pipeline_count++; break;
+            case Core::ExecutionPath::DirectService: agg.direct_service_count++; break;
+            case Core::ExecutionPath::MetaCommand: agg.meta_command_count++; break;
+            case Core::ExecutionPath::ShellEscape: agg.shell_escape_count++; break;
+          }
+        }
+
         switch (o) {
           case Core::Outcome::Success:
             agg.success_count++;

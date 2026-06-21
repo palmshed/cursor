@@ -44,6 +44,14 @@ struct DashboardOutcomeAggregate {
   int band_cb_benchmark[5]{0,0,0,0,0};
   int band_success_cb_benchmark[5]{0,0,0,0,0};
 
+  // Execution path counts
+  int chat_only_count{0};
+  int engine_count{0};
+  int task_pipeline_count{0};
+  int direct_service_count{0};
+  int meta_command_count{0};
+  int shell_escape_count{0};
+
   // Drill-down: session IDs matching filter
   std::vector<std::string> matching_sessions;
 

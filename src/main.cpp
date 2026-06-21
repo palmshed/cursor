@@ -162,6 +162,7 @@ int main(int argc, char *argv[]) {
         bench_state.last_confidence_after = conf_after;
         replay.log_input(bench_state, bench_state,
                          "benchmark:" + r.name, r.outcome,
+                         Core::ExecutionPath::Engine,
                          r.recovery_metrics, r.trust_metrics,
                          conf_before, conf_after);
       }
@@ -235,6 +236,15 @@ int main(int argc, char *argv[]) {
                 << agg.insufficient_evidence_pct() << "%  (" << agg.insufficient_evidence_count << ")\n";
       std::cout << "  User Rejected         " << std::fixed << std::setprecision(1)
                 << agg.user_rejected_pct() << "%  (" << agg.user_rejected_count << ")\n\n";
+
+      std::cout << "  Execution Path\n";
+      std::cout << "  --------------\n";
+      std::cout << "  ChatOnly              " << agg.chat_only_count << "\n";
+      std::cout << "  Engine                " << agg.engine_count << "\n";
+      std::cout << "  Task Pipeline         " << agg.task_pipeline_count << "\n";
+      std::cout << "  Direct Service        " << agg.direct_service_count << "\n";
+      std::cout << "  Meta Command          " << agg.meta_command_count << "\n";
+      std::cout << "  Shell Escape          " << agg.shell_escape_count << "\n\n";
 
       if (agg.trust_events > 0) {
         std::cout << "  Trust Metrics\n";

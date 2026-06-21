@@ -216,6 +216,7 @@ void Session::run() {
       double ca = agent_.state_.last_confidence_after;
       replay_->log_input(before, agent_.state_, user_input,
                          agent_.state_.last_outcome,
+                         agent_.state_.last_execution_path,
                          agent_.state_.last_recovery_metrics,
                          agent_.state_.last_trust_metrics,
                          cb, ca);

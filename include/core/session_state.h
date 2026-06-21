@@ -17,6 +17,7 @@ struct SessionState {
   double last_confidence_before{0.0};
   double last_confidence_after{0.0};
   Outcome last_outcome{Outcome::InsufficientEvidence};
+  ExecutionPath last_execution_path{ExecutionPath::ChatOnly};
   RecoveryMetrics last_recovery_metrics{};
   TrustMetrics last_trust_metrics{};
 };
