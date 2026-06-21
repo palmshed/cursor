@@ -31,7 +31,7 @@ std::string VerificationService::run_command(const std::string &cmd) {
                                                   pclose);
   if (!pipe)
     return "";
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
     result += buffer.data();
   }
   return result;

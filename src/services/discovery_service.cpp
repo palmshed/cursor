@@ -27,7 +27,7 @@ std::string run_cmd(const std::string &cmd) {
                                                   pclose);
   if (!pipe)
     return "";
-  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe.get()) != nullptr) {
     result += buffer.data();
   }
   return result;
@@ -131,8 +131,8 @@ int DiscoveryService::count_files(const std::string &dir,
       if (entry.is_regular_file()) {
         std::string path = entry.path().string();
         if (extension.empty() ||
-            path.size() >= extension.size() &&
-                path.substr(path.size() - extension.size()) == extension) {
+            (path.size() >= extension.size() &&
+                path.substr(path.size() - extension.size()) == extension)) {
           count++;
         }
       }
