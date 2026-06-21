@@ -46,6 +46,7 @@ struct DashboardOutcomeAggregate {
   int cluster_wrong_matches{0};
   int cluster_too_many_matches{0};
   int cluster_low_confidence{0};
+  int cluster_unclassified{0};
 
   // Confidence bands (for calibration)
   // band[0..4] = 0.0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0
