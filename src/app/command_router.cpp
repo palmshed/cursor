@@ -143,7 +143,6 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   if (agent_.state_.verbose_mode_) {
     // verbose mode shows tool traces instead of spinner
   } else {
-    investigating.store(true);
     investigation_spinner = std::thread(
         [&]() { ui_.spinner("Investigating repository…", investigating); });
   }
@@ -197,7 +196,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       ui_);
 
   if (investigation_spinner.joinable()) {
-    investigating.store(false);
+    investigating.store(true);
     investigation_spinner.join();
   }
 
