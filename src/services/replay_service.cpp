@@ -113,6 +113,8 @@ void ReplayService::log_input(
   rec_json["grep_attempts"] = recovery.grep_attempts;
   rec_json["grep_success"] = recovery.grep_success;
   rec_json["grep_zero_hit"] = recovery.grep_zero_hit;
+  rec_json["grep_total_hits"] = recovery.grep_total_hits;
+  rec_json["grep_max_hits"] = recovery.grep_max_hits;
   rec_json["read_attempts"] = recovery.read_attempts;
   rec_json["read_success"] = recovery.read_success;
   entry["recovery_metrics"] = rec_json;
@@ -207,6 +209,8 @@ std::vector<ReplayEvent> ReplayService::load_session(const std::string &id) cons
         ev.recovery_metrics.grep_attempts = r.value("grep_attempts", 0);
         ev.recovery_metrics.grep_success = r.value("grep_success", 0);
         ev.recovery_metrics.grep_zero_hit = r.value("grep_zero_hit", 0);
+        ev.recovery_metrics.grep_total_hits = r.value("grep_total_hits", 0);
+        ev.recovery_metrics.grep_max_hits = r.value("grep_max_hits", 0);
         ev.recovery_metrics.read_attempts = r.value("read_attempts", 0);
         ev.recovery_metrics.read_success = r.value("read_success", 0);
       }

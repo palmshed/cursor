@@ -122,6 +122,8 @@ DashboardOutcomeAggregate DashboardService::generate(
     std::string line;
     bool session_matches_filter = false;
     Core::Outcome last_outcome = Core::Outcome::InsufficientEvidence;
+    bool session_saw_ie = false;
+    bool session_saw_success = false;
 
     while (std::getline(f, line)) {
       try {
@@ -133,6 +135,8 @@ DashboardOutcomeAggregate DashboardService::generate(
         if (j.contains("outcome")) {
           o = parse_outcome(j);
           last_outcome = o;
+          if (o == Core::Outcome::InsufficientEvidence) session_saw_ie = true;
+          if (o == Core::Outcome::Success) session_saw_success = true;
         }
 
         // Execution path
@@ -184,7 +188,8 @@ DashboardOutcomeAggregate DashboardService::generate(
             agg.reverted_count++;
         }
 
-        // Recovery metrics
+        // Recovery metrics + per-tool evidence + cluster classification
+        int grep_att = 0, grep_ok = 0, grep_hits = 0;
         if (j.contains("recovery_metrics")) {
           auto r = j["recovery_metrics"];
           agg.recovery_events++;
@@ -197,11 +202,32 @@ DashboardOutcomeAggregate DashboardService::generate(
             agg.verification_found_count++;
 
           // Per-tool evidence metrics
-          agg.total_grep_attempts += r.value("grep_attempts", 0);
-          agg.total_grep_success += r.value("grep_success", 0);
-          agg.total_grep_zero_hit += r.value("grep_zero_hit", 0);
+          grep_att = r.value("grep_attempts", 0);
+          grep_ok = r.value("grep_success", 0);
+          int grep_zero = r.value("grep_zero_hit", 0);
+          grep_hits = r.value("grep_total_hits", 0);
+          int grep_max = r.value("grep_max_hits", 0);
+          agg.total_grep_attempts += grep_att;
+          agg.total_grep_success += grep_ok;
+          agg.total_grep_zero_hit += grep_zero;
+          agg.total_grep_hits += grep_hits;
+          if (grep_max > agg.max_grep_hits)
+            agg.max_grep_hits = grep_max;
           agg.total_read_attempts += r.value("read_attempts", 0);
           agg.total_read_success += r.value("read_success", 0);
+
+          // Search recovery cluster classification
+          if (o == Core::Outcome::InsufficientEvidence && grep_att > 0) {
+            if (grep_ok == 0 && grep_zero > 0) {
+              agg.cluster_no_matches++;
+            } else if (grep_ok > 0 && grep_hits <= 20) {
+              agg.cluster_wrong_matches++;
+            } else if (grep_ok > 0 && grep_hits > 20) {
+              agg.cluster_too_many_matches++;
+            } else {
+              agg.cluster_low_confidence++;
+            }
+          }
         }
 
         // Confidence bands
@@ -239,6 +265,10 @@ DashboardOutcomeAggregate DashboardService::generate(
     }
 
     agg.total_sessions++;
+
+    // Query rewording: session had InsufficientEvidence then Success
+    if (session_saw_ie && session_saw_success)
+      agg.query_rewording_count++;
 
     // For "outcome=" filter: match if session had any matching event
     // OR if the last event matches

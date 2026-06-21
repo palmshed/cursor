@@ -70,6 +70,8 @@ struct RecoveryMetrics {
   int grep_attempts{0};
   int grep_success{0};
   int grep_zero_hit{0};
+  int grep_total_hits{0};
+  int grep_max_hits{0};
   int read_attempts{0};
   int read_success{0};
 
@@ -82,6 +84,8 @@ struct RecoveryMetrics {
            grep_attempts == o.grep_attempts &&
            grep_success == o.grep_success &&
            grep_zero_hit == o.grep_zero_hit &&
+           grep_total_hits == o.grep_total_hits &&
+           grep_max_hits == o.grep_max_hits &&
            read_attempts == o.read_attempts &&
            read_success == o.read_success;
   }
