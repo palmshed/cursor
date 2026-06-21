@@ -69,6 +69,9 @@ public:
   void handle_self_test_command();
   void handle_benchmark_command();
   void handle_ci_command(const std::string &command);
+  void handle_deps_command(const std::string &command);
+  void handle_symbols_command(const std::string &command);
+  void handle_refs_command(const std::string &command);
   std::string handle_task_with_planning(const std::string &input);
   std::string handle_codebase_query(const std::string &input);
   std::string generate_search_terms(const std::string &input) const;
