@@ -136,9 +136,10 @@ ToolCall ExecutionEngine::select_next_tool(
         // Extract search term from goal
         std::string term = goal;
         // Remove common prefixes (longest first to handle compounds)
-        for (auto &prefix : {"find where ", "search for ", "where is ",
-                             "what is ", "how does ", "show me ",
-                             "locate ", "find ", "where ", "grep "}) {
+        for (auto &prefix : {"tell me about ", "find where ", "search for ",
+                             "where is ", "what is ", "what does ",
+                             "how does ", "show me ", "locate ",
+                             "find ", "where ", "grep "}) {
           size_t p = term.find(prefix);
           if (p == 0) {
             term = term.substr(p + strlen(prefix));
@@ -268,15 +269,15 @@ bool ExecutionEngine::check_completion(const std::string & /*goal*/,
               evidence.has_fact_containing("read workflow"));
 
     case CodebaseQuery:
-      // Done when we've searched and read relevant files
-      return evidence.has_fact_containing("grep") &&
-             evidence.has_fact_containing("read");
+      // Done when we've searched AND found results AND read files
+      return evidence.has_fact_containing("grep:results") &&
+             evidence.has_fact_containing("read:results");
 
     case CodeChange:
-      // Done when discovery, grep, read, build, and tests are complete
+      // Done when discovery, grep, read, build, and tests produced results
       return evidence.has_fact_containing("discovery") &&
-             evidence.has_fact_containing("grep") &&
-             evidence.has_fact_containing("read") &&
+             evidence.has_fact_containing("grep:results") &&
+             evidence.has_fact_containing("read:results") &&
              evidence.has_fact_containing("build") &&
              evidence.has_fact_containing("test");
 
@@ -326,6 +327,18 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     evidence.add_fact(fact);
     evidence.facts.push_back("[" + fact + "] " +
                               output.substr(0, 200));
+
+    // Track whether tool produced meaningful results (separate from attempt)
+    bool has_results = false;
+    if (tc.tool == "grep") {
+      has_results = !output.empty() && output != "no matches";
+    } else if (tc.tool == "read") {
+      has_results = !output.empty() && output != "no files to read";
+    } else {
+      has_results = !output.empty();
+    }
+    if (has_results)
+      evidence.add_fact(tc.tool + ":results");
 
     // Evaluate confidence after each tool run
     ConfidenceResult cr;
@@ -397,7 +410,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   // Recovery metrics
   result.recovery_metrics.attempts = iteration_count;
   result.recovery_metrics.evidence_found =
-      !result.evidence.facts.empty();
+      result.evidence.has_fact_containing("grep:results") ||
+      result.evidence.has_fact_containing("read:results") ||
+      result.evidence.has_fact_containing("build") ||
+      result.evidence.has_fact_containing("test");
   result.recovery_metrics.verification_found =
       result.evidence.has_fact_containing("build") ||
       result.evidence.has_fact_containing("test");
