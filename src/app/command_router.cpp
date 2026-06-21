@@ -221,8 +221,41 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     agent_.state_.last_execution_path = Core::ExecutionPath::Engine;
   }
 
-  // Evidence-missing rule: for investigation goals, if no evidence was collected,
-  // return InsufficientEvidence directly instead of falling back to generic LLM
+  // -----------------------------------------------------------------------
+  // Authoritative AI gating (Fix: use ExecutionResult.outcome as authority)
+  // -----------------------------------------------------------------------
+  // If the engine determined the outcome is not Success, do not generate
+  // generic answers. Return deterministic messages instead.
+  if (!should_call_ai(engine_result)) {
+    // Keep router's existing last_outcome bookkeeping
+    agent_.state_.last_outcome = engine_result.outcome;
+
+    switch (engine_result.outcome) {
+    case Core::Outcome::InsufficientEvidence: {
+      std::string msg =
+          "Insufficient repository evidence to answer your question.\n";
+      std::cout << agent_.format_message("cursor", msg) << "\n";
+      return msg;
+    }
+    case Core::Outcome::Failure: {
+      std::string msg =
+          "I couldn't complete the repository investigation for your question.\n";
+      std::cout << agent_.format_message("cursor", msg) << "\n";
+      return msg;
+    }
+    case Core::Outcome::UserRejected: {
+      std::string msg =
+          "The requested task was not approved by the user.\n";
+      std::cout << agent_.format_message("cursor", msg) << "\n";
+      return msg;
+    }
+    case Core::Outcome::Success:
+      break;
+    }
+  }
+
+  // Advisory evidence-missing heuristic (no longer authoritative)
+  // Retained for user messaging clarity where appropriate.
   int goal_type = engine_result.goal_type;
   bool is_investigation_goal =
       goal_type == static_cast<int>(Services::ExecutionEngine::CodebaseQuery) ||
@@ -231,11 +264,9 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       engine_result.evidence.has_fact_containing("grep:results") ||
       engine_result.evidence.has_fact_containing("gh:results");
   if (is_investigation_goal && !has_useful_evidence) {
+    // Advisory only: do not block AI (already gated by outcome above).
+    // This can help contextualize why confidence may be low.
     agent_.state_.last_outcome = Core::Outcome::InsufficientEvidence;
-    std::string msg = "I searched the repository but couldn't find evidence "
-                      "matching your question.\n";
-    std::cout << agent_.format_message("cursor", msg) << "\n";
-    return msg;
   }
 
   if (!engine_result.evidence.facts.empty()) {
