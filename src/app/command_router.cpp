@@ -59,6 +59,14 @@ const size_t MAX_RESPONSE_LENGTH = 8000;
 
 namespace Core {
 
+// ---------------------------------------------------------------------------
+// Outcome-based eligibility for AI generation
+// ---------------------------------------------------------------------------
+bool CommandRouter::should_call_ai(const Services::ExecutionResult &result) {
+  return result.outcome == Core::Outcome::Success;
+}
+
+
 CommandRouter::CommandRouter(Agent &agent, UIManager &ui,
                               Services::ReplayService *replay)
     : agent_(agent), ui_(ui), replay_(replay) {}
