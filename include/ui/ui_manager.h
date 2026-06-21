@@ -50,7 +50,89 @@ public:
   void print_logo();
   void print_divider();
   void print_ready_interface(const std::string &mode,
-                             const std::string &model);
+                              const std::string &model,
+                              const std::string &perm_mode = "");
+
+  // Discovery display
+  struct DiscoveryLines {
+    std::string project_type;
+    int source_file_count;
+    int service_count;
+    bool has_tests;
+    std::vector<std::string> ci_systems;
+    std::vector<std::string> package_managers;
+    std::vector<std::string> relevant_files;
+    std::vector<std::string> impact_areas;
+  };
+  void show_discovery_report(const DiscoveryLines &d);
+
+  // Plan display
+  struct PlanTaskLine {
+    std::string description;
+    std::string file_ref;
+  };
+  void show_task_plan(const std::vector<PlanTaskLine> &tasks);
+
+  // Doctor / verification display
+  struct CheckLine {
+    std::string name;
+    bool passed;
+    std::string details;
+    std::string fix;
+  };
+  void show_doctor_report(const std::vector<CheckLine> &checks);
+
+  // Todo / progress display
+  void show_todo_list(const std::vector<std::pair<std::string, bool>> &items);
+
+  // Execution trace
+  void begin_execution(const std::string &title, int total_steps);
+  void step_started(int step, const std::string &label);
+  void step_completed(int step, const std::string &label,
+                      const std::string &detail = "");
+  void step_failed(int step, const std::string &label,
+                   const std::string &reason);
+  void step_no_evidence(int step, const std::string &label,
+                        const std::string &detail = "");
+  void end_execution(int succeeded, int failed);
+
+  // Execution summary
+  struct ExecutionSummaryData {
+    int verified;
+    int not_executed;
+    int failed;
+    std::vector<std::string> files_changed;
+    std::string build_result;
+    std::string test_result;
+  };
+  void show_execution_summary(const ExecutionSummaryData &data);
+
+  // Tool visibility — called before each tool invocation
+  void show_tool_invocation(const std::string &tool,
+                            const std::string &args);
+
+  // Preview proposed changes (before apply)
+  void show_preview(const std::vector<PlanTaskLine> &tasks);
+
+  // Apply prompt — returns true if user approves
+  static bool prompt_apply();
+
+  // Change Preview display
+  struct DiffPreviewFile {
+    std::string filename;
+    std::string diff_content;  // git diff snippet (+/- lines)
+    std::string build_result;
+    std::string test_result;
+  };
+  struct ChangePreviewData {
+    std::vector<DiffPreviewFile> files;
+    std::string build_result;
+    std::string test_result;
+    int total_steps;
+    int succeeded;
+    int failed;
+  };
+  void show_change_preview(const ChangePreviewData &preview);
 
   // Spinner
   void spinner(const std::string &message, int duration_ms);

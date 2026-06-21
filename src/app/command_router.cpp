@@ -6,7 +6,11 @@
 #include "services/ai_service.h"
 #include "services/auth_service.h"
 #include "services/checkpoint_service.h"
+#include "services/ci_investigation_service.h"
+#include "services/execution_engine.h"
 #include "services/codebase_service.h"
+#include "services/discovery_service.h"
+#include "services/planning_service.h"
 #include "services/command_service.h"
 #include "services/context_service.h"
 #include "services/error_service.h"
@@ -17,8 +21,12 @@
 #include "services/multi_file_service.h"
 #include "services/replay_service.h"
 #include "services/sandbox_service.h"
+#include "services/self_test_service.h"
 #include "services/theme_service.h"
+#include "services/verification_service.h"
 #include "services/web_service.h"
+#include "services/workflow_benchmark_service.h"
+#include "services/confidence_service.h"
 #include "ui/ui_manager.h"
 #include "utils/ui.h"
 #include "utils/validation.h"
@@ -30,13 +38,16 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
+#include <set>
 #include <iostream>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 // Constants for response handling
@@ -109,6 +120,81 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     return {};
   }
 
+  // Run through evidence-driven execution engine
+  Services::ExecutionEngine engine;
+  std::vector<Services::FileSearchResult> last_grep_results;
+  agent_.state_.last_confidence_before = agent_.state_.last_confidence_after;
+  auto engine_result = engine.execute(trimmed_input,
+      [&](const Services::ToolCall &tc) -> std::string {
+        if (tc.tool == "grep") {
+          last_grep_results = Services::FileService::search_in_directory(
+              ".", tc.args.empty() ? trimmed_input : tc.args, "*");
+          if (last_grep_results.empty()) return "no matches";
+          std::string out;
+          for (auto &r : last_grep_results)
+            out += r.file_path + ":" + std::to_string(r.line_number) +
+                   ": " + r.line_content + "\n";
+          return out;
+        }
+        if (tc.tool == "read") {
+          if (last_grep_results.empty())
+            return "no files to read";
+          std::set<std::string> unique_files;
+          for (auto &r : last_grep_results)
+            unique_files.insert(r.file_path);
+          std::string out;
+          int count = 0;
+          for (auto &f : unique_files) {
+            if (count >= 5) break; // limit to 5 files
+            std::string content = Services::FileService::read_file_range(f, 1, 30);
+            out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+            count++;
+          }
+          return out;
+        }
+        if (tc.tool == "gh") {
+          return Services::CommandService::execute("gh " + tc.args);
+        }
+        if (tc.tool == "cmake") {
+          return Services::CommandService::execute(tc.args);
+        }
+        if (tc.tool == "ctest") {
+          return Services::CommandService::execute(tc.args);
+        }
+        if (tc.tool == "discovery") {
+          auto d = Services::DiscoveryService::scan(".", trimmed_input);
+          std::string out = "Project: " + d.project_type + "\n";
+          out += "Sources: " + std::to_string(d.source_file_count) + "\n";
+          out += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
+          return out;
+        }
+        return "unknown tool";
+      },
+      ui_);
+
+  agent_.state_.last_confidence_after = engine_result.confidence;
+  agent_.state_.last_outcome = engine_result.outcome;
+  agent_.state_.last_recovery_metrics = engine_result.recovery_metrics;
+  agent_.state_.last_trust_metrics = engine_result.trust_metrics;
+
+  // Route based on goal type classification
+  if (engine_result.goal_type ==
+      static_cast<int>(Services::ExecutionEngine::CodeChange)) {
+    ui_.show_pipeline_section("Full task pipeline");
+    return handle_task_with_planning(trimmed_input);
+  }
+
+  if (!engine_result.evidence.facts.empty()) {
+    ui_.show_reasoning_header("EVIDENCE COLLECTED");
+    for (auto &f : engine_result.evidence.facts) {
+      if (f.size() > 120)
+        ui_.show_reasoning_step("", f.substr(0, 120) + "...");
+      else
+        ui_.show_reasoning_step("", f);
+    }
+  }
+
+  // Route to AI chat with evidence context
   ui_.show_reasoning_header("AI CHAT");
   ui_.show_pipeline_section("AI reasoning flow");
   ui_.show_context_state();
@@ -421,6 +507,11 @@ std::string CommandRouter::handle_ai_chat(const std::string &input) {
     full_context = hierarchical_context + "\n\n" + memory_context;
   }
 
+  if (!discovery_context_.empty()) {
+    full_context = "Project Discovery:\n" + discovery_context_ + "\n\n" + full_context;
+    discovery_context_.clear();
+  }
+
   std::string agent_context = build_agent_context();
   if (!agent_context.empty()) {
     full_context = agent_context + "\n\n" + full_context;
@@ -473,15 +564,23 @@ void CommandRouter::handle_shell_command(const std::string &input) {
 
   auto validation = Utils::Validator::validate_command_safe(command);
   if (!validation.warnings.empty()) {
+    if (agent_.state_.perm_mode_ == Core::PermissionMode::REVIEW) {
+      std::cout << Utils::Color::YELLOW
+                << "  [review] Blocked by read-only mode.\n"
+                << Utils::Color::RESET;
+      return;
+    }
     for (const auto &warning : validation.warnings) {
       Utils::UI::print_warning(warning);
     }
-    std::cout << "Continue? (y/N): ";
-    std::string confirm;
-    std::getline(std::cin, confirm);
-    if (confirm != "y" && confirm != "Y") {
-      std::cout << "Command cancelled by user" << std::endl;
-      return;
+    if (agent_.state_.perm_mode_ != Core::PermissionMode::AGENT) {
+      std::cout << "Continue? (y/N): ";
+      std::string confirm;
+      std::getline(std::cin, confirm);
+      if (confirm != "y" && confirm != "Y") {
+        std::cout << "Command cancelled by user" << std::endl;
+        return;
+      }
     }
   }
 
@@ -499,6 +598,8 @@ void CommandRouter::handle_meta_command(const std::string &input) {
     ui_.show_agent_documentation();
   } else if (command == "debug") {
     toggle_verbose_mode();
+  } else if (command.starts_with("mode ")) {
+    handle_mode_command(command.substr(5));
   } else if (command == "clear") {
     ui_.clear_screen();
   } else if (command == "goal" || command.starts_with("goal ") ||
@@ -541,6 +642,14 @@ void CommandRouter::handle_meta_command(const std::string &input) {
     handle_error_command(command.substr(6));
   } else if (command.starts_with("replay ")) {
     handle_replay_command(command.substr(7));
+  } else if (command == "doctor") {
+    handle_doctor_command();
+  } else if (command == "self-test") {
+    handle_self_test_command();
+  } else if (command == "benchmark") {
+    handle_benchmark_command();
+  } else if (command.starts_with("ci ")) {
+    handle_ci_command(command.substr(3));
   } else if (command == "quit" || command == "exit") {
     std::cout << "Goodbye!" << std::endl;
     exit(0);
@@ -554,8 +663,29 @@ void CommandRouter::toggle_verbose_mode() {
   agent_.state_.verbose_mode_ = !agent_.state_.verbose_mode_;
   std::cout << (agent_.state_.verbose_mode_ ? Utils::Color::GREEN : Utils::Color::YELLOW)
             << (agent_.state_.verbose_mode_ ? "[debug] Verbose mode ON"
-                                : "[debug] Verbose mode OFF")
+                                 : "[debug] Verbose mode OFF")
             << Utils::Color::RESET << std::endl;
+}
+
+void CommandRouter::handle_mode_command(const std::string &arg) {
+  std::string mode = trim_copy(arg);
+  if (mode == "review") {
+    agent_.state_.perm_mode_ = Core::PermissionMode::REVIEW;
+    std::cout << Utils::Color::GREEN << "[mode] Review mode: read-only, no writes"
+              << Utils::Color::RESET << std::endl;
+  } else if (mode == "apply") {
+    agent_.state_.perm_mode_ = Core::PermissionMode::APPLY;
+    std::cout << Utils::Color::GREEN << "[mode] Apply mode: prompt before changes"
+              << Utils::Color::RESET << std::endl;
+  } else if (mode == "agent") {
+    agent_.state_.perm_mode_ = Core::PermissionMode::AGENT;
+    std::cout << Utils::Color::GREEN << "[mode] Agent mode: full autonomy"
+              << Utils::Color::RESET << std::endl;
+  } else {
+    std::cout << Utils::Color::YELLOW
+              << "Usage: /mode review|apply|agent"
+              << Utils::Color::RESET << std::endl;
+  }
 }
 
 void CommandRouter::handle_chat_management(const std::string &command) {
@@ -869,37 +999,18 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
     return std::make_optional(std::string("cmd:") + *cmd);
   }
 
-  // Build / compile requests
-  if (lower.find("build the project") != std::string::npos ||
-      lower.find("build project") != std::string::npos ||
-      lower.find("compile") != std::string::npos ||
-      lower.find("build") == 0) {
-    // Prefer explicit make invocation when mentioned, otherwise use build wrapper
-    if (auto make_cmd = extract_after({"make "})) {
-      return std::make_optional(std::string("cmd:") + *make_cmd);
-    }
-    return std::make_optional(std::string("build:make"));
-  }
+  // Build / compile requests — route through engine for outcome tracking
+  // Only intercept explicit "build:" prefix for direct commands
 
   // TODO / task comment queries (prefer over grep)
   if (lower.find("todo") != std::string::npos || lower.find("task comments") != std::string::npos || lower.find("fixme") != std::string::npos) {
     return std::make_optional(std::string("todos:."));
   }
 
-  // Grep/search-style queries
-  if (lower.find("search for ") != std::string::npos &&
-      (lower.find("code") != std::string::npos ||
-       lower.find("repo") != std::string::npos ||
-       lower.find("project") != std::string::npos)) {
-    return extract_grep_command(input, "search for ");
-  }
-  if ((lower.find("find ") != std::string::npos &&
-       (lower.find("in code") != std::string::npos ||
-        lower.find("in repo") != std::string::npos ||
-        lower.find("in project") != std::string::npos ||
-        lower.find("in files") != std::string::npos)) ||
-      lower.find("grep ") != std::string::npos) {
-    if (auto g = extract_after({"find ", "grep ", "search for "}))
+  // Grep/search-style queries — route through execution engine for proper
+  // outcome tracking. Direct grep: prefix still works for explicit commands.
+  if (lower.find("grep ") == 0) {
+    if (auto g = extract_after({"grep "}))
       return extract_grep_command(*g, "");
   }
 
@@ -1139,7 +1250,8 @@ void CommandRouter::handle_context_management(const std::string &command) {
     }
   } else if (command == "refresh") {
     Services::ContextService::refresh_context_cache();
-    std::cout << "Context cache refreshed." << std::endl;
+    Services::DiscoveryService::invalidate_cache();
+    std::cout << "Context and discovery cache refreshed." << std::endl;
   } else if (command == "create") {
     if (Services::ContextService::create_context_file(".")) {
       std::cout << "Created CURSOR.md in current directory." << std::endl;
@@ -2243,6 +2355,878 @@ void CommandRouter::handle_replay_command(const std::string &command) {
     std::cout << "  /replay step <id>         Step through session\n";
     std::cout << "  /replay play <id>         Re-execute all commands\n";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Doctor command
+// ---------------------------------------------------------------------------
+
+void CommandRouter::handle_doctor_command() {
+  auto results = Services::VerificationService::run_all_checks();
+  std::vector<UIManager::CheckLine> lines;
+  for (auto &r : results) {
+    lines.push_back({r.name, r.passed, r.details, r.fix_suggestion});
+  }
+  ui_.show_doctor_report(lines);
+}
+
+// ---------------------------------------------------------------------------
+// Self-test command
+// ---------------------------------------------------------------------------
+
+void CommandRouter::handle_self_test_command() {
+  auto results = Services::SelfTestService::run_all_scenarios();
+  int passed = 0, failed = 0;
+  for (auto &r : results) {
+    if (r.passed) passed++;
+    else failed++;
+  }
+  std::cout << "\n--- Self Test ---\n";
+  for (auto &r : results) {
+    std::cout << "  " << (r.passed ? "\u2713" : "\u2717") << " " << r.name;
+    if (!r.details.empty())
+      std::cout << "  " << r.details;
+    std::cout << "\n";
+  }
+  std::cout << "  " << passed << " passed, " << failed << " failed\n\n";
+}
+
+// ---------------------------------------------------------------------------
+// Benchmark command
+// ---------------------------------------------------------------------------
+
+void CommandRouter::handle_benchmark_command() {
+  auto results = Services::WorkflowBenchmarkService::run_all();
+  int passed = 0, failed = 0;
+  int total_score = 0, max_score = 0;
+
+  std::cout << "\n--- Workflow Benchmarks ---\n";
+  for (auto &r : results) {
+    if (r.passed) passed++; else failed++;
+    total_score += r.score;
+    max_score += 100;
+
+    std::cout << "  " << (r.passed ? "\u2713" : "\u2717") << " " << r.name;
+    if (!r.details.empty())
+      std::cout << "  " << r.details;
+    std::cout << "\n";
+  }
+  std::cout << "\n  Scenarios: " << passed << "/" << (passed + failed) << " passed\n";
+  std::cout << "  Score: " << total_score << "/" << max_score << "\n\n";
+}
+
+// ---------------------------------------------------------------------------
+// CI investigation command
+// ---------------------------------------------------------------------------
+
+void CommandRouter::handle_ci_command(const std::string &command) {
+  ui_.show_pipeline_section("CI Investigation");
+
+  if (command == "investigate" || command.empty()) {
+    auto result = Services::CiInvestigationService::investigate();
+
+    // Display runs
+    if (!result.recent_runs.empty()) {
+      std::cout << "  Recent workflow runs:\n";
+      for (auto &r : result.recent_runs) {
+        std::string icon;
+        if (r.conclusion == "success")
+          icon = "\u2713";
+        else if (r.conclusion == "failure")
+          icon = "\u2717";
+        else
+          icon = "\u2014";
+
+        std::cout << "    " << icon << "  #" << r.id << "  "
+                  << r.title << "  (" << r.branch << ")"
+                  << "  " << r.conclusion << "\n";
+      }
+    }
+
+    // Display failures
+    if (!result.failures.empty()) {
+      std::cout << "\n  Failures:\n";
+      for (auto &f : result.failures) {
+        std::cout << "    Run #" << f.run_id << "\n";
+        if (!f.step_name.empty())
+          std::cout << "      Step: " << f.step_name << "\n";
+        for (auto &err : f.error_lines) {
+          std::cout << "      " << err << "\n";
+        }
+        if (!f.likely_file.empty())
+          std::cout << "      Likely file: " << f.likely_file << "\n";
+        std::cout << "      Suggestion: "
+                  << Services::CiInvestigationService::analyze_logs(f.run_id)
+                  << "\n";
+      }
+    }
+
+    if (!result.gh_available) {
+      std::cout << "  " << result.summary << "\n";
+    }
+  } else if (command.starts_with("run ")) {
+    int run_id = 0;
+    std::string id_str = trim_copy(command.substr(4));
+    if (!id_str.empty()) run_id = std::stoi(id_str);
+    if (run_id <= 0) {
+      std::cout << "Usage: /ci run <run-id>\n";
+      return;
+    }
+    std::cout << "  Fetching logs for run #" << run_id << "...\n";
+    std::string logs = Services::CiInvestigationService::analyze_logs(run_id);
+    std::cout << logs << "\n";
+  } else if (command == "repair") {
+    // /ci repair — full CI repair pipeline
+    ui_.show_pipeline_section("CI Repair");
+
+    // 1. Investigate
+    auto result = Services::CiInvestigationService::investigate();
+    if (result.failures.empty()) {
+      std::cout << "  No CI failures found.\n";
+      return;
+    }
+
+    // 2. Find workflow files
+    std::vector<std::string> workflow_files;
+    std::string ls_out = Services::CommandService::execute(
+        "ls .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null");
+    if (!ls_out.empty()) {
+      std::istringstream ls_stream(ls_out);
+      std::string line;
+      while (std::getline(ls_stream, line)) {
+        if (!line.empty())
+          workflow_files.push_back(trim_copy(line));
+      }
+    }
+
+    // 3. Read the first workflow file
+    std::string workflow_content;
+    std::string workflow_path;
+    if (!workflow_files.empty()) {
+      workflow_path = workflow_files[0];
+      workflow_content =
+          Services::FileService::read_file_range(workflow_path, 1, 200);
+    }
+
+    // 4. Build CI context for AI
+    std::string ci_ctx;
+    ci_ctx += "CI failures in " + result.repo + "\n\n";
+    for (auto &f : result.failures) {
+      ci_ctx += "Run #" + std::to_string(f.run_id) + "\n";
+      if (!f.step_name.empty())
+        ci_ctx += "  Step: " + f.step_name + "\n";
+      for (auto &err : f.error_lines)
+        ci_ctx += "  " + err + "\n";
+      if (!f.likely_file.empty())
+        ci_ctx += "  Likely file: " + f.likely_file + "\n";
+      ci_ctx += "\n";
+    }
+    if (!workflow_content.empty()) {
+      ci_ctx += "Workflow file (" + workflow_path + "):\n";
+      ci_ctx += workflow_content + "\n";
+    }
+    ci_ctx += "Propose a fix for these CI failures.";
+
+    discovery_context_ = ci_ctx;
+
+    // 5. Execution trace
+    ui_.begin_execution("Repair CI", 1);
+    ui_.step_started(1, "Fix CI failures");
+
+    // 6. AI chat with CI context
+    std::string ai_result = handle_ai_chat("fix ci failures");
+
+    // 7. Preview + apply
+    {
+      std::vector<UIManager::PlanTaskLine> preview_tasks;
+      preview_tasks.push_back({"Fix CI failures in " + result.repo,
+                                workflow_path});
+      ui_.show_preview(preview_tasks);
+    }
+
+    if (agent_.state_.perm_mode_ == Core::PermissionMode::REVIEW) {
+      std::cout << Utils::Color::YELLOW
+                << "  [review] Read-only mode — changes skipped.\n"
+                << Utils::Color::RESET;
+      return;
+    }
+    if (agent_.state_.perm_mode_ != Core::PermissionMode::AGENT) {
+      if (!UIManager::prompt_apply()) {
+        std::cout << Utils::Color::DIM << "  Changes skipped.\n"
+                  << Utils::Color::RESET;
+        return;
+      }
+    }
+
+    // 8. Build + test verification
+    std::cout << "  Verifying changes...\n";
+    std::string build_out = Services::CommandService::execute("cmake --build build");
+    std::string test_out = Services::CommandService::execute("ctest --test-dir build");
+
+    bool build_ok = build_out.find("error") == std::string::npos;
+    bool test_ok = test_out.find("FAILED") == std::string::npos &&
+                   test_out.find("failed") == std::string::npos;
+
+    ui_.step_completed(1, "Fix CI failures",
+        build_ok ? "[build] passed" : "[build] failed");
+    ui_.end_execution(build_ok && test_ok ? 1 : 0,
+                      build_ok && test_ok ? 0 : 1);
+
+    // 9. Summary
+    UIManager::ExecutionSummaryData es;
+    es.verified = (build_ok && test_ok) ? 1 : 0;
+    es.not_executed = 0;
+    es.failed = (build_ok && test_ok) ? 0 : 1;
+    es.files_changed.push_back(workflow_path);
+    es.build_result = build_ok ? "passed" : "failed";
+    es.test_result = test_ok ? "passed" : "failed";
+    ui_.show_execution_summary(es);
+
+  } else {
+    std::cout << "Usage:\n";
+    std::cout << "  /ci investigate     Analyze recent CI failures\n";
+    std::cout << "  /ci repair          Diagnose and fix CI failures\n";
+    std::cout << "  /ci run <id>        Show logs for a specific run\n";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Discovery / substantial task handling
+// ---------------------------------------------------------------------------
+
+bool CommandRouter::is_substantial_task(const std::string &input) {
+  return Services::DiscoveryService::is_substantial_task(input);
+}
+
+// ---------------------------------------------------------------------------
+// Lazy, task-driven evidence collection
+// ---------------------------------------------------------------------------
+
+class EvidenceCollector {
+public:
+  using ToolCallback =
+      std::function<void(const std::string &tool, const std::string &args)>;
+
+  explicit EvidenceCollector(ToolCallback cb = nullptr)
+      : tool_cb_(std::move(cb)) {}
+
+  // Get evidence for a specific task — only runs the commands this task needs
+  std::string get_evidence(const Services::TaskItem &task) {
+    // Build verification tasks
+    if (task.description.find("Verify build") != std::string::npos ||
+        task.description.find("verify build") != std::string::npos) {
+      return "[build] " + collect_build();
+    }
+
+    // Test tasks
+    if (task.description.find("test") != std::string::npos ||
+        task.description.find("Test") != std::string::npos) {
+      auto tr = collect_tests();
+      return tr.empty() ? "[test] not run" : "[test] " + tr;
+    }
+
+    // File-specific tasks — show diff snippet
+    if (!task.file_ref.empty()) {
+      auto snippet = diff_snippet_for(task.file_ref);
+      if (!snippet.empty())
+        return "[file] " + snippet;
+      return "";
+    }
+
+    return "";
+  }
+
+  std::vector<std::string> all_modified_files() {
+    collect_diffs();
+    return modified_files_;
+  }
+
+  std::string build_result() { return collect_build(); }
+  std::string test_result() { return collect_tests(); }
+
+private:
+  ToolCallback tool_cb_;
+  std::vector<std::string> modified_files_;
+  std::unordered_map<std::string, std::string> diff_cache_;
+  std::string build_result_;
+  std::string test_result_;
+  bool diffs_collected_ = false;
+  bool build_collected_ = false;
+  bool tests_collected_ = false;
+
+  // Minimal diff snippet for display (first 8 +/- lines)
+  static std::string trim_diff(const std::string &raw) {
+    if (raw.empty()) return "";
+
+    std::istringstream stream(raw);
+    std::string line, result;
+    int shown = 0;
+    while (std::getline(stream, line) && shown < 12) {
+      if (line.starts_with("+") || line.starts_with("-") ||
+          line.starts_with("@")) {
+        result += line + "\n";
+        shown++;
+      }
+    }
+    // Trim trailing newline
+    while (!result.empty() && result.back() == '\n')
+      result.pop_back();
+    return result;
+  }
+
+  static std::string truncate(const std::string &s, size_t max_len) {
+    if (s.size() <= max_len) return s;
+    return s.substr(0, max_len) + "...";
+  }
+
+  void collect_diffs() {
+    if (diffs_collected_) return;
+    diffs_collected_ = true;
+
+    if (tool_cb_)
+      tool_cb_("git diff --name-only", "");
+    std::string names_output = Services::CommandService::execute(
+        "git diff --name-only 2>/dev/null; "
+        "git diff --staged --name-only 2>/dev/null");
+    std::istringstream stream(names_output);
+    std::string file;
+    while (std::getline(stream, file)) {
+      if (file.empty() || file.starts_with("Exit code:") ||
+          file.find("error") != std::string::npos)
+        continue;
+      modified_files_.push_back(file);
+    }
+
+    // Deduplicate
+    std::sort(modified_files_.begin(), modified_files_.end());
+    modified_files_.erase(
+        std::unique(modified_files_.begin(), modified_files_.end()),
+        modified_files_.end());
+  }
+
+  std::string diff_for_file(const std::string &file) {
+    collect_diffs();
+
+    auto it = diff_cache_.find(file);
+    if (it != diff_cache_.end())
+      return it->second;
+
+    if (tool_cb_)
+      tool_cb_("git diff", "\"" + file + "\"");
+    std::string raw = Services::CommandService::execute(
+        "git diff -- \"" + file + "\" 2>/dev/null; "
+        "git diff --cached -- \"" + file + "\" 2>/dev/null");
+    std::string trimmed = trim_diff(raw);
+    diff_cache_[file] = trimmed;
+    return trimmed;
+  }
+
+  std::string diff_snippet_for(const std::string &file_ref) {
+    auto modified = all_modified_files();
+    if (modified.empty())
+      return "";
+
+    std::string basename = file_ref;
+    size_t slash = basename.find_last_of("/\\");
+    if (slash != std::string::npos)
+      basename = basename.substr(slash + 1);
+
+    // Find matching modified files
+    std::vector<std::string> matches;
+    for (auto &f : modified) {
+      if (f.find(basename) != std::string::npos)
+        matches.push_back(f);
+    }
+
+    if (matches.empty())
+      return "";
+
+    std::string result;
+    for (auto &m : matches) {
+      auto snippet = diff_for_file(m);
+      if (!snippet.empty()) {
+        result += m + "\n" + snippet;
+      } else {
+        result += m + " (modified)\n";
+      }
+    }
+    while (!result.empty() && result.back() == '\n')
+      result.pop_back();
+    return truncate(result, 120);
+  }
+
+  std::string collect_build() {
+    if (build_collected_) return build_result_;
+    build_collected_ = true;
+
+    if (tool_cb_)
+      tool_cb_("cmake --build", "build | tail -3");
+    std::string output = Services::CommandService::execute(
+        "cmake --build build 2>&1 | tail -3");
+    if (output.find("error") != std::string::npos ||
+        output.find("Exit code:") != std::string::npos) {
+      build_result_ = "failed";
+    } else if (output.find("Built target") != std::string::npos ||
+               output.find("Linking") != std::string::npos ||
+               output.find("nothing") != std::string::npos) {
+      build_result_ = "passed";
+    } else {
+      build_result_ = truncate(output, 60);
+    }
+    return build_result_;
+  }
+
+  std::string collect_tests() {
+    if (tests_collected_) return test_result_;
+    tests_collected_ = true;
+
+    if (tool_cb_)
+      tool_cb_("ctest", "--test-dir build | tail -5");
+    std::string output = Services::CommandService::execute(
+        "ctest --output-on-failure --test-dir build 2>&1 | tail -5");
+    if (output.find("passed") != std::string::npos) {
+      size_t pct = output.find("% tests passed");
+      if (pct != std::string::npos) {
+        test_result_ = output.substr(0, pct + 15);
+      } else {
+        test_result_ = "passed";
+      }
+    } else if (output.find("failed") != std::string::npos ||
+               output.find("Exit code:") != std::string::npos) {
+      test_result_ = "failed";
+    } else {
+      test_result_ = "";
+    }
+    return test_result_;
+  }
+};
+
+std::string CommandRouter::handle_task_with_planning(const std::string &input) {
+  // 1. Discovery
+  auto d = Services::DiscoveryService::scan(".", input);
+
+  // 2. Display discovery report
+  UIManager::DiscoveryLines dl;
+  dl.project_type = d.project_type;
+  dl.source_file_count = d.source_file_count;
+  dl.service_count = d.service_count;
+  dl.has_tests = d.has_tests;
+  dl.ci_systems = d.ci_systems;
+  dl.package_managers = d.package_managers;
+  dl.relevant_files = d.relevant_files;
+  dl.impact_areas = d.impact_areas;
+  ui_.show_discovery_report(dl);
+
+  // 3. Generate task plan from evidence
+  auto plan = Services::PlanningService::generate_plan(input, d);
+
+  // 4. Display plan
+  std::vector<UIManager::PlanTaskLine> ptl;
+  for (auto &t : plan.tasks)
+    ptl.push_back({t.description, t.file_ref});
+  ui_.show_task_plan(ptl);
+
+  // 5. Approval
+  auto selected = Services::PlanningService::prompt_approval(
+      static_cast<int>(plan.tasks.size()));
+  if (selected.empty()) {
+    std::cout << "Cancelled.\n";
+    return {};
+  }
+
+  // 6. Build combined context: discovery + selected tasks
+  std::string ctx;
+  ctx += "Project: " + d.project_type + "\n";
+  ctx += "Sources: " + std::to_string(d.source_file_count) + " files\n";
+  ctx += "Services: " + std::to_string(d.service_count) + "\n";
+  ctx += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
+  if (!d.ci_systems.empty()) {
+    ctx += "CI: ";
+    for (auto &c : d.ci_systems)
+      ctx += c + " ";
+    ctx += "\n";
+  }
+  if (!d.relevant_files.empty()) {
+    ctx += "Relevant files:\n";
+    for (auto &f : d.relevant_files)
+      ctx += "  " + f + "\n";
+  }
+  ctx += "\n" + Services::PlanningService::to_context_string(plan, selected);
+
+  discovery_context_ = ctx;
+
+  // 7. Execution trace
+  ui_.begin_execution("Executing plan", static_cast<int>(selected.size()));
+  for (auto idx : selected) {
+    if (idx >= 1 && idx <= static_cast<int>(plan.tasks.size())) {
+      auto &t = plan.tasks[idx - 1];
+      ui_.step_started(idx, t.description);
+    }
+  }
+
+  // 8. Route to AI chat with plan + discovery context
+  std::string result = handle_ai_chat(input);
+
+  // 9. Preview planned changes and ask for apply approval
+  {
+    std::vector<UIManager::PlanTaskLine> preview_tasks;
+    for (auto idx : selected) {
+      if (idx >= 1 && idx <= static_cast<int>(plan.tasks.size())) {
+        auto &t = plan.tasks[idx - 1];
+        preview_tasks.push_back({t.description, t.file_ref});
+      }
+    }
+    ui_.show_preview(preview_tasks);
+  }
+
+  // Gate apply on permission mode
+  if (agent_.state_.perm_mode_ == Core::PermissionMode::REVIEW) {
+    std::cout << Utils::Color::YELLOW
+              << "  [review] Read-only mode — changes skipped.\n"
+              << Utils::Color::RESET;
+    return result;
+  }
+  if (agent_.state_.perm_mode_ != Core::PermissionMode::AGENT) {
+    if (!UIManager::prompt_apply()) {
+      std::cout << Utils::Color::DIM << "  Changes skipped.\n"
+                << Utils::Color::RESET;
+      return result;
+    }
+  }
+
+  // 10. Collect evidence lazily per-task after execution
+  EvidenceCollector collector([&](const std::string &tool,
+                                  const std::string &args) {
+    ui_.show_tool_invocation(tool, args);
+  });
+  int succeeded = 0, failed = 0;
+  for (auto idx : selected) {
+    if (idx < 1 || idx > static_cast<int>(plan.tasks.size())) continue;
+    auto &t = plan.tasks[idx - 1];
+
+    // Only runs the commands this specific task needs
+    std::string ev = collector.get_evidence(t);
+
+    if (!ev.empty()) {
+      ui_.step_completed(idx, t.description, ev);
+      succeeded++;
+    } else {
+      ui_.step_no_evidence(idx, t.description, "no evidence captured");
+    }
+  }
+  ui_.end_execution(succeeded, failed);
+
+  // 11. Evaluate confidence based on evidence
+  std::vector<Services::ConfidenceResult> confidences;
+
+  // Discovery confidence
+  confidences.push_back(Services::ConfidenceService::after_discovery(
+      d.source_file_count, d.service_count, d.has_tests,
+      !d.ci_systems.empty()));
+
+  // Build confidence
+  if (!collector.build_result().empty()) {
+    bool build_ok = collector.build_result() != "failed";
+    confidences.push_back(Services::ConfidenceService::after_build(
+        build_ok, build_ok ? "" : collector.build_result()));
+  }
+
+  // Test confidence
+  if (!collector.test_result().empty()) {
+    int tests_run = succeeded + failed;
+    int tests_passed = succeeded;
+    int tests_failed_count = failed;
+    confidences.push_back(Services::ConfidenceService::after_tests(
+        tests_run, tests_passed, tests_failed_count));
+  }
+
+  Services::ConfidenceResult overall =
+      Services::ConfidenceService::combine(confidences);
+
+  // Display confidence
+  std::cout << "\n  Confidence: ";
+  if (overall.score >= 0.8) {
+    std::cout << Utils::Color::GREEN;
+  } else if (overall.score >= 0.5) {
+    std::cout << Utils::Color::YELLOW;
+  } else {
+    std::cout << Utils::Color::RED;
+  }
+  std::cout << overall.reason << Utils::Color::RESET << "\n";
+
+  if (!overall.gaps.empty()) {
+    std::cout << "  Gaps:\n";
+    for (auto &g : overall.gaps)
+      std::cout << "    - " << g << "\n";
+  }
+
+  // 12. Execution summary
+  UIManager::ExecutionSummaryData es;
+  es.verified = succeeded;
+  es.not_executed = static_cast<int>(selected.size()) - succeeded - failed;
+  es.failed = failed;
+  for (auto &mf : collector.all_modified_files())
+    es.files_changed.push_back(mf);
+  es.build_result = collector.build_result();
+  es.test_result = collector.test_result();
+  ui_.show_execution_summary(es);
+
+  // 12. Show change preview with real diffs
+  UIManager::ChangePreviewData pd;
+  pd.build_result = collector.build_result();
+  pd.test_result = collector.test_result();
+  pd.total_steps = static_cast<int>(selected.size());
+  pd.succeeded = succeeded;
+  pd.failed = failed;
+
+  // Attach diff per-file from selected tasks
+  for (auto idx : selected) {
+    if (idx < 1 || idx > static_cast<int>(plan.tasks.size())) continue;
+    auto &t = plan.tasks[idx - 1];
+    if (!t.file_ref.empty()) {
+      UIManager::DiffPreviewFile f;
+      f.filename = t.file_ref;
+      f.diff_content = collector.get_evidence(t);
+      pd.files.push_back(std::move(f));
+    }
+  }
+  // Also show modified files without a task mapping
+  for (auto &mf : collector.all_modified_files()) {
+    bool already = false;
+    for (auto &f : pd.files) {
+      if (f.filename.find(mf) != std::string::npos) {
+        already = true;
+        break;
+      }
+    }
+    if (!already) {
+      UIManager::DiffPreviewFile f;
+      f.filename = mf;
+      f.diff_content = "";
+      pd.files.push_back(std::move(f));
+    }
+  }
+
+  ui_.show_change_preview(pd);
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Codebase query helpers
+// ---------------------------------------------------------------------------
+
+static std::string to_lower(std::string s) {
+  for (auto &c : s)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+
+bool CommandRouter::is_codebase_query(const std::string &input) {
+  std::string lower = to_lower(input);
+
+  // Direct repository references
+  if (lower.find("in this project") != std::string::npos ||
+      lower.find("in this repo") != std::string::npos ||
+      lower.find("in this codebase") != std::string::npos ||
+      lower.find("in the codebase") != std::string::npos ||
+      lower.find("in the project") != std::string::npos) {
+    return true;
+  }
+
+  // "here" as suffix (auth here, implemented here, etc.)
+  if (lower.find(" here") != std::string::npos &&
+      lower.size() > 6) {
+    return true;
+  }
+
+  // Question patterns about code
+  const std::vector<std::string> code_question_patterns = {
+    "how does",  "how is",    "where is",   "where are",
+    "why does",  "why is",    "show me",   "what files",
+    "how are",   "how do",    "how can",   "where do",
+    "implement", "location",   "find",      "find where",
+  };
+
+  // Suffix patterns that indicate codebase questions
+  const std::vector<std::string> code_suffixes = {
+    " works",   " work",   " implemented",  " stored",
+    " created", " defined", " handled",      " managed",
+    " used",    " called",  " structured",   " organized",
+    " loaded",  " saved",   " configured",   " initialized",
+  };
+
+  // Must have meaningful length
+  if (lower.size() < 8)
+    return false;
+
+  // Exclude general language questions
+  const std::vector<std::string> general_exclusions = {
+    " in c++", " in python", " in rust", " in go", " in java",
+    " in javascript", " in typescript", " in ruby", " in php",
+    "how do i ", "how do you ", "how do we ",
+    "how does one ", "how can i ", "how can you ",
+    "what is the difference", "what is a ",
+    "explain the concept", "explain how to ",
+  };
+  for (const auto &exc : general_exclusions) {
+    if (lower.find(exc) != std::string::npos)
+      return false;
+  }
+
+  // Check for question word at start
+  for (const auto &pattern : code_question_patterns) {
+    if (lower.find(pattern) != std::string::npos) {
+      return true;
+    }
+  }
+
+  // Check for "how X works" patterns
+  for (const auto &suffix : code_suffixes) {
+    if (lower.find(suffix) != std::string::npos) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+std::string CommandRouter::generate_search_terms(const std::string &input) const {
+  std::string lower = to_lower(input);
+
+  // Strip common question prefixes
+  const std::vector<std::string> prefixes = {
+    "how does ", "how is ", "how are ", "how do ", "how can ",
+    "where is ", "where are ", "where do ",
+    "why does ", "why is ", "why are ",
+    "show me ", "what files ", "what is ", "what are ",
+    "find where ", "find ",
+    "tell me how ", "tell me where ",
+    "explain how ", "explain where ",
+  };
+
+  size_t start = 0;
+  for (const auto &prefix : prefixes) {
+    if (lower.find(prefix) == 0) {
+      start = prefix.size();
+      break;
+    }
+  }
+
+  // Strip trailing context words
+  std::string terms = input.substr(start);
+  const std::vector<std::string> suffixes = {
+    " here", " in this project", " in this repo",
+    " in this codebase", " in the codebase", " in this repository",
+    " in the project", " in the repo", " in the repository",
+    " works", " implemented", " stored", " created", " defined",
+    " handled", " managed", " used", " called", " structured",
+    " organized", " loaded", " saved", " configured", " initialized",
+  };
+
+  for (const auto &suffix : suffixes) {
+    size_t pos = to_lower(terms).rfind(suffix);
+    if (pos != std::string::npos &&
+        pos + suffix.size() == terms.size()) {
+      terms = terms.substr(0, pos);
+      break;
+    }
+  }
+
+  // Take first meaningful word(s) as search term
+  std::string result = trim_copy(terms);
+  if (result.empty())
+    return input;
+
+  // Use the first noun-like term
+  size_t space = result.find(' ');
+  if (space != std::string::npos)
+    result = result.substr(0, space);
+
+  return result;
+}
+
+std::string CommandRouter::handle_codebase_query(const std::string &input) {
+  std::string term = generate_search_terms(input);
+  if (term.empty() || term.size() < 2) {
+    return {};
+  }
+
+  ui_.show_reasoning_step("Inspecting", "repository...");
+
+  // Search progressively: narrow scope first
+  auto results = Services::FileService::search_in_directory("src", term, "*.{cpp,h,hpp}");
+  if (results.empty()) {
+    results = Services::FileService::search_in_directory("include", term, "*.h");
+  }
+  if (results.empty()) {
+    results = Services::FileService::search_in_directory(".", term, "*.{cpp,h,hpp}");
+  }
+
+  // Show grep action
+  ui_.show_reasoning_step("grep", term + " (" + std::to_string(results.size()) + " matches)");
+
+  if (results.empty()) {
+    ui_.show_reasoning_step("Result", Utils::Color::DIM + "no relevant implementation found, using general knowledge" + Utils::Color::RESET);
+    return {};
+  }
+
+  // Collect unique files (up to 5)
+  std::vector<std::string> unique_files;
+  for (const auto &r : results) {
+    if (std::find(unique_files.begin(), unique_files.end(), r.file_path) ==
+        unique_files.end()) {
+      unique_files.push_back(r.file_path);
+      if (unique_files.size() >= 3)
+        break;
+    }
+  }
+
+  // Show files being read
+  for (const auto &f : unique_files) {
+    ui_.show_reasoning_step("read", f);
+  }
+
+  // Show matching lines (up to 10)
+  std::vector<std::string> formatted_results;
+  size_t show_lines = 0;
+  for (const auto &r : results) {
+    if (show_lines >= 10)
+      break;
+    std::string rel = r.file_path;
+    size_t src_pos = rel.find("src/");
+    size_t inc_pos = rel.find("include/");
+    size_t at = (src_pos != std::string::npos) ? src_pos : inc_pos;
+    if (at != std::string::npos)
+      rel = rel.substr(at);
+    formatted_results.push_back(rel + ":" + std::to_string(r.line_number) + ": " +
+                                r.line_content);
+    show_lines++;
+  }
+  ui_.show_search_results(term, formatted_results);
+
+  // Show file previews
+  for (const auto &f : unique_files) {
+    std::string content = Services::FileService::read_file_range(f, 1, 20);
+    if (!content.empty()) {
+      ui_.show_file_preview(f, content, 10);
+    }
+  }
+
+  std::string result = "Found implementation of \"" + term + "\" in " +
+                       std::to_string(unique_files.size()) + " files (" +
+                       std::to_string(results.size()) +
+                       " matches total). Key files:\n";
+  for (const auto &f : unique_files) {
+    result += "  " + f + "\n";
+  }
+
+  agent_.memory_->save_interaction(
+      "codebase-investigation: " + term,
+      "Investigated: " + term +
+          "\nMatches: " + std::to_string(results.size()) +
+          "\nFiles: " + std::to_string(unique_files.size()));
+  return result;
 }
 
 } // namespace Core

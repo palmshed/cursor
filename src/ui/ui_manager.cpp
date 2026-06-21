@@ -554,9 +554,12 @@ void UIManager::print_divider() {
 }
 
 void UIManager::print_ready_interface(const std::string &mode,
-                                       const std::string &model) {
-  std::cout << Utils::Color::DIM << "[" << mode << " | " << model << "]"
-            << Utils::Color::RESET << "\n";
+                                       const std::string &model,
+                                       const std::string &perm_mode) {
+  std::cout << Utils::Color::DIM << "[" << mode << " | " << model;
+  if (!perm_mode.empty())
+    std::cout << " | " << perm_mode;
+  std::cout << "]" << Utils::Color::RESET << "\n";
 }
 
 void UIManager::spinner(const std::string &message, int duration_ms) {
@@ -591,6 +594,370 @@ void UIManager::spinner(std::atomic<bool> &done) {
     std::this_thread::sleep_for(std::chrono::milliseconds(80));
   }
   std::cout << "\r \r" << std::flush;
+}
+
+// ---------------------------------------------------------------------------
+// Discovery report
+// ---------------------------------------------------------------------------
+
+void UIManager::show_discovery_report(const DiscoveryLines &d) {
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  Project Discovery" << Utils::Color::RESET
+            << "\n";
+  print_divider();
+
+  std::cout << "  Type: " << d.project_type << "\n";
+  std::cout << "  Size: " << d.source_file_count << " source files"
+            << "\n";
+  std::cout << "  Services: " << d.service_count << "\n";
+  std::cout << "  Tests: " << (d.has_tests ? "present" : "none") << "\n";
+
+  if (!d.ci_systems.empty()) {
+    std::cout << "  CI: ";
+    for (size_t i = 0; i < d.ci_systems.size(); i++) {
+      if (i > 0)
+        std::cout << ", ";
+      std::cout << d.ci_systems[i];
+    }
+    std::cout << "\n";
+  }
+
+  if (!d.package_managers.empty()) {
+    std::cout << "  Package managers:"
+              << "\n";
+    for (auto &pm : d.package_managers) {
+      std::cout << "    " << Utils::Color::GREEN << "\u2713"
+                << Utils::Color::RESET << " " << pm << "\n";
+    }
+  }
+
+  if (!d.relevant_files.empty()) {
+    std::cout << "\n  Relevant areas:"
+              << "\n";
+    for (auto &f : d.relevant_files) {
+      std::cout << "    - " << f << "\n";
+    }
+  }
+
+  if (!d.impact_areas.empty()) {
+    std::cout << "\n  Potential impact:"
+              << "\n";
+    for (auto &a : d.impact_areas) {
+      std::cout << "    - " << a << "\n";
+    }
+  }
+
+  print_divider();
+  std::cout << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Task plan display
+// ---------------------------------------------------------------------------
+
+void UIManager::show_task_plan(const std::vector<PlanTaskLine> &tasks) {
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  Plan" << Utils::Color::RESET << "\n";
+  print_divider();
+  for (size_t i = 0; i < tasks.size(); i++) {
+    std::cout << "  [" << (i + 1) << "] " << tasks[i].description;
+    if (!tasks[i].file_ref.empty())
+      std::cout << "  " << Utils::Color::DIM << "(" << tasks[i].file_ref << ")"
+                << Utils::Color::RESET;
+    std::cout << "\n";
+  }
+  print_divider();
+  std::cout << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Execution trace
+// ---------------------------------------------------------------------------
+
+void UIManager::begin_execution(const std::string &title, int total_steps) {
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  " << title << Utils::Color::RESET
+            << " (" << total_steps << " steps)"
+            << "\n";
+  print_divider();
+}
+
+void UIManager::step_started(int step, const std::string &label) {
+  std::cout << "  [" << step << "/] " << Utils::Color::YELLOW << "\u25CB"
+            << Utils::Color::RESET << " " << label << "\n";
+}
+
+void UIManager::step_completed(int step, const std::string &label,
+                                const std::string &detail) {
+  std::cout << "  [" << step << "] " << Utils::Color::GREEN << "\u2713"
+            << Utils::Color::RESET << " " << label;
+  if (!detail.empty())
+    std::cout << "  " << Utils::Color::DIM << detail << Utils::Color::RESET;
+  std::cout << "\n";
+}
+
+void UIManager::step_failed(int step, const std::string &label,
+                             const std::string &reason) {
+  std::cout << "  [" << step << "] " << Utils::Color::RED << "\u2717"
+            << Utils::Color::RESET << " " << label;
+  if (!reason.empty())
+    std::cout << "  " << Utils::Color::DIM << reason << Utils::Color::RESET;
+  std::cout << "\n";
+}
+
+void UIManager::step_no_evidence(int step, const std::string &label,
+                                  const std::string &detail) {
+  std::cout << "  [" << step << "] " << Utils::Color::DIM << "\u25CB"
+            << Utils::Color::RESET << " " << Utils::Color::DIM << label
+            << Utils::Color::RESET;
+  if (!detail.empty())
+    std::cout << "  " << Utils::Color::DIM << detail << Utils::Color::RESET;
+  std::cout << "\n";
+}
+
+void UIManager::end_execution(int succeeded, int failed) {
+  print_divider();
+  std::cout << "  " << succeeded << " completed";
+  if (failed > 0)
+    std::cout << ", " << failed << " failed";
+  std::cout << "\n";
+  print_divider();
+  std::cout << "\n";
+}
+
+void UIManager::show_execution_summary(const ExecutionSummaryData &data) {
+  std::cout << "  " << Utils::Color::BOLD << "Execution Summary"
+            << Utils::Color::RESET << "\n";
+  std::cout << "  " << Utils::Color::GREEN << "\u2713"
+            << Utils::Color::RESET << " " << data.verified << " verified";
+  if (data.not_executed > 0)
+    std::cout << ",  " << Utils::Color::DIM << "\u25CB" << Utils::Color::RESET
+              << " " << data.not_executed << " not executed";
+  if (data.failed > 0)
+    std::cout << ",  " << Utils::Color::RED << "\u2717" << Utils::Color::RESET
+              << " " << data.failed << " failed";
+  std::cout << "\n";
+
+  if (!data.files_changed.empty()) {
+    std::cout << "\n  Files changed:\n";
+    for (auto &f : data.files_changed)
+      std::cout << "    " << f << "\n";
+  }
+
+  if (!data.build_result.empty()) {
+    bool ok = data.build_result.find("failed") == std::string::npos &&
+              data.build_result.find("error") == std::string::npos;
+    std::cout << "  Build: ";
+    if (ok)
+      std::cout << Utils::Color::GREEN << "\u2713" << Utils::Color::RESET;
+    else
+      std::cout << Utils::Color::RED << "\u2717" << Utils::Color::RESET;
+    std::cout << "  " << data.build_result << "\n";
+  }
+
+  if (!data.test_result.empty()) {
+    bool ok = data.test_result.find("failed") == std::string::npos &&
+              data.test_result.find("FAILED") == std::string::npos;
+    std::cout << "  Tests: ";
+    if (ok)
+      std::cout << Utils::Color::GREEN << "\u2713" << Utils::Color::RESET;
+    else
+      std::cout << Utils::Color::RED << "\u2717" << Utils::Color::RESET;
+    std::cout << "  " << data.test_result << "\n";
+  }
+
+  print_divider();
+  std::cout << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Tool visibility
+// ---------------------------------------------------------------------------
+
+void UIManager::show_tool_invocation(const std::string &tool,
+                                     const std::string &args) {
+  std::cout << "  " << Utils::Color::DIM << "Running: " << tool;
+  if (!args.empty())
+    std::cout << " " << args;
+  std::cout << Utils::Color::RESET << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Proposed changes preview (before apply)
+// ---------------------------------------------------------------------------
+
+void UIManager::show_preview(const std::vector<PlanTaskLine> &tasks) {
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  Preview" << Utils::Color::RESET
+            << "\n";
+  print_divider();
+
+  for (auto &t : tasks) {
+    std::cout << "  " << Utils::Color::BOLD << t.description
+              << Utils::Color::RESET << "\n";
+    if (!t.file_ref.empty()) {
+      std::cout << "    " << Utils::Color::GREEN << "+ " << t.file_ref
+                << Utils::Color::RESET << "\n";
+    }
+  }
+  print_divider();
+  std::cout << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Apply prompt
+// ---------------------------------------------------------------------------
+
+bool UIManager::prompt_apply() {
+  std::cout << "Apply these changes? [y/N] ";
+  std::string line;
+  std::getline(std::cin, line);
+  return line == "y" || line == "Y";
+}
+
+// ---------------------------------------------------------------------------
+// Change Preview display
+// ---------------------------------------------------------------------------
+
+void UIManager::show_change_preview(const ChangePreviewData &preview) {
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  Change Preview" << Utils::Color::RESET
+            << "\n";
+  print_divider();
+
+  if (!preview.files.empty()) {
+    for (auto &f : preview.files) {
+      std::cout << "  " << Utils::Color::BOLD << f.filename
+                << Utils::Color::RESET << "\n";
+
+      if (!f.diff_content.empty()) {
+        // Print diff lines with +/- coloring
+        std::istringstream stream(f.diff_content);
+        std::string line;
+        while (std::getline(stream, line)) {
+          if (line.starts_with("+")) {
+            std::cout << "    " << Utils::Color::GREEN << line
+                      << Utils::Color::RESET << "\n";
+          } else if (line.starts_with("-")) {
+            std::cout << "    " << Utils::Color::RED << line
+                      << Utils::Color::RESET << "\n";
+          } else {
+            std::cout << "    " << line << "\n";
+          }
+        }
+      } else {
+        std::cout << "    " << Utils::Color::DIM << "(no diff changes)"
+                  << Utils::Color::RESET << "\n";
+      }
+
+      if (!f.build_result.empty()) {
+        std::cout << "    Build: " << f.build_result << "\n";
+      }
+      if (!f.test_result.empty()) {
+        std::cout << "    Tests: " << f.test_result << "\n";
+      }
+    }
+  } else {
+    std::cout << "  " << Utils::Color::DIM << "No files changed"
+              << Utils::Color::RESET << "\n";
+  }
+
+  // Build summary
+  if (!preview.build_result.empty()) {
+    bool ok = preview.build_result.find("failed") == std::string::npos &&
+              preview.build_result.find("error") == std::string::npos;
+    std::cout << "  Build: ";
+    if (ok) {
+      std::cout << Utils::Color::GREEN << "\u2713" << Utils::Color::RESET;
+    } else {
+      std::cout << Utils::Color::RED << "\u2717" << Utils::Color::RESET;
+    }
+    std::cout << "  " << preview.build_result << "\n";
+  }
+
+  // Test summary
+  if (!preview.test_result.empty()) {
+    bool ok = preview.test_result.find("failed") == std::string::npos &&
+              preview.test_result.find("FAILED") == std::string::npos;
+    std::cout << "  Tests: ";
+    if (ok) {
+      std::cout << Utils::Color::GREEN << "\u2713" << Utils::Color::RESET;
+    } else {
+      std::cout << Utils::Color::RED << "\u2717" << Utils::Color::RESET;
+    }
+    std::cout << "  " << preview.test_result << "\n";
+  }
+
+  print_divider();
+  std::cout << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Doctor report
+// ---------------------------------------------------------------------------
+
+void UIManager::show_doctor_report(const std::vector<CheckLine> &checks) {
+  int passed = 0, failed = 0;
+  for (auto &c : checks) {
+    if (c.passed) passed++;
+    else failed++;
+  }
+
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  Cursor Doctor" << Utils::Color::RESET << "\n";
+  print_divider();
+
+  for (auto &c : checks) {
+    if (c.passed) {
+      std::cout << "  " << Utils::Color::GREEN << "\u2713" << Utils::Color::RESET
+                << " " << c.name;
+      if (!c.details.empty())
+        std::cout << "  " << Utils::Color::DIM << c.details << Utils::Color::RESET;
+      std::cout << "\n";
+    } else {
+      std::cout << "  " << Utils::Color::RED << "\u2717" << Utils::Color::RESET
+                << " " << c.name;
+      if (!c.details.empty())
+        std::cout << "  " << Utils::Color::DIM << c.details << Utils::Color::RESET;
+      std::cout << "\n";
+      if (!c.fix.empty())
+        std::cout << "     " << Utils::Color::YELLOW << c.fix << Utils::Color::RESET << "\n";
+    }
+  }
+
+  print_divider();
+  std::cout << "  " << passed << " passed, " << failed << " failed"
+            << "\n";
+  print_divider();
+  std::cout << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Todo / progress display
+// ---------------------------------------------------------------------------
+
+void UIManager::show_todo_list(
+    const std::vector<std::pair<std::string, bool>> &items) {
+  std::cout << "\n";
+  print_divider();
+  std::cout << Utils::Color::BOLD << "  Tasks" << Utils::Color::RESET << "\n";
+  print_divider();
+  for (auto &item : items) {
+    if (item.second) {
+      std::cout << "  " << Utils::Color::GREEN << "[" << "\u2713" << "]"
+                << Utils::Color::RESET << " " << item.first << "\n";
+    } else {
+      std::cout << "  [" << " " << "] " << item.first << "\n";
+    }
+  }
+  print_divider();
+  std::cout << "\n";
 }
 
 } // namespace Core
