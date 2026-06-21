@@ -53,9 +53,9 @@ Ownership remains intentionally simple.
 
 ---
 
-## Agent
+## Agent (the Coordinator Object)
 
-Agent is a lightweight runtime coordinator.
+The `Agent` class is a lightweight runtime coordinator — not the product's overall intelligence.
 
 Responsibilities:
 
@@ -64,13 +64,17 @@ Responsibilities:
 * connect Router, Engine, Replay, and UI
 * propagate execution results into session state
 
-Agent does not directly:
+The `Agent` object does not directly:
 
 * perform analysis
 * execute tools
 * make domain decisions
 
-These responsibilities belong to CommandRouter, ExecutionEngine, and Services.
+Those responsibilities belong to CommandRouter, ExecutionEngine, and Services.
+
+The product as a whole performs analysis through DiscoveryService, PlanningService,
+ExecutionEngine, ConfidenceService, CI Investigation, VerificationService, and
+benchmark execution. Do not read "Agent does not analyze" as "the system cannot analyze."
 
 ---
 
@@ -531,3 +535,35 @@ The framework's purpose is not to generate capabilities.
 Its purpose is to justify them.
 
 Observation is the work.
+
+## Product-Surface Gap
+
+The system's internal capabilities exceed its surface-level behavior.
+
+Common codebase questions (e.g. "tell me about this codebase") reach ChatOnly
+instead of Engine-driven Repository Investigation because routing keywords
+("tell me about") were missing from the engine's goal classifier.
+
+All architectural capability already exists:
+
+* DiscoveryService
+* PlanningService
+* ExecutionEngine
+* ConfidenceService
+* Replay
+* Evidence collection
+* Benchmarks
+
+The gap is routing — not capability.
+
+Tracking metric:
+
+```
+Codebase-oriented prompts → ExecutionPath → ChatOnly %
+```
+
+If ChatOnly % remains high under natural traffic, discoverability is the
+bottleneck — not search, confidence, recovery, or capability.
+
+No new architecture is justified until that metric stabilizes and reveals
+a failure cluster that existing capability cannot address.
