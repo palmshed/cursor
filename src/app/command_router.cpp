@@ -2609,9 +2609,9 @@ void CommandRouter::handle_ci_command(const std::string &command) {
       std::cout << "  " << result.summary << "\n";
     }
   } else if (command.starts_with("run ")) {
-    int run_id = 0;
+    long long run_id = 0;
     std::string id_str = trim_copy(command.substr(4));
-    if (!id_str.empty()) run_id = std::stoi(id_str);
+    if (!id_str.empty()) run_id = std::stoll(id_str);
     if (run_id <= 0) {
       std::cout << "Usage: /ci run <run-id>\n";
       return;
