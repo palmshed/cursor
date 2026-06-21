@@ -167,6 +167,21 @@ std::string CommandRouter::process_user_input(const std::string &input) {
         if (tc.tool == "ctest") {
           return Services::CommandService::execute(tc.args);
         }
+        if (tc.tool == "context") {
+          std::string out;
+          try {
+            out += "Current directory: " + std::filesystem::current_path().string() + "\n";
+          } catch (...) { out += "Current directory: unknown\n"; }
+          // Git branch
+          std::string branch = Services::CommandService::execute(
+              "git rev-parse --abbrev-ref HEAD 2>/dev/null");
+          out += "Git branch: " + (branch.empty() ? std::string("unknown") : branch.substr(0, branch.find('\n'))) + "\n";
+          // Build artifacts
+          std::string build_bin = Services::CommandService::execute(
+              "ls -1 build/bin/ 2>/dev/null || echo '(no build/bin)'");
+          out += "Build artifacts:\n" + build_bin;
+          return out;
+        }
         if (tc.tool == "discovery") {
           auto d = Services::DiscoveryService::scan(".", trimmed_input);
           std::string out = "Project: " + d.project_type + "\n";
