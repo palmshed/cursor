@@ -26,9 +26,11 @@ services/
 ui/
 ```
 
-`Agent` is a lightweight orchestrator responsible for wiring the application together.
+`Agent` is a thin lifecycle coordinator — no decision logic.
 
-Business logic belongs in services.
+**ExecutionEngine is the decision layer. Replay is the evidence layer.**
+
+Goal classification, tool orchestration, outcome generation, and confidence/recovery metrics all live in the engine. Replay captures every event as an append-only evidence record. Together they replace what a traditional "business logic" layer would do.
 
 Rendering belongs in `ui/`.
 
@@ -60,18 +62,21 @@ The system has reached a set of stable boundaries:
 
 * `app/` → flow control only
 * `ui/` → rendering only
-* `core/` → runtime state ownership (`SessionState`)
-* `services/` → effects + observability
+* `core/` → runtime state + metrics ownership (`SessionState`, `Outcome`, `RecoveryMetrics`, `TrustMetrics`)
+* `services/` → execution engine, replay, CI repair, file IO, benchmarks
 
-The Replay system exists as an observability service in `services/`.
+The ExecutionEngine is the decision layer: goal classification, tool orchestration, outcome generation, confidence scoring.
+
+Replay is the evidence layer: append-only event store carrying outcome, recovery_metrics, trust_metrics, confidence_before/after, and schema_version. All metrics are derived from replay events via pure functions.
 
 ## Stability
 
 The architecture prioritizes:
 
-* predictable execution
-* low coupling
-* traceable execution
-* minimal abstraction overhead
+* reproducibility
+* traceability
+* deterministic execution
+* evidence-based decision making
+* minimal abstraction drift
 
-No new architectural layers are expected for current feature work.
+No new architectural layers are expected without evidence of necessity.
