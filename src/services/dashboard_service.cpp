@@ -195,6 +195,13 @@ DashboardOutcomeAggregate DashboardService::generate(
             agg.evidence_found_count++;
           if (r.value("verification_found", false))
             agg.verification_found_count++;
+
+          // Per-tool evidence metrics
+          agg.total_grep_attempts += r.value("grep_attempts", 0);
+          agg.total_grep_success += r.value("grep_success", 0);
+          agg.total_grep_zero_hit += r.value("grep_zero_hit", 0);
+          agg.total_read_attempts += r.value("read_attempts", 0);
+          agg.total_read_success += r.value("read_success", 0);
         }
 
         // Confidence bands

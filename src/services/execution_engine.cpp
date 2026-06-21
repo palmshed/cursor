@@ -382,8 +382,18 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     bool has_results = false;
     if (tc.tool == "grep") {
       has_results = !output.empty() && output != "no matches";
+      result.recovery_metrics.grep_attempts++;
+      if (has_results) {
+        result.recovery_metrics.grep_success++;
+      } else {
+        result.recovery_metrics.grep_zero_hit++;
+      }
     } else if (tc.tool == "read") {
       has_results = !output.empty() && output != "no files to read";
+      result.recovery_metrics.read_attempts++;
+      if (has_results) {
+        result.recovery_metrics.read_success++;
+      }
     } else {
       has_results = !output.empty();
     }

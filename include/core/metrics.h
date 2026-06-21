@@ -67,13 +67,23 @@ struct RecoveryMetrics {
   bool evidence_found{false};
   bool verification_found{false};
   double confidence_delta{0.0};
+  int grep_attempts{0};
+  int grep_success{0};
+  int grep_zero_hit{0};
+  int read_attempts{0};
+  int read_success{0};
 
   bool operator==(const RecoveryMetrics &o) const {
     return attempts == o.attempts &&
            strategy_changes == o.strategy_changes &&
            evidence_found == o.evidence_found &&
            verification_found == o.verification_found &&
-           confidence_delta == o.confidence_delta;
+           confidence_delta == o.confidence_delta &&
+           grep_attempts == o.grep_attempts &&
+           grep_success == o.grep_success &&
+           grep_zero_hit == o.grep_zero_hit &&
+           read_attempts == o.read_attempts &&
+           read_success == o.read_success;
   }
 
   bool operator!=(const RecoveryMetrics &o) const { return !(*this == o); }

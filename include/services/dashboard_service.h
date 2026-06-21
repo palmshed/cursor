@@ -29,6 +29,13 @@ struct DashboardOutcomeAggregate {
   int evidence_found_count{0};
   int verification_found_count{0};
 
+  // Per-tool evidence metrics
+  int total_grep_attempts{0};
+  int total_grep_success{0};
+  int total_grep_zero_hit{0};
+  int total_read_attempts{0};
+  int total_read_success{0};
+
   // Confidence bands (for calibration)
   // band[0..4] = 0.0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0
   int band_cb[5]{0,0,0,0,0};  // events per confidence_before band
