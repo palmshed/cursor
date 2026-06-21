@@ -291,7 +291,20 @@ int main(int argc, char *argv[]) {
         std::cout << "  avg attempts          " << std::fixed << std::setprecision(1)
                   << agg.avg_attempts() << "\n";
         std::cout << "  avg confidence delta  " << std::fixed << std::setprecision(2)
-                  << agg.avg_confidence_delta() << "\n\n";
+                  << agg.avg_confidence_delta() << "\n";
+        if (agg.total_grep_attempts > 0 || agg.total_read_attempts > 0) {
+          std::cout << "\n  Evidence Metrics\n";
+          std::cout << "  -----------------\n";
+          if (agg.total_grep_attempts > 0)
+            std::cout << "  grep attempts         " << agg.total_grep_attempts
+                      << "  (" << agg.total_grep_success << " ok, "
+                      << agg.total_grep_zero_hit << " no matches)\n";
+          if (agg.total_read_attempts > 0)
+            std::cout << "  read attempts         " << agg.total_read_attempts
+                      << "  (" << agg.total_read_success << " ok, "
+                      << (agg.total_read_attempts - agg.total_read_success) << " empty)\n";
+        }
+        std::cout << "\n";
       }
 
       if (!agg.matching_sessions.empty()) {
