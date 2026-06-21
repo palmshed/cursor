@@ -36,7 +36,7 @@ If replay integrity is compromised:
 * confidence calibration becomes unreliable
 * telemetry loses authority
 
-The system is currently in the measurement phase. The primary objective is trustworthy observation rather than capability expansion.
+Architecture decisions should be informed by replay-backed evidence rather than intuition.
 
 ---
 
@@ -53,9 +53,9 @@ Ownership remains intentionally simple.
 
 ---
 
-## Agent (the Coordinator Object)
+## Agent (Coordinator)
 
-The `Agent` class is a lightweight runtime coordinator — not the product's overall intelligence.
+The `Agent` class is a lightweight runtime coordinator.
 
 Responsibilities:
 
@@ -70,15 +70,15 @@ The `Agent` object does not directly:
 * execute tools
 * make domain decisions
 
-Those responsibilities belong to CommandRouter, ExecutionEngine, and Services.
+Those responsibilities belong to CommandRouter, ExecutionEngine, Task Pipeline, and Services.
 
-The product as a whole performs analysis through DiscoveryService, PlanningService,
-ExecutionEngine, ConfidenceService, CI Investigation, VerificationService, and
-benchmark execution. Do not read "Agent does not analyze" as "the system cannot analyze."
+The system as a whole performs analysis through investigation, planning, verification, confidence evaluation, benchmarking, and repository exploration services.
+
+Do not interpret "Agent does not analyze" as "the system cannot analyze."
 
 ---
 
-## SessionState (core)
+## SessionState
 
 SessionState is a runtime snapshot.
 
@@ -87,9 +87,10 @@ Includes:
 * mode
 * model selection
 * runtime flags
+* execution path
 * last outcome
-* last recovery metrics
-* last trust metrics
+* recovery metrics
+* trust metrics
 * confidence values
 
 Rules:
@@ -109,14 +110,14 @@ Responsibilities:
 
 * parse input
 * select execution path
-* dispatch to Engine, task pipeline, services, or meta commands
+* dispatch to Engine, Task Pipeline, Services, or Meta Commands
 * coordinate replay updates
 * coordinate state updates
 * coordinate UI output
 
 Current reality:
 
-* NL→command mapping lives here
+* NL routing lives here
 * execution-path selection lives here
 * engine routing lives here
 * task-pipeline routing lives here
@@ -126,9 +127,9 @@ Rules:
 
 * no long-lived ownership
 * no persistent business state
-* domain behavior should be delegated where practical
+* delegate domain behavior where practical
 
-Although it is formally a routing component, it is currently the highest-authority runtime switchboard.
+Although formally a routing component, CommandRouter is currently the highest-authority runtime switchboard.
 
 ---
 
@@ -139,6 +140,7 @@ ExecutionEngine is the primary decision layer for engine-routed paths.
 Responsibilities:
 
 * classify goals
+* establish repository context
 * coordinate investigation
 * execute tool sequences
 * evaluate confidence
@@ -147,6 +149,7 @@ Responsibilities:
 Outputs:
 
 * Outcome
+* ExecutionPath
 * RecoveryMetrics
 * TrustMetrics
 * confidence values
@@ -155,13 +158,16 @@ Current authority:
 
 * CodebaseQuery
 * GeneralChat
-* CI-oriented investigation paths
+* CI-oriented investigation
+* repository exploration
 
 Current limitation:
 
-CodeChange goals transition into a separate task pipeline after classification. The Engine participates in classification and instrumentation but is not yet the sole authority for code-change execution.
+CodeChange goals transition into a separate Task Pipeline after classification.
 
-This is a documented architectural split, not a known behavioral failure.
+The Engine participates in classification, confidence evaluation, and instrumentation but is not the sole authority for code-change execution.
+
+This is documented reality, not a known behavioral failure.
 
 ---
 
@@ -185,16 +191,16 @@ Apply
 Verification
 ```
 
-Current authority:
+Authority:
 
-* CodeChange execution
+* code-change execution
 
-Current relationship to Engine:
+Relationship to Engine:
 
 * Engine classifies
-* Task pipeline executes
+* Task Pipeline executes
 
-No failure cluster has yet justified unification work.
+No stable failure cluster has justified unification work.
 
 ---
 
@@ -204,12 +210,13 @@ UI is a rendering layer.
 
 Responsibilities:
 
+* conversation rendering
 * execution traces
 * plans
 * diffs
-* dashboards
 * diagnostics
 * benchmark output
+* dashboards
 
 Rules:
 
@@ -243,9 +250,11 @@ Rules:
 * avoid ownership of system state
 * prefer stateless behavior
 * isolate side effects
-* preserve replay compatibility where possible
+* preserve replay compatibility
 
-Replay coverage is strongest for instrumented execution paths. Not every runtime path currently participates equally.
+Replay coverage is strongest for instrumented execution paths.
+
+Not every runtime path currently participates equally.
 
 ---
 
@@ -256,6 +265,7 @@ Replay is the canonical evidence store.
 Replay events contain:
 
 * input
+* execution_path
 * state_before
 * state_after
 * outcome
@@ -272,7 +282,31 @@ Properties:
 * dashboard source material
 * calibration source material
 
-Replay is the authoritative source for telemetry.
+Replay is the authoritative telemetry source.
+
+---
+
+## Execution Path Model
+
+```cpp
+enum class ExecutionPath {
+    Unknown,
+    ChatOnly,
+    Engine,
+    TaskPipeline,
+    DirectService,
+    MetaCommand,
+    ShellEscape
+};
+```
+
+Purpose:
+
+* identify which authority handled a request
+* distinguish capability availability from capability usage
+* measure discoverability of existing functionality
+
+Observed path matters more than intended path.
 
 ---
 
@@ -307,6 +341,7 @@ Metrics are deterministic functions over replay data.
 Examples:
 
 * outcome distributions
+* execution-path distributions
 * recovery metrics
 * trust metrics
 * confidence calibration
@@ -336,7 +371,7 @@ struct RecoveryMetrics {
 
 Purpose:
 
-Measure recovery behavior rather than simple success/failure.
+Measure recovery behavior rather than simple success or failure.
 
 ---
 
@@ -353,7 +388,7 @@ struct TrustMetrics {
 
 Purpose:
 
-Measure user trust and goal alignment separately from execution quality.
+Measure trust and goal alignment separately from execution quality.
 
 ---
 
@@ -364,11 +399,14 @@ Dashboard is a query layer over replay data.
 Responsibilities:
 
 * aggregate outcomes
-* aggregate trust metrics
+* aggregate execution paths
 * aggregate recovery metrics
+* aggregate trust metrics
 * expose drill-down paths into source events
 
-A dashboard number is only valid if it can be traced back to replay evidence.
+A dashboard number is valid only if it can be traced back to replay evidence.
+
+Dashboard honesty is more important than dashboard completeness.
 
 ---
 
@@ -384,15 +422,15 @@ Questions confidence attempts to answer:
 
 Confidence is evidence-backed, not certainty-backed.
 
-Low confidence is a valid outcome.
+Low confidence is a valid result.
 
-"I do not have enough evidence yet" is considered correct behavior.
+"I do not have enough evidence yet" is correct behavior.
 
 ---
 
 ## Benchmark System
 
-Benchmarks exist to measure capability and recovery.
+Benchmarks measure capability and recovery.
 
 Current benchmark classes:
 
@@ -405,9 +443,9 @@ Purpose:
 * validate instrumentation
 * measure recovery quality
 
-Benchmarks do not justify capabilities by themselves.
+Benchmarks provide telemetry inputs.
 
-They provide inputs to telemetry.
+They do not justify capabilities by themselves.
 
 ---
 
@@ -458,13 +496,13 @@ Engine authority:
 * instrumentation
 * investigation-oriented paths
 
-Task pipeline authority:
+Task Pipeline authority:
 
 * code-change execution
 
-This split is intentional documentation of reality, not a call for immediate refactoring.
+This split documents reality.
 
-No stable outcome cluster has yet justified unification.
+No stable failure cluster has justified unification.
 
 ---
 
@@ -472,15 +510,15 @@ No stable outcome cluster has yet justified unification.
 
 Replay is authoritative for instrumented paths.
 
-Not every execution path currently participates equally:
+Not every execution path participates equally:
 
 * direct service commands
 * shell escapes
-* certain bypass routes
+* bypass routes
 
 This is known structural asymmetry.
 
-No dominant failure trend has been attributed to it.
+No dominant failure trend has yet been attributed to it.
 
 ---
 
@@ -504,66 +542,131 @@ CI is a validation system, not a replay system.
 
 ---
 
-## Measurement Phase
+## Current Focus
 
-Current project phase:
+Current questions:
 
 ```text
-Architecture → Complete
-Capability   → Complete
-Measurement  → Active
+Are existing capabilities being reached?
+
+Are existing capabilities being exercised?
+
+Are outcomes improving as evidence accumulates?
 ```
 
-Primary artifact:
+Primary artifacts:
 
 * replay-backed observations
+* execution-path distributions
+* outcome distributions
+* confidence calibration
+* trust metrics
 
-Primary question:
+Decision rule:
+
+```text
+No capability expansion without telemetry justification.
+```
+
+---
+
+## Capability Discoverability
+
+Capability availability and capability usage are different measurements.
+
+The system contains:
+
+* repository investigation
+* planning
+* verification
+* replay
+* confidence evaluation
+* benchmarking
+* codebase exploration
+
+The active question is not whether these capabilities exist.
+
+The active question is whether users naturally reach them.
+
+Tracking pattern:
+
+```text
+Codebase-oriented prompt
+  ↓
+ExecutionPath
+  ↓
+Observed authority
+```
+
+Example:
+
+```text
+ChatOnly
+Engine
+TaskPipeline
+DirectService
+```
+
+If discoverability remains low under natural traffic, the bottleneck is surface behavior rather than capability absence.
+
+Execution-path telemetry exists specifically to measure this distinction.
+
+---
+
+## Investigation Is Not Conversation
+
+Cursor may investigate before answering.
+
+Investigation output is not conversation output.
+
+Normal mode prioritizes answers.
+
+Debug mode prioritizes visibility.
+
+Replay prioritizes evidence.
+
+### Visibility Layers
+
+| Layer               | Normal  | Debug   | Replay/Dashboard |
+| ------------------- | ------- | ------- | ---------------- |
+| Answer              | visible | visible | visible          |
+| Spinner             | visible | visible | n/a              |
+| Pipeline sections   | hidden  | visible | visible          |
+| Reasoning steps     | hidden  | visible | visible          |
+| Tool traces         | hidden  | visible | visible          |
+| Evidence collection | hidden  | visible | visible          |
+| Full telemetry      | n/a     | n/a     | stored           |
+
+### Repository Awareness
+
+Cursor automatically establishes:
+
+* current working directory
+* repository root
+* active branch
+* repository status
+* build artifacts
+
+Repository context is operational state.
+
+It informs answers without being printed unless relevant.
+
+---
+
+## Guiding Principle
+
+The framework exists to answer:
 
 ```text
 What repeatedly fails?
 ```
 
-Decision rule:
+And equally important:
 
 ```text
-No capability work without telemetry justification.
+What does not need to be built?
 ```
 
-The framework's purpose is not to generate capabilities.
+The goal is not capability accumulation.
 
-Its purpose is to justify them.
-
-Observation is the work.
-
-## Product-Surface Gap
-
-The system's internal capabilities exceed its surface-level behavior.
-
-Common codebase questions (e.g. "tell me about this codebase") reach ChatOnly
-instead of Engine-driven Repository Investigation because routing keywords
-("tell me about") were missing from the engine's goal classifier.
-
-All architectural capability already exists:
-
-* DiscoveryService
-* PlanningService
-* ExecutionEngine
-* ConfidenceService
-* Replay
-* Evidence collection
-* Benchmarks
-
-The gap is routing — not capability.
-
-Tracking metric:
-
-```
-Codebase-oriented prompts → ExecutionPath → ChatOnly %
-```
-
-If ChatOnly % remains high under natural traffic, discoverability is the
-bottleneck — not search, confidence, recovery, or capability.
-
-No new architecture is justified until that metric stabilizes and reveals
-a failure cluster that existing capability cannot address.
+The goal is evidence-backed decisions.
