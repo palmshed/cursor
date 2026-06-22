@@ -71,6 +71,7 @@ int main(int argc, char *argv[]) {
                 << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n"
                 << "  --trace <file> <prompt>  Run with tool tracing, write trace.json\n"
                 << "  --stream-report <file> <cmd>  Run command with streaming telemetry\n"
+                << "  --export-evidence <file> <prompt>  Export evidence as JSON\n"
                 << "  --scenario <file>     Run scenario JSON and verify expected outcome\n";
       return 0;
     }
@@ -258,6 +259,24 @@ int main(int argc, char *argv[]) {
       }
       Utils::Config::load_environment();
       return run_trace_query(prompt, trace_path);
+    }
+    if (arg == "--export-evidence") {
+      std::string export_path;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        export_path = argv[++i];
+      } else {
+        std::cerr << "Usage: --export-evidence <evidence.json> <prompt>\n";
+        return 2;
+      }
+      std::string prompt;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        prompt = argv[++i];
+      } else {
+        std::cerr << "Missing prompt for --export-evidence\n";
+        return 2;
+      }
+      Utils::Config::load_environment();
+      return run_export_evidence(prompt, export_path);
     }
     if (arg == "--stream-report") {
       std::string report_path;
