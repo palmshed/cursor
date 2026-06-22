@@ -409,7 +409,6 @@ int run_export_evidence(const std::string &prompt,
 }
 
 static int check_prompt_assertions(
-    const std::string &prompt,
     const Services::ExecutionResult &res,
     const json &expect) {
 
@@ -540,7 +539,7 @@ int run_scenario(const std::string &scenario_path) {
     Core::CommandRouter router(agent, ui);
     Services::ExecutionEngine engine;
     auto res = run_engine_once(prompt, engine, ui);
-    int rc = check_prompt_assertions(prompt, res, expect);
+    int rc = check_prompt_assertions(res, expect);
     if (rc == 0) {
       std::cout << "PASS" << "\n";
     } else {
@@ -580,7 +579,7 @@ int run_scenario_prompt(const std::string &prompt,
   Services::ExecutionEngine engine;
   auto res = run_engine_once(prompt, engine, ui);
 
-  int rc = check_prompt_assertions(prompt, res, expect);
+  int rc = check_prompt_assertions(res, expect);
   if (rc == 0) {
     std::cout << "PASS" << "\n";
   } else {
@@ -588,3 +587,4 @@ int run_scenario_prompt(const std::string &prompt,
   }
   return rc;
 }
+
