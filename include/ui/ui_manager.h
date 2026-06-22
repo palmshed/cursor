@@ -146,8 +146,11 @@ public:
 
 private:
   const Agent &agent_;
+  std::string last_tool_;
+  std::string current_section_;
 
   bool is_verbose() const;
+  std::string section_for_tool(const std::string &tool);
   static int get_terminal_width();
 
   static std::string replace_inline_markdown(const std::string &line);

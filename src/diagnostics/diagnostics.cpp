@@ -24,7 +24,8 @@ namespace {
 using json = nlohmann::json;
 
 int check_prompt_assertions(const Services::ExecutionResult &res,
-                            const json &expect);
+                            const json &expect,
+                            const std::vector<Core::TraceEvent> &trace);
 int check_command_assertions(const Services::StreamTelemetry &telemetry,
                              const std::string &output,
                              const json &expect);
@@ -117,6 +118,11 @@ QueryResult run_query(const std::string &prompt) {
         if (tc.tool == "gh") {
           trace.push_back(ev);
           return Services::CommandService::execute("gh " + tc.args);
+        }
+
+        if (tc.tool == "git") {
+          trace.push_back(ev);
+          return Services::CommandService::execute("git " + tc.args);
         }
 
         if (tc.tool == "cmake" || tc.tool == "ctest") {
@@ -417,7 +423,7 @@ int run_scenario(const std::string &scenario_path) {
   if (is_prompt) {
     std::string prompt = j["prompt"];
     auto qr = run_query(prompt);
-    int rc = check_prompt_assertions(qr.result, expect);
+    int rc = check_prompt_assertions(qr.result, expect, qr.trace);
     std::cout << (rc == 0 ? "PASS" : "FAIL") << "\n";
     return rc;
   }
@@ -445,7 +451,7 @@ int run_scenario_prompt(const std::string &prompt,
 
   auto qr = run_query(prompt);
 
-  int rc = check_prompt_assertions(qr.result, expect);
+  int rc = check_prompt_assertions(qr.result, expect, qr.trace);
   std::cout << (rc == 0 ? "PASS" : "FAIL") << "\n";
   return rc;
 }
@@ -478,7 +484,8 @@ std::vector<std::string> extract_files_examined(
 namespace {
 
 int check_prompt_assertions(const Services::ExecutionResult &res,
-                            const json &expect) {
+                            const json &expect,
+                            const std::vector<Core::TraceEvent> &trace) {
   std::string actual_outcome = Core::outcome_name(res.outcome);
   bool actual_ai_called = Core::CommandRouter::should_call_ai(res);
   auto files = extract_files_examined(res.evidence.facts);
@@ -522,6 +529,20 @@ int check_prompt_assertions(const Services::ExecutionResult &res,
                 << (expected_nonempty ? "true" : "false")
                 << "  actual: " << (actual_nonempty ? "true" : "false") << "\n";
       all_ok = false;
+    }
+  }
+
+  if (expect.contains("tools_used")) {
+    auto required = expect["tools_used"];
+    std::set<std::string> tools_in_trace;
+    for (auto &e : trace)
+      tools_in_trace.insert(e.tool);
+    for (auto &req : required) {
+      std::string t = req;
+      if (tools_in_trace.find(t) == tools_in_trace.end()) {
+        std::cout << "  expected tool \"" << t << "\" was not used\n";
+        all_ok = false;
+      }
     }
   }
 

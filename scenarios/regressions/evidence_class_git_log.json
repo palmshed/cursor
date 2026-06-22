@@ -1,0 +1,8 @@
+{
+  "prompt": "tell me about the last commit in this codebase",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true,
+    "tools_used": ["git"]
+  }
+}
