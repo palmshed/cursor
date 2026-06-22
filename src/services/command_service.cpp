@@ -43,12 +43,15 @@ CommandService::execute_command([[maybe_unused]] const std::string &command,
   size_t total_bytes = 0;
 
   while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    total_bytes += strlen(buffer);
-    if (total_bytes > max_bytes) {
-      result += "\n[Output truncated]";
-      break;
+    size_t len = strlen(buffer);
+    if (total_bytes <= max_bytes) {
+      if (total_bytes + len > max_bytes) {
+        result += "\n[Output truncated]";
+      } else {
+        result += buffer;
+      }
     }
-    result += buffer;
+    total_bytes += len;
   }
 
   {
@@ -134,13 +137,15 @@ std::string CommandService::execute_with_telemetry(
 
         telemetry.last_output_at = now;
         telemetry.lines_streamed++;
-        total_bytes += strlen(buffer);
-
-        if (total_bytes > max_bytes) {
-          result += "\n[Output truncated]";
-          break;
+        size_t len = strlen(buffer);
+        if (total_bytes <= max_bytes) {
+          if (total_bytes + len > max_bytes) {
+            result += "\n[Output truncated]";
+          } else {
+            result += buffer;
+          }
         }
-        result += buffer;
+        total_bytes += len;
       }
 
       {

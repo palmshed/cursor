@@ -52,12 +52,14 @@ CheckpointService::get_project_files(const std::string &directory) {
         std::string path = entry.path().string();
 
         // Skip certain directories and file types
-        if (path.find("/.git/") != std::string::npos ||
-            path.find("/build/") != std::string::npos ||
-            path.find("/node_modules/") != std::string::npos ||
-            path.find("/target/") != std::string::npos ||
-            path.find("/.cache/") != std::string::npos ||
-            path.find("/data/checkpoints/") != std::string::npos) {
+        std::string normalized_path = path;
+        std::replace(normalized_path.begin(), normalized_path.end(), '\\', '/');
+        if (normalized_path.find("/.git/") != std::string::npos ||
+            normalized_path.find("/build/") != std::string::npos ||
+            normalized_path.find("/node_modules/") != std::string::npos ||
+            normalized_path.find("/target/") != std::string::npos ||
+            normalized_path.find("/.cache/") != std::string::npos ||
+            normalized_path.find("/data/checkpoints/") != std::string::npos) {
           continue;
         }
 

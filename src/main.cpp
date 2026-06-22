@@ -7,6 +7,7 @@
 
 #ifndef _WIN32
 #include <unistd.h>
+#include <csignal>
 #endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -45,6 +46,9 @@ std::string get_exe_path() {
 }
 
 int main(int argc, char *argv[]) {
+#ifndef _WIN32
+  std::signal(SIGPIPE, SIG_IGN);
+#endif
   std::string replay_session_id;
 
   for (int i = 1; i < argc; ++i) {

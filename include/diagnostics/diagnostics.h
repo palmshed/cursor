@@ -15,6 +15,16 @@ struct QueryResult {
 
 QueryResult run_query(const std::string &prompt);
 
+// == Trace Consumer Abstraction ==
+
+class TraceConsumer {
+public:
+  virtual ~TraceConsumer() = default;
+  virtual void start_session(const std::string &prompt) = 0;
+  virtual void handle_event(const Core::TraceEvent &event) = 0;
+  virtual void end_session(const Services::ExecutionResult &result) = 0;
+};
+
 // == Renderers (consume QueryResult) ==
 
 // --diagnostics / --json output

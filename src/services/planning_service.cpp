@@ -58,7 +58,8 @@ std::string task_for_file(const std::string &file,
   if (lower.find("service") != std::string::npos)
     return "Update service layer for " + feature;
   if (lower.find("ui_manage") != std::string::npos ||
-      lower.find("/ui/") != std::string::npos)
+      lower.find("/ui/") != std::string::npos ||
+      lower.find("\\ui\\") != std::string::npos)
     return "Update UI for " + feature;
   if (lower.find("main") != std::string::npos)
     return "Update entry point for " + feature;
