@@ -113,7 +113,8 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
   if (contains_any(goal, {"tell me about", "overview", "describe",
                            "what is this"}) &&
       contains_any(goal, {"codebase", "project", "repo", "repository",
-                           "application"}))
+                           "application"}) &&
+      detect_evidence_need(goal) != EvidenceNeed::CommitHistory)
     return CodebaseOverview;
 
   if (contains_any(goal, {"where", "what is", "what does", "what's",
