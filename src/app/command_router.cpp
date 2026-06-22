@@ -160,19 +160,32 @@ std::string CommandRouter::process_user_input(const std::string &input) {
                      ": " + r.line_content + "\n";
           }
         } else if (tc.tool == "read") {
-          if (last_grep_results.empty()) {
-            result = "no files to read";
-          } else {
-            std::set<std::string> unique_files;
+          std::set<std::string> unique_files;
+
+          // If explicit files were requested, use those
+          if (!tc.args.empty()) {
+            std::istringstream ss(tc.args);
+            std::string fname;
+            while (ss >> fname)
+              unique_files.insert(fname);
+          } else if (!last_grep_results.empty()) {
+            // Otherwise read files from last grep results
             for (auto &r : last_grep_results)
               unique_files.insert(r.file_path);
+          }
+
+          if (unique_files.empty()) {
+            result = "no files to read";
+          } else {
             int count = 0;
             for (auto &f : unique_files) {
               if (count >= 5) break;
               std::string content = Services::FileService::read_file_range(f, 1, 30);
+              if (content.empty()) continue;  // skip missing files
               result += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
               count++;
             }
+            if (result.empty()) result = "no files to read";
           }
         } else if (tc.tool == "gh") {
           result = Services::CommandService::execute("gh " + tc.args);
