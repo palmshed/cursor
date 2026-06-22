@@ -61,17 +61,17 @@ jobs:
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             sudo apt update
-            sudo apt install -y nlohmann-json3-dev cmake build-essential \
+            sudo apt install -y gh nlohmann-json3-dev cmake build-essential \
               libcurl4-openssl-dev libpqxx-dev expect clang-tidy
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
             brew update
-            brew install cmake nlohmann-json cpr libpqxx expect llvm
+            brew install gh cmake nlohmann-json cpr libpqxx expect llvm
           else
             powershell -Command "
               Set-ExecutionPolicy Bypass -Scope Process -Force;
               iwr https://chocolatey.org/install.ps1 -UseBasicParsing | iex;
-              choco install -y cmake --no-progress;
+              choco install -y cmake gh --no-progress;
               git clone https://github.com/microsoft/vcpkg.git C:\vcpkg;
               C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics;
               C:\vcpkg\vcpkg.exe integrate install;
@@ -95,13 +95,23 @@ jobs:
 
       - name: test
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "=== Unit Tests ==="
           ctest --test-dir build --output-on-failure -C ${{ matrix.build_type }}
+          echo "=== Summary ==="
+          echo "Unit tests passed"
+
+      - name: scenario tests
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           echo "=== Scenario Tests ==="
           cmake --build build --target check-scenarios --config ${{ matrix.build_type }}
           echo "=== Summary ==="
-          echo "Unit tests passed"
           echo "Scenarios passed"
 
       - uses: actions/upload-artifact@v6

@@ -226,6 +226,47 @@ FileService::search_in_file(const std::string &filename,
   return results;
 }
 
+namespace {
+bool is_excluded_path(const std::string &filepath) {
+  try {
+    std::filesystem::path p(filepath);
+    for (const auto &part : p) {
+      std::string part_str = part.string();
+      if (part_str == "build" || part_str == "data" || part_str == ".git") {
+        return true;
+      }
+    }
+  } catch (...) {
+    // Ignore error
+  }
+  return false;
+}
+
+int get_file_rank_score(const std::string &filepath) {
+  int score = 0;
+  try {
+    std::filesystem::path p(filepath);
+    std::string filename = p.filename().string();
+    std::string ext = p.extension().string();
+    // Lowercase extension for comparison
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if (ext == ".cpp" || ext == ".cc" || ext == ".cxx" || ext == ".c") {
+      score += 10;
+    } else if (ext == ".h" || ext == ".hpp" || ext == ".hxx") {
+      score += 10;
+    } else if (ext == ".md" || ext == ".rst" || ext == ".txt") {
+      score -= 5;
+    } else if (filename == "CMakeLists.txt" || ext == ".cmake" || filename.find("CMake") != std::string::npos) {
+      score -= 3;
+    }
+  } catch (...) {
+    // Ignore error
+  }
+  return score;
+}
+} // namespace
+
 std::vector<FileSearchResult> FileService::search_in_directory(
     const std::string &directory, const std::string &pattern,
     const std::string &file_filter, bool case_sensitive) {
@@ -262,6 +303,9 @@ std::vector<FileSearchResult> FileService::search_in_directory(
          std::filesystem::recursive_directory_iterator(directory)) {
       if (entry.is_regular_file()) {
         std::string filepath = entry.path().string();
+        if (is_excluded_path(filepath)) {
+          continue;
+        }
         std::string filename = entry.path().filename().string();
 
         if (matches_filter(filename) && is_text_file(filepath)) {
@@ -271,6 +315,12 @@ std::vector<FileSearchResult> FileService::search_in_directory(
         }
       }
     }
+
+    // Stable sort results by file rank score descending to prefer source code over docs
+    std::stable_sort(all_results.begin(), all_results.end(),
+                     [](const FileSearchResult &a, const FileSearchResult &b) {
+                       return get_file_rank_score(a.file_path) > get_file_rank_score(b.file_path);
+                     });
 
   } catch ([[maybe_unused]] const std::exception &e) {
     // Log error but return partial results

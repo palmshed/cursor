@@ -92,6 +92,10 @@ static const char *QUERIES[] = {
     "How does confidence scoring work?",
     // Negative test (expects evidence failure)
     "Where is the Kubernetes deployment?",
+    // Specific routing/extraction tests
+    "how is evidence gating implemented",
+    "where do we call gh run view",
+    "tell me how repository investigation works",
     // GitHub Actions benchmarks
     "can you check this log https://github.com/owner/repo/actions/runs/12345",
     "Why did CI fail?",
