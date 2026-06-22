@@ -16,7 +16,7 @@ namespace Services {
 
 namespace {
 // Helper for tokenizing a string while preserving symbol characters (alnum, _, :, -, ., /)
-std::vector<std::string> split_into_words(const std::string &str) {
+[[maybe_unused]] std::vector<std::string> split_into_words(const std::string &str) {
   std::vector<std::string> words;
   std::string current;
   for (char c : str) {
@@ -35,7 +35,7 @@ std::vector<std::string> split_into_words(const std::string &str) {
   return words;
 }
 
-bool is_stop_word(const std::string &word) {
+[[maybe_unused]] bool is_stop_word(const std::string &word) {
   std::string lower = word;
   std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
   static const std::unordered_set<std::string> stop_words = {
@@ -47,7 +47,14 @@ bool is_stop_word(const std::string &word) {
     "search", "grep", "works", "work", "with", "by", "from", "at", "on",
     "here", "there", "who", "whom", "which", "my", "our", "your", "their",
     "his", "her", "its", "can", "could", "should", "would", "will", "shall",
-    "please", "give", "get", "got", "make", "made", "go", "gone", "went"
+    "please", "give", "get", "got", "make", "made", "go", "gone", "went",
+    "struct", "class", "function", "method", "variable", "file", "files",
+    "header", "implementation", "definition", "service", "manager", "code",
+    "project", "codebase", "repo", "repository", "declaration", "enum",
+    "utility", "heuristic", "results", "target", "usage", "responsibilities",
+    "happen", "executable", "system", "detail", "analysis", "structs", "classes",
+    "functions", "methods", "variables", "headers", "implementations",
+    "definitions", "services", "managers"
   };
   return stop_words.count(lower) > 0;
 }
@@ -428,7 +435,7 @@ ToolCall ExecutionEngine::select_next_tool(
         if (!best_multi_word.empty()) {
           std::string reconstructed;
           for (size_t i = 0; i < best_multi_word.size(); ++i) {
-            if (i > 0) reconstructed += " ";
+            if (i > 0) reconstructed += "[ _-]?";
             reconstructed += best_multi_word[i];
           }
           term = reconstructed;
