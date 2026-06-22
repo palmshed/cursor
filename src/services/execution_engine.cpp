@@ -10,8 +10,48 @@
 #include <regex>
 #include <sstream>
 #include <vector>
+#include <unordered_set>
 
 namespace Services {
+
+namespace {
+// Helper for tokenizing a string while preserving symbol characters (alnum, _, :, -, ., /)
+std::vector<std::string> split_into_words(const std::string &str) {
+  std::vector<std::string> words;
+  std::string current;
+  for (char c : str) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == ':' || c == '-' || c == '.' || c == '/') {
+      current.push_back(c);
+    } else {
+      if (!current.empty()) {
+        words.push_back(current);
+        current.clear();
+      }
+    }
+  }
+  if (!current.empty()) {
+    words.push_back(current);
+  }
+  return words;
+}
+
+bool is_stop_word(const std::string &word) {
+  std::string lower = word;
+  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+  static const std::unordered_set<std::string> stop_words = {
+    "how", "what", "where", "why", "tell", "about", "show", "find",
+    "is", "are", "was", "were", "do", "does", "did", "we", "you", "me",
+    "the", "a", "an", "this", "that", "in", "of", "to", "for", "and", "or",
+    "call", "called", "use", "used", "implement", "implemented",
+    "define", "defined", "reference", "referenced", "explain", "locate",
+    "search", "grep", "works", "work", "with", "by", "from", "at", "on",
+    "here", "there", "who", "whom", "which", "my", "our", "your", "their",
+    "his", "her", "its", "can", "could", "should", "would", "will", "shall",
+    "please", "give", "get", "got", "make", "made", "go", "gone", "went"
+  };
+  return stop_words.count(lower) > 0;
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // EvidenceStore
@@ -91,15 +131,33 @@ static bool contains_any(const std::string &text,
 
 ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     const std::string &goal) {
+  // Call-site, usage, definition queries strongly suggest codebase query even if they mention CI/external command keywords
+  if (contains_any(goal, {"call", "called", "used", "using", "implement", "implemented",
+                          "define", "defined", "reference", "referenced",
+                          "where is", "where do we", "where are"})) {
+    if (contains_any(goal, {"tell me about", "overview", "describe", "what is this"}) &&
+        contains_any(goal, {"codebase", "project", "repo", "repository", "application"})) {
+      return CodebaseOverview;
+    }
+    return CodebaseQuery;
+  }
+
+  // Architecture / conceptual questions suggesting CodebaseOverview
+  if (contains_any(goal, {"architecture", "design", "how it works", "how does it work"}) ||
+      (contains_any(goal, {"how", "explain", "tell me"}) && contains_any(goal, {"work", "works"}))) {
+    return CodebaseOverview;
+  }
+
   if (mode_ == ClassifierMode::LLM && ai_)
     return classify_goal_llm(goal);
+
   // Check for GitHub Actions URLs before general codebase patterns
   if (contains_any(goal, {"github.com", "actions/runs", "github action",
                            "workflow run", "ci run"}))
     return GitHubInvestigation;
 
   if (contains_any(goal, {"ci", "github action", "workflow", "gh run",
-                          "ci/cd", "actions"}))
+                           "ci/cd", "actions"}))
     return CICheck;
 
   // Exclude general chat patterns before checking codebase keywords
@@ -111,16 +169,16 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
 
   // Codebase overview: broad questions about the entire project
   if (contains_any(goal, {"tell me about", "overview", "describe",
-                           "what is this"}) &&
+                            "what is this"}) &&
       contains_any(goal, {"codebase", "project", "repo", "repository",
                            "application"}) &&
       detect_evidence_need(goal) != EvidenceNeed::CommitHistory)
     return CodebaseOverview;
 
   if (contains_any(goal, {"where", "what is", "what does", "what's",
-                           "how does", "how is", "how are",
+                           "how does", "how is", "how are", "how", "works",
                            "find", "search", "grep", "locate",
-                           "show me", "list", "tell me about",
+                           "show me", "list", "tell me about", "tell me how",
                            "explain", "describe", "overview",
                            "architecture",
                            "in this project", "in this repo"}))
@@ -288,13 +346,30 @@ ToolCall ExecutionEngine::select_next_tool(
           !evidence.has_fact_containing("search")) {
         // Extract search term from goal (case-insensitive prefix matching)
         std::string term = goal;
+        
+        // Extract quoted terms if present
+        size_t first_quote = term.find('"');
+        size_t last_quote = term.rfind('"');
+        if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
+          term = term.substr(first_quote + 1, last_quote - first_quote - 1);
+          return {"grep", term};
+        } else {
+          first_quote = term.find('\'');
+          last_quote = term.rfind('\'');
+          if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
+            term = term.substr(first_quote + 1, last_quote - first_quote - 1);
+            return {"grep", term};
+          }
+        }
+
         std::string lower_term = term;
         for (auto &c : lower_term) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        
         // Remove common prefixes (longest first to handle compounds)
         for (auto &prefix : {"tell me about ", "find where ", "search for ",
                              "where is ", "what is ", "what does ",
-                             "how does ", "show me ", "locate ",
-                             "find ", "where ", "grep "}) {
+                             "how does ", "how is ", "how do we ", "where do we ", "show me ", "locate ",
+                             "find ", "where ", "grep ", "explain ", "tell me how "}) {
           size_t p = lower_term.find(prefix);
           if (p == 0) {
             term = term.substr(p + strlen(prefix));
@@ -302,11 +377,12 @@ ToolCall ExecutionEngine::select_next_tool(
             break;
           }
         }
+        
         // Remove common suffixes
         for (const char *suffix : {" in this project", " in this codebase",
                              " in this repo", " in the code",
                              " in code", " in files", " is defined",
-                             " is implemented"}) {
+                             " is implemented", " used", " called", " implemented"}) {
           size_t p = lower_term.rfind(suffix);
           if (p != std::string::npos && p + strlen(suffix) == lower_term.size()) {
             term = term.substr(0, p);
@@ -314,69 +390,64 @@ ToolCall ExecutionEngine::select_next_tool(
             break;
           }
         }
-          // Clean the term: remove stop words and trailing noise words
-          {
-            // Strip trailing punctuation to prevent suffix/noise matching failures
-            while (!term.empty() && std::ispunct(static_cast<unsigned char>(term.back())))
-              term.pop_back();
-            if (term.empty()) return {};
-            lower_term = term;
-            for (auto &c : lower_term) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-           static const char *stop_words[] = {"the ", "a ", "an ", "this ", "that "};
-           for (auto *sw : stop_words) {
-             if (lower_term.find(sw) == 0) {
-               term = term.substr(strlen(sw));
-               lower_term = lower_term.substr(strlen(sw));
-               break;
-             }
-           }
-         }
-         {
-           static const char *noise_words[] = {
-             " declaration", " system", " results", " code",
-             " method", " function", " class", " service",
-             " utility", " fix", " target", " heuristic",
-             " work", " defined", " implemented", " collector"};
-           for (auto *nw : noise_words) {
-             size_t p = term.rfind(nw);
-             if (p != std::string::npos && p + strlen(nw) == term.size()) {
-               term = term.substr(0, p);
-               break;
-             }
-           }
-         }
-         // If term is multi-word, try each word individually, prefer longest
-         if (term.find(' ') != std::string::npos) {
-           std::vector<std::string> words;
-           std::istringstream ss(term);
-           std::string w;
-           while (ss >> w) {
-             static const char *filter_words[] = {
-               "and", "or", "the", "a", "an", "this", "that",
-               "in", "of", "to", "for", "system", "code", "file", "service"};
-               bool skip = false;
-               for (auto *fw : filter_words) {
-                 if (w == fw) { skip = true; break; }
-               }
-               if (w.length() >= 3 && !skip) words.push_back(w);
-           }
-           if (!words.empty()) {
-             // Prefer words with uppercase (likely code identifiers),
-             // otherwise prefer shortest distinctive word
-             auto has_upper = [](const std::string &s) {
-               for (auto c : s) if (std::isupper(static_cast<unsigned char>(c))) return true;
-               return false;
-             };
-             auto it = std::find_if(words.begin(), words.end(), has_upper);
-             if (it != words.end()) {
-               term = *it;
-             } else {
-               term = words[0];
-             }
-           }
-         }
-         return {"grep", term};
-       }
+
+        // Clean punctuation
+        while (!term.empty() && std::ispunct(static_cast<unsigned char>(term.back())))
+          term.pop_back();
+
+        // Tokenize and prefer noun phrases/multi-word terms
+        std::vector<std::string> words = split_into_words(term);
+        std::vector<std::vector<std::string>> phrase_groups;
+        std::vector<std::string> current_group;
+
+        for (const auto &w : words) {
+          if (is_stop_word(w)) {
+            if (!current_group.empty()) {
+              phrase_groups.push_back(current_group);
+              current_group.clear();
+            }
+          } else {
+            current_group.push_back(w);
+          }
+        }
+        if (!current_group.empty()) {
+          phrase_groups.push_back(current_group);
+        }
+
+        // Select the best phrase group
+        // First, look for multi-word terms (size >= 2)
+        std::vector<std::string> best_multi_word;
+        for (const auto &group : phrase_groups) {
+          if (group.size() >= 2) {
+            if (best_multi_word.empty() || group.size() > best_multi_word.size()) {
+              best_multi_word = group;
+            }
+          }
+        }
+
+        if (!best_multi_word.empty()) {
+          std::string reconstructed;
+          for (size_t i = 0; i < best_multi_word.size(); ++i) {
+            if (i > 0) reconstructed += " ";
+            reconstructed += best_multi_word[i];
+          }
+          term = reconstructed;
+        } else if (!phrase_groups.empty()) {
+          // If no multi-word term, take the first single content word
+          std::string first_content;
+          for (const auto &group : phrase_groups) {
+            if (!group.empty()) {
+              first_content = group[0];
+              break;
+            }
+          }
+          if (!first_content.empty()) {
+            term = first_content;
+          }
+        }
+
+        return {"grep", term};
+      }
 
        // 2. Read files found by grep
       if (evidence.has_fact_containing("grep") &&
