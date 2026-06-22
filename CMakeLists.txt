@@ -618,9 +618,27 @@ set_target_properties(cursor-agent PROPERTIES
     SKIP_BUILD_RPATH FALSE
 )
 
+# cursor-tester: batch scenario runner
+add_executable(cursor-tester src/tester_main.cpp)
+target_include_directories(cursor-tester PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+target_link_libraries(cursor-tester PRIVATE cursor_lib)
+set_target_properties(cursor-tester PROPERTIES
+    OUTPUT_NAME "cursor-tester"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    MACOSX_RPATH ON
+)
+
 # On macOS, add additional settings
 if(APPLE)
     target_link_options(cursor-agent PRIVATE
+        -Wl,-rpath,@loader_path/../lib
+        -Wl,-rpath,/usr/local/lib
+        -Wl,-rpath,/opt/homebrew/lib
+    )
+    target_link_options(cursor-tester PRIVATE
         -Wl,-rpath,@loader_path/../lib
         -Wl,-rpath,/usr/local/lib
         -Wl,-rpath,/opt/homebrew/lib
