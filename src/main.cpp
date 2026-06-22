@@ -68,7 +68,8 @@ int main(int argc, char *argv[]) {
                 << "  --ci-investigate      Investigate recent CI failures\n"
                 << "  --dashboard [filter]  Show outcome dashboard (e.g. outcome=user_rejected)\n"
                 << "  --calibrate           Show confidence calibration analysis\n"
-                << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n";
+                << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n"
+                << "  --trace <file> <prompt>  Run with tool tracing, write trace.json\n";
       return 0;
     }
     if (arg == "--update") {
@@ -239,9 +240,22 @@ int main(int argc, char *argv[]) {
       return run_json_query(prompt);
     }
     if (arg == "--trace") {
-      // Not implemented in this milestone
-      std::cerr << "--trace not implemented yet\n";
-      return 2;
+      std::string trace_path;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        trace_path = argv[++i];
+      } else {
+        std::cerr << "Usage: --trace <output.json> <prompt>\n";
+        return 2;
+      }
+      std::string prompt;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        prompt = argv[++i];
+      } else {
+        std::cerr << "Missing prompt for --trace\n";
+        return 2;
+      }
+      Utils::Config::load_environment();
+      return run_trace_query(prompt, trace_path);
     }
     if (arg == "--scenario") {
       // Not implemented in this milestone
