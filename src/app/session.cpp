@@ -69,8 +69,12 @@ static std::string read_prompt(const std::string &prompt,
   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
   auto redraw = [&]() {
-    ui.clear_line();
+    // Clear input line and hint line
+    std::cout << "\033[2K\r";
+    std::cout << "\033[1B\033[2K\r\033[1A";
+    // Print prompt and buffer
     std::cout << prompt << buf;
+    // Position cursor
     std::cout << "\r\033[" << ((int)prompt.size() + cursor) << "C"
               << std::flush;
   };

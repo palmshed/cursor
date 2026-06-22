@@ -1,4 +1,5 @@
 #include "services/execution_engine.h"
+#include "services/ai_service.h"
 #include "services/confidence_service.h"
 #include "ui/ui_manager.h"
 
@@ -26,6 +27,32 @@ bool EvidenceStore::has_fact_containing(const std::string &keyword) const {
       return true;
   }
   return false;
+}
+
+void EvidenceStore::mark_evidence_class(EvidenceClass ec) {
+  for (auto &c : classes)
+    if (c == ec)
+      return;
+  classes.push_back(ec);
+}
+
+bool EvidenceStore::has_any_evidence_class(const std::vector<EvidenceClass> &required) const {
+  for (auto &req : required)
+    for (auto &c : classes)
+      if (c == req)
+        return true;
+  return false;
+}
+
+bool EvidenceStore::has_all_evidence_classes(const std::vector<EvidenceClass> &required) const {
+  for (auto &req : required) {
+    bool found = false;
+    for (auto &c : classes)
+      if (c == req) { found = true; break; }
+    if (!found)
+      return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +91,8 @@ static bool contains_any(const std::string &text,
 
 ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     const std::string &goal) {
+  if (mode_ == ClassifierMode::LLM && ai_)
+    return classify_goal_llm(goal);
   // Check for GitHub Actions URLs before general codebase patterns
   if (contains_any(goal, {"github.com", "actions/runs", "github action",
                            "workflow run", "ci run"}))
@@ -90,11 +119,34 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     return CodebaseQuery;
 
   if (contains_any(goal, {"add", "implement", "refactor", "fix", "migrate",
-                          "create", "remove", "update", "upgrade",
-                          "delete", "rename", "extract", "build",
-                          "install", "setup", "configure"}))
+                           "create", "remove", "update", "upgrade",
+                           "delete", "rename", "extract", "build",
+                           "setup", "configure"}))
     return CodeChange;
 
+  return GeneralChat;
+}
+
+ExecutionEngine::GoalType ExecutionEngine::classify_goal_llm(
+    const std::string &goal) {
+  std::string prompt =
+    "Classify the following request into exactly one category. "
+    "Respond with ONLY the category name, nothing else.\n\n"
+    "Categories:\n"
+    "GeneralChat - Greetings, how-to questions, general conversation\n"
+    "CodebaseQuery - Questions about code, looking up definitions, searching\n"
+    "CodeChange - Add, modify, or remove code\n"
+    "CICheck - CI/CD pipeline status or investigation\n"
+    "GitHubInvestigation - GitHub Actions run investigation\n\n"
+    "Request: " + goal + "\n\nCategory:";
+
+  std::string response = ai_->chat(prompt, "");
+  for (auto &c : response) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+  if (response.find("codebasequery") != std::string::npos) return CodebaseQuery;
+  if (response.find("codechange") != std::string::npos) return CodeChange;
+  if (response.find("cicheck") != std::string::npos) return CICheck;
+  if (response.find("githubinvestigation") != std::string::npos) return GitHubInvestigation;
   return GeneralChat;
 }
 
@@ -109,12 +161,49 @@ std::string ExecutionEngine::goal_type_name(GoalType t) {
   return "Unknown";
 }
 
+EvidenceNeed ExecutionEngine::detect_evidence_need(
+    const std::string &goal) {
+  if (contains_any(goal, {"commit", "history",
+                           "change log", "what changed",
+                           "previous version", "recent change"}))
+    return EvidenceNeed::CommitHistory;
+  return EvidenceNeed::Default;
+}
+
+std::vector<EvidenceClass> ExecutionEngine::required_evidence(
+    const std::string &goal, GoalType type) {
+  switch (type) {
+    case CICheck:
+      return {EvidenceClass::CIWorkflow};
+    case GitHubInvestigation:
+      return {EvidenceClass::CIWorkflow};
+    case CodebaseQuery:
+      switch (detect_evidence_need(goal)) {
+        case EvidenceNeed::CommitHistory:
+          return {EvidenceClass::GitLog};
+        default:
+          return {EvidenceClass::FileSearch, EvidenceClass::FileContent};
+      }
+    case CodeChange:
+      return {EvidenceClass::Discovery,
+              EvidenceClass::FileSearch,
+              EvidenceClass::FileContent,
+              EvidenceClass::Build,
+              EvidenceClass::Test};
+    case GeneralChat:
+      return {};
+  }
+  return {};
+}
+
 // ---------------------------------------------------------------------------
 // Tool selection
 // ---------------------------------------------------------------------------
 
 ToolCall ExecutionEngine::select_next_tool(
     const std::string &goal, GoalType type, const EvidenceStore &evidence) {
+  if (mode_ == ClassifierMode::LLM && ai_)
+    return select_next_tool_llm(goal, type, evidence);
 
   switch (type) {
     case CICheck: {
@@ -163,6 +252,14 @@ ToolCall ExecutionEngine::select_next_tool(
     }
 
     case CodebaseQuery: {
+      auto need = detect_evidence_need(goal);
+      if (need == EvidenceNeed::CommitHistory) {
+        if (!evidence.has_fact_containing("git log"))
+          return {"git", "log --oneline -10"};
+        if (!evidence.has_fact_containing("git show"))
+          return {"git", "log -1 --format=\"%H %s%n%b\""};
+        return {};
+      }
       // 1. Search the codebase
       if (!evidence.has_fact_containing("grep") &&
           !evidence.has_fact_containing("search")) {
@@ -298,32 +395,81 @@ ToolCall ExecutionEngine::select_next_tool(
   return {};
 }
 
+ToolCall ExecutionEngine::select_next_tool_llm(
+    const std::string &goal, GoalType type, const EvidenceStore &evidence) {
+  std::string prompt = "You are investigating a codebase.\n";
+  prompt += "Goal type: " + goal_type_name(type) + "\n";
+  prompt += "User request: " + goal + "\n\n";
+  prompt += "Evidence collected so far:\n";
+  for (auto &f : evidence.facts)
+    prompt += "  " + f + "\n";
+  prompt +=
+    "\nChoose the next tool. Options:\n"
+    "  grep <query> - Search codebase\n"
+    "  read - Read files from grep results\n"
+    "  git <args> - Git command\n"
+    "  discovery - Project structure\n"
+    "  gh <args> - GitHub CLI\n"
+    "  cmake <args> - Build\n"
+    "  ctest <args> - Test\n"
+    "  done - No more tools needed\n\n"
+    "Respond with exactly one option, no explanation:";
+
+  std::string response = ai_->chat(prompt, "");
+  for (auto &c : response) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+  size_t p;
+  if ((p = response.find("grep ")) != std::string::npos)
+    return {"grep", response.substr(p + 5)};
+  if (response == "read" || response.starts_with("read "))
+    return {"read", response.starts_with("read ") ? response.substr(5) : ""};
+  if (response.find("git ") != std::string::npos)
+    return {"git", response.substr(response.find("git ") + 4)};
+  if (response.find("discovery") != std::string::npos)
+    return {"discovery", ""};
+  if ((p = response.find("gh ")) != std::string::npos)
+    return {"gh", response.substr(p + 3)};
+  if ((p = response.find("cmake")) != std::string::npos)
+    return {"cmake", response.substr(p + 6)};
+  if ((p = response.find("ctest")) != std::string::npos)
+    return {"ctest", response.substr(p + 6)};
+
+  return {};
+}
+
 // ---------------------------------------------------------------------------
 // Completion check
 // ---------------------------------------------------------------------------
 
-bool ExecutionEngine::check_completion(const std::string & /*goal*/,
+bool ExecutionEngine::check_completion(const std::string &goal,
                                         GoalType type,
                                         const EvidenceStore &evidence) {
+  // Evidence class gate: all required evidence classes must be present
+  auto required = required_evidence(goal, type);
+  if (!required.empty() &&
+      !evidence.has_all_evidence_classes(required)) {
+    return false;
+  }
+
   switch (type) {
     case CICheck:
-      // Done when we've listed runs AND either no failures or we've read workflows
       return evidence.has_fact_containing("gh run list") &&
              (!evidence.has_fact_containing("failure") ||
               evidence.has_fact_containing("read workflow"));
 
     case GitHubInvestigation:
-      // Done when we've fetched run details AND fetched logs
       return evidence.has_fact_containing("gh run view") &&
              evidence.has_fact_containing("--log");
 
-    case CodebaseQuery:
-      // Done when we've searched AND found results AND read files
+    case CodebaseQuery: {
+      auto need = detect_evidence_need(goal);
+      if (need == EvidenceNeed::CommitHistory)
+        return evidence.has_fact_containing("git:results");
       return evidence.has_fact_containing("grep:results") &&
              evidence.has_fact_containing("read:results");
+    }
 
     case CodeChange:
-      // Done when discovery, grep, read, build, and tests produced results
       return evidence.has_fact_containing("discovery") &&
              evidence.has_fact_containing("grep:results") &&
              evidence.has_fact_containing("read:results") &&
@@ -400,6 +546,26 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     if (has_results)
       evidence.add_fact(tc.tool + ":results");
 
+    // Mark evidence class based on tool (only when results produced)
+    if (has_results) {
+      if (tc.tool == "grep")
+        evidence.mark_evidence_class(EvidenceClass::FileSearch);
+      else if (tc.tool == "read")
+        evidence.mark_evidence_class(EvidenceClass::FileContent);
+      else if (tc.tool == "discovery")
+        evidence.mark_evidence_class(EvidenceClass::Discovery);
+      else if (tc.tool == "cmake" && output.find("error") == std::string::npos)
+        evidence.mark_evidence_class(EvidenceClass::Build);
+      else if (tc.tool == "ctest" &&
+               output.find("failed") == std::string::npos &&
+               output.find("FAILED") == std::string::npos)
+        evidence.mark_evidence_class(EvidenceClass::Test);
+      else if (tc.tool == "gh")
+        evidence.mark_evidence_class(EvidenceClass::CIWorkflow);
+      else if (tc.tool == "git")
+        evidence.mark_evidence_class(EvidenceClass::GitLog);
+    }
+
     // Evaluate confidence after each tool run
     ConfidenceResult cr;
     if (tc.tool == "grep") {
@@ -464,20 +630,12 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   result.goal_type = static_cast<int>(type);
   result.confidence = final_confidence.score;
 
-  // Determine outcome
-  if (result.stopped_early) {
-    result.outcome = Core::Outcome::InsufficientEvidence;
-  } else if (result.success) {
-    result.outcome = Core::Outcome::Success;
-  } else {
-    result.outcome = Core::Outcome::Failure;
-  }
-
-  // Recovery metrics
+  // Recovery metrics (compute before outcome logic)
   result.recovery_metrics.attempts = iteration_count;
   result.recovery_metrics.evidence_found =
       result.evidence.has_fact_containing("grep:results") ||
       result.evidence.has_fact_containing("read:results") ||
+      result.evidence.has_fact_containing("git:results") ||
       result.evidence.has_fact_containing("build") ||
       result.evidence.has_fact_containing("test");
   result.recovery_metrics.verification_found =
@@ -486,6 +644,18 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   result.recovery_metrics.confidence_delta =
       final_confidence.score - (confidence_history.empty() ? 0.0
                                 : confidence_history.front().score);
+
+  // Determine outcome
+  if (result.stopped_early) {
+    result.outcome = Core::Outcome::InsufficientEvidence;
+  } else if (result.success) {
+    result.outcome = Core::Outcome::Success;
+  } else if (result.recovery_metrics.evidence_found) {
+    // Evidence exists but is the wrong class — judgment worked
+    result.outcome = Core::Outcome::InsufficientEvidence;
+  } else {
+    result.outcome = Core::Outcome::Failure;
+  }
 
   return result;
 }

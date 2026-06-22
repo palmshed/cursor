@@ -136,71 +136,63 @@ std::string CommandRouter::process_user_input(const std::string &input) {
 
   // Run through evidence-driven execution engine
   Services::ExecutionEngine engine;
+  if (agent_.ai_service_) {
+    engine.set_ai_service(agent_.ai_service_.get());
+  }
+  engine.set_classifier_mode(
+      agent_.state_.llm_classifier_
+          ? Services::ClassifierMode::LLM
+          : Services::ClassifierMode::Deterministic);
   std::vector<Services::FileSearchResult> last_grep_results;
   agent_.state_.last_confidence_before = agent_.state_.last_confidence_after;
 
-  // Show investigation spinner in normal mode
-  std::atomic<bool> investigating(false);
-  std::thread investigation_spinner;
-  if (agent_.state_.verbose_mode_) {
-    // verbose mode shows tool traces instead of spinner
-  } else {
-    investigation_spinner = std::thread(
-        [&]() { ui_.spinner("Investigating repository…", investigating); });
-  }
-
   auto engine_result = engine.execute(trimmed_input,
       [&](const Services::ToolCall &tc) -> std::string {
+        std::string result;
         if (tc.tool == "grep") {
           last_grep_results = Services::FileService::search_in_directory(
               ".", tc.args.empty() ? trimmed_input : tc.args, "*");
-          if (last_grep_results.empty()) return "no matches";
-          std::string out;
-          for (auto &r : last_grep_results)
-            out += r.file_path + ":" + std::to_string(r.line_number) +
-                   ": " + r.line_content + "\n";
-          return out;
-        }
-        if (tc.tool == "read") {
-          if (last_grep_results.empty())
-            return "no files to read";
-          std::set<std::string> unique_files;
-          for (auto &r : last_grep_results)
-            unique_files.insert(r.file_path);
-          std::string out;
-          int count = 0;
-          for (auto &f : unique_files) {
-            if (count >= 5) break; // limit to 5 files
-            std::string content = Services::FileService::read_file_range(f, 1, 30);
-            out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
-            count++;
+          if (last_grep_results.empty()) {
+            result = "no matches";
+          } else {
+            for (auto &r : last_grep_results)
+              result += r.file_path + ":" + std::to_string(r.line_number) +
+                     ": " + r.line_content + "\n";
           }
-          return out;
-        }
-        if (tc.tool == "gh") {
-          return Services::CommandService::execute("gh " + tc.args);
-        }
-        if (tc.tool == "cmake") {
-          return Services::CommandService::execute(tc.args);
-        }
-        if (tc.tool == "ctest") {
-          return Services::CommandService::execute(tc.args);
-        }
-        if (tc.tool == "discovery") {
+        } else if (tc.tool == "read") {
+          if (last_grep_results.empty()) {
+            result = "no files to read";
+          } else {
+            std::set<std::string> unique_files;
+            for (auto &r : last_grep_results)
+              unique_files.insert(r.file_path);
+            int count = 0;
+            for (auto &f : unique_files) {
+              if (count >= 5) break;
+              std::string content = Services::FileService::read_file_range(f, 1, 30);
+              result += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+              count++;
+            }
+          }
+        } else if (tc.tool == "gh") {
+          result = Services::CommandService::execute("gh " + tc.args);
+        } else if (tc.tool == "git") {
+          result = Services::CommandService::execute("git " + tc.args);
+        } else if (tc.tool == "cmake") {
+          result = Services::CommandService::execute(tc.args);
+        } else if (tc.tool == "ctest") {
+          result = Services::CommandService::execute(tc.args);
+        } else if (tc.tool == "discovery") {
           auto d = Services::DiscoveryService::scan(".", trimmed_input);
-          std::string out = "Project: " + d.project_type + "\n";
-          out += "Sources: " + std::to_string(d.source_file_count) + "\n";
-          out += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
-          return out;
+          result = "Project: " + d.project_type + "\n";
+          result += "Sources: " + std::to_string(d.source_file_count) + "\n";
+          result += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
+        } else {
+          result = "unknown tool";
         }
-        return "unknown tool";
+        return result;
       },
       ui_);
-
-  if (investigation_spinner.joinable()) {
-    investigating.store(true);
-    investigation_spinner.join();
-  }
 
   agent_.state_.last_confidence_after = engine_result.confidence;
   agent_.state_.last_outcome = engine_result.outcome;
@@ -862,6 +854,8 @@ void CommandRouter::handle_meta_command(const std::string &input) {
     toggle_verbose_mode();
   } else if (command == "inspect") {
     toggle_inspect_mode();
+  } else if (command == "llm") {
+    toggle_llm_classifier();
   } else if (command.starts_with("mode ")) {
     handle_mode_command(command.substr(5));
   } else if (command == "clear") {
@@ -937,6 +931,15 @@ void CommandRouter::toggle_inspect_mode() {
             << (agent_.state_.inspect_mode_ ? "[inspect] Showing investigation summary"
                                  : "[inspect] Investigation summary hidden")
             << Utils::Color::RESET << std::endl;
+}
+
+void CommandRouter::toggle_llm_classifier() {
+  agent_.state_.llm_classifier_ = !agent_.state_.llm_classifier_;
+  if (agent_.state_.llm_classifier_) {
+    ui_.show_pipeline_section("LLM classifier: ON");
+  } else {
+    ui_.show_pipeline_section("LLM classifier: OFF");
+  }
 }
 
 void CommandRouter::handle_mode_command(const std::string &arg) {
@@ -1446,6 +1449,29 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
     if (ref) {
       auto path = extract_after({"in ", "from ", "of "});
       return std::make_optional(std::string("refs:") + *ref + " " + (path ? *path : "."));
+    }
+  }
+
+  // Detect known binary names as direct command execution
+  // e.g. "cargo install amp" or "npm install express"
+  static const std::vector<std::string> known_binaries = {
+      "cargo", "npm", "pip", "git", "brew", "apt", "yarn", "pnpm",
+      "go", "rustc", "make", "cmake", "docker", "deno", "bun"
+  };
+  std::string first_word = lower.substr(0, lower.find(' '));
+  for (const auto &bin : known_binaries) {
+    if (first_word == bin) {
+      return std::make_optional(std::string("cmd:") + input);
+    }
+  }
+  // "install <known-binary> ..." pattern
+  if (lower.find("install ") == 0) {
+    std::string rest = lower.substr(8);
+    std::string second_word = rest.substr(0, rest.find(' '));
+    for (const auto &bin : known_binaries) {
+      if (second_word == bin) {
+        return std::make_optional(std::string("cmd:") + input);
+      }
     }
   }
 

@@ -1,0 +1,8 @@
+{
+  "name": "Investigation timeline shows tool invocations",
+  "prompt": "where is replay implemented",
+  "expect": {
+    "outcome": "success",
+    "tools_used": ["grep", "read"]
+  }
+}

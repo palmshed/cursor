@@ -788,46 +788,109 @@ void UIManager::show_execution_summary(const ExecutionSummaryData &data) {
 // Tool visibility
 // ---------------------------------------------------------------------------
 
+std::string UIManager::section_for_tool(const std::string &tool) {
+  if (tool == "grep")      return "Searching codebase";
+  if (tool == "read")      return "Reading files";
+  if (tool == "git")       return "Investigating git history";
+  if (tool == "discovery") return "Analyzing project structure";
+  if (tool == "gh")        return "Fetching CI data";
+  if (tool == "cmake")     return "Building";
+  if (tool == "ctest")     return "Running tests";
+  return "Executing";
+}
+
 void UIManager::show_tool_invocation(const std::string &tool,
                                      const std::string &args) {
-  if (!is_verbose()) return;
+  last_tool_ = tool;
 
-  std::string displayName = tool;
-  if (tool == "cmake" || tool == "ctest" || tool == "gh" || tool == "bash") {
-    displayName = "Bash";
-  } else {
-    // Capitalize first letter of other tools
-    if (!displayName.empty()) {
-      displayName[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(displayName[0])));
+  if (is_verbose()) {
+    std::string displayName = tool;
+    if (tool == "cmake" || tool == "ctest" || tool == "gh" || tool == "bash") {
+      displayName = "Bash";
+    } else {
+      if (!displayName.empty()) {
+        displayName[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(displayName[0])));
+      }
     }
+    std::cout << "\xe2\x97\x8f " << Utils::Color::BOLD << displayName << Utils::Color::RESET;
+    if (!args.empty()) {
+      std::cout << "(" << Utils::Color::CYAN << args << Utils::Color::RESET << ")";
+    }
+    std::cout << "\n";
+    return;
   }
 
-  std::cout << "● " << Utils::Color::BOLD << displayName << Utils::Color::RESET;
-  if (!args.empty()) {
-    std::cout << "(" << Utils::Color::CYAN << args << Utils::Color::RESET << ")";
+  // Normal mode: investigation timeline with section headers
+  std::string section = section_for_tool(tool);
+  if (section != current_section_) {
+    if (!current_section_.empty()) std::cout << "\n";
+    std::cout << section << "\n\n";
+    current_section_ = section;
   }
+
+  std::cout << "\xe2\x86\x92 " << tool;
+  if (!args.empty()) std::cout << " " << args;
   std::cout << "\n";
 }
 
 void UIManager::show_tool_output(const std::string &output) {
-  if (!is_verbose() || output.empty()) return;
-
-  std::vector<std::string> lines;
-  std::string line;
-  std::istringstream stream(output);
-  while (std::getline(stream, line)) {
-    if (!line.empty() && line.find("Exit code:") == std::string::npos) {
-      lines.push_back(line);
+  if (is_verbose()) {
+    if (output.empty()) return;
+    std::vector<std::string> lines;
+    std::string line;
+    std::istringstream stream(output);
+    while (std::getline(stream, line)) {
+      if (!line.empty() && line.find("Exit code:") == std::string::npos) {
+        lines.push_back(line);
+      }
     }
+    if (!lines.empty()) {
+      std::cout << "  \xe2\x94\x94  " << Utils::Color::DIM << lines[0] << Utils::Color::RESET << "\n";
+      for (size_t i = 1; i < lines.size(); i++) {
+        std::cout << "     " << Utils::Color::DIM << lines[i] << Utils::Color::RESET << "\n";
+      }
+    }
+    return;
   }
 
-  if (!lines.empty()) {
-    // Print first line with the └ branch symbol
-    std::cout << "  \u2514  " << Utils::Color::DIM << lines[0] << Utils::Color::RESET << "\n";
-    // Print subsequent lines aligned under the first line
-    for (size_t i = 1; i < lines.size(); i++) {
-      std::cout << "     " << Utils::Color::DIM << lines[i] << Utils::Color::RESET << "\n";
+  // Normal mode: brief result summary
+  if (output.empty() || output == "no matches" || output == "no files to read") {
+    std::cout << "  no results\n";
+    return;
+  }
+
+  if (last_tool_ == "grep") {
+    int lines = 0;
+    std::istringstream stream(output);
+    std::string line;
+    while (std::getline(stream, line))
+      if (!line.empty()) lines++;
+    std::cout << "  " << lines << " match" << (lines == 1 ? "" : "es") << "\n";
+  } else if (last_tool_ == "read") {
+    std::istringstream stream(output);
+    std::string line;
+    int count = 0;
+    while (std::getline(stream, line)) {
+      if (line.find("--- ") == 0 && line.rfind(" ---") != std::string::npos)
+        count++;
     }
+    if (count > 0)
+      std::cout << "  \xe2\x86\x92 " << count << " file" << (count == 1 ? "" : "s") << "\n";
+  } else {
+    int lines = 0;
+    std::string first;
+    std::istringstream stream(output);
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (!line.empty() && line.find("Exit code:") == std::string::npos) {
+        if (lines == 0) first = line;
+        lines++;
+      }
+    }
+    if (lines == 1)
+      std::cout << "  " << first.substr(0, 80) << "\n";
+    else if (lines > 1)
+      std::cout << "  " << lines << " lines\n";
   }
 }
 
