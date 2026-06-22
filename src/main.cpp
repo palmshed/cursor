@@ -67,7 +67,8 @@ int main(int argc, char *argv[]) {
                 << "  --benchmark           Run workflow benchmark scenarios (alias)\n"
                 << "  --ci-investigate      Investigate recent CI failures\n"
                 << "  --dashboard [filter]  Show outcome dashboard (e.g. outcome=user_rejected)\n"
-                << "  --calibrate           Show confidence calibration analysis\n";
+                << "  --calibrate           Show confidence calibration analysis\n"
+                << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n";
       return 0;
     }
     if (arg == "--update") {
@@ -225,6 +226,17 @@ int main(int argc, char *argv[]) {
         return 2;
       }
       return run_diagnostics(prompt);
+    }
+    if (arg == "--json") {
+      std::string prompt;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        prompt = argv[++i];
+      } else {
+        std::cerr << "Missing prompt for --json\n";
+        return 2;
+      }
+      Utils::Config::load_environment();
+      return run_json_query(prompt);
     }
     if (arg == "--trace") {
       // Not implemented in this milestone
