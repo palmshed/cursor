@@ -1,6 +1,6 @@
 {
   "command": "/",
   "expect": {
-    "output_contains": "Type /help"
+    "output_contains": "Available meta commands"
   }
 }
