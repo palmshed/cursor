@@ -7,6 +7,7 @@
 #include "services/execution_engine.h"
 #include "services/file_service.h"
 #include "ui/ui_manager.h"
+#include "utils/config.h"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -201,6 +202,36 @@ int run_trace_query(const std::string &prompt,
   ofs << j.dump(2) << std::endl;
   std::cout << "Trace written to " << output_path << "\n";
   return 0;
+}
+
+int run_stream_report(const std::string &command,
+                      const std::string &output_path) {
+  Services::StreamTelemetry telemetry;
+  Utils::Config::load_environment();
+  std::string output = Services::CommandService::execute_with_telemetry(
+      command, telemetry);
+
+  json j;
+  j["command"] = telemetry.command;
+  j["started_at"] = telemetry.started_at;
+  if (telemetry.first_output_at > 0)
+    j["first_output_at"] = telemetry.first_output_at;
+  if (telemetry.last_output_at > 0)
+    j["last_output_at"] = telemetry.last_output_at;
+  j["completed_at"] = telemetry.completed_at;
+  j["lines_streamed"] = telemetry.lines_streamed;
+  j["exit_code"] = telemetry.exit_code;
+  j["timed_out"] = telemetry.timed_out;
+  j["output_preview"] = output.substr(0, 200);
+
+  std::ofstream ofs(output_path);
+  if (!ofs) {
+    std::cerr << "Cannot write stream report to " << output_path << "\n";
+    return 1;
+  }
+  ofs << j.dump(2) << std::endl;
+  std::cout << "Stream report written to " << output_path << "\n";
+  return telemetry.exit_code == 0 ? 0 : 1;
 }
 
 std::vector<std::string> extract_files_examined(
