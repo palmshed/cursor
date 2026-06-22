@@ -1,0 +1,9 @@
+{
+  "command": "echo hello from cursor-tester",
+  "expect": {
+    "exit_code": 0,
+    "lines_streamed_min": 1,
+    "timed_out": false,
+    "output_contains": "hello from cursor-tester"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "prompt": "where is replay service implemented",
+  "expect": {
+    "files_examined_min": 1,
+    "evidence_nonempty": true
+  }
+}
