@@ -376,6 +376,105 @@ int run_export_evidence(const std::string &prompt,
   return 0;
 }
 
+static int check_prompt_assertions(
+    const std::string &prompt,
+    const Services::ExecutionResult &res,
+    const json &expect) {
+
+  std::string actual_outcome = Core::outcome_name(res.outcome);
+  bool actual_ai_called = Core::CommandRouter::should_call_ai(res);
+  auto files = extract_files_examined(res.evidence.facts);
+
+  bool all_ok = true;
+
+  if (expect.contains("outcome")) {
+    std::string expected_outcome = expect["outcome"];
+    if (actual_outcome != expected_outcome) {
+      std::cout << "  expected outcome: " << expected_outcome
+                << "  actual: " << actual_outcome << "\n";
+      all_ok = false;
+    }
+  }
+
+  if (expect.contains("ai_called")) {
+    bool expected_ai = expect["ai_called"];
+    if (actual_ai_called != expected_ai) {
+      std::cout << "  expected ai_called: " << (expected_ai ? "true" : "false")
+                << "  actual: " << (actual_ai_called ? "true" : "false") << "\n";
+      all_ok = false;
+    }
+  }
+
+  if (expect.contains("files_examined_min")) {
+    int min_files = expect["files_examined_min"];
+    int actual_files = static_cast<int>(files.size());
+    if (actual_files < min_files) {
+      std::cout << "  expected files_examined >= " << min_files
+                << "  actual: " << actual_files << "\n";
+      all_ok = false;
+    }
+  }
+
+  if (expect.contains("evidence_nonempty")) {
+    bool expected_nonempty = expect["evidence_nonempty"];
+    bool actual_nonempty = !res.evidence.facts.empty();
+    if (actual_nonempty != expected_nonempty) {
+      std::cout << "  expected evidence_nonempty: "
+                << (expected_nonempty ? "true" : "false")
+                << "  actual: " << (actual_nonempty ? "true" : "false") << "\n";
+      all_ok = false;
+    }
+  }
+
+  return all_ok ? 0 : 1;
+}
+
+static int check_command_assertions(
+    const Services::StreamTelemetry &telemetry,
+    const std::string &output,
+    const json &expect) {
+
+  bool all_ok = true;
+
+  if (expect.contains("exit_code")) {
+    int expected_code = expect["exit_code"];
+    if (telemetry.exit_code != expected_code) {
+      std::cout << "  expected exit_code: " << expected_code
+                << "  actual: " << telemetry.exit_code << "\n";
+      all_ok = false;
+    }
+  }
+
+  if (expect.contains("lines_streamed_min")) {
+    int min_lines = expect["lines_streamed_min"];
+    if (telemetry.lines_streamed < min_lines) {
+      std::cout << "  expected lines_streamed >= " << min_lines
+                << "  actual: " << telemetry.lines_streamed << "\n";
+      all_ok = false;
+    }
+  }
+
+  if (expect.contains("timed_out")) {
+    bool expected_timeout = expect["timed_out"];
+    if (telemetry.timed_out != expected_timeout) {
+      std::cout << "  expected timed_out: "
+                << (expected_timeout ? "true" : "false")
+                << "  actual: " << (telemetry.timed_out ? "true" : "false") << "\n";
+      all_ok = false;
+    }
+  }
+
+  if (expect.contains("output_contains")) {
+    std::string needle = expect["output_contains"];
+    if (output.find(needle) == std::string::npos) {
+      std::cout << "  expected output contains: \"" << needle << "\"\n";
+      all_ok = false;
+    }
+  }
+
+  return all_ok ? 0 : 1;
+}
+
 int run_scenario(const std::string &scenario_path) {
   std::ifstream ifs(scenario_path);
   if (!ifs) {
@@ -390,48 +489,70 @@ int run_scenario(const std::string &scenario_path) {
     return 1;
   }
 
-  std::string prompt = j.value("prompt", "");
-  if (prompt.empty()) {
-    std::cerr << "FAIL " << scenario_path << "  (missing 'prompt')\n";
+  // Determine scenario type
+  bool is_prompt = j.contains("prompt");
+  bool is_command = j.contains("command");
+
+  if (!is_prompt && !is_command) {
+    std::cerr << "FAIL " << scenario_path
+              << "  (missing 'prompt' or 'command')\n";
     return 1;
   }
 
-  auto expect = j["expect"];
-  std::string expected_outcome = expect.value("outcome", "success");
-  bool expected_ai_called = expect.value("ai_called", true);
+  json expect = j.value("expect", json::object());
 
-  return run_scenario_prompt(prompt, expected_outcome, expected_ai_called);
+  if (is_prompt) {
+    std::string prompt = j["prompt"];
+    Core::Agent agent;
+    Core::UIManager ui(agent);
+    Core::CommandRouter router(agent, ui);
+    Services::ExecutionEngine engine;
+    auto res = run_engine_once(prompt, engine, ui);
+    int rc = check_prompt_assertions(prompt, res, expect);
+    if (rc == 0) {
+      std::cout << "PASS" << "\n";
+    } else {
+      std::cout << "FAIL" << "\n";
+    }
+    return rc;
+  }
+
+  if (is_command) {
+    std::string command = j["command"];
+    Services::StreamTelemetry telemetry;
+    Utils::Config::load_environment();
+    std::string output = Services::CommandService::execute_with_telemetry(
+        command, telemetry);
+    int rc = check_command_assertions(telemetry, output, expect);
+    if (rc == 0) {
+      std::cout << "PASS" << "\n";
+    } else {
+      std::cout << "FAIL" << "\n";
+    }
+    return rc;
+  }
+
+  return 1;
 }
 
 int run_scenario_prompt(const std::string &prompt,
                         const std::string &expected_outcome,
                         bool expected_ai_called) {
+  json expect;
+  expect["outcome"] = expected_outcome;
+  expect["ai_called"] = expected_ai_called;
+
   Core::Agent agent;
   Core::UIManager ui(agent);
   Core::CommandRouter router(agent, ui);
   Services::ExecutionEngine engine;
-
   auto res = run_engine_once(prompt, engine, ui);
 
-  std::string actual_outcome = Core::outcome_name(res.outcome);
-  bool actual_ai_called = Core::CommandRouter::should_call_ai(res);
-
-  bool outcome_ok = (actual_outcome == expected_outcome);
-  bool ai_ok = (actual_ai_called == expected_ai_called);
-
-  if (outcome_ok && ai_ok) {
+  int rc = check_prompt_assertions(prompt, res, expect);
+  if (rc == 0) {
     std::cout << "PASS" << "\n";
-    return 0;
+  } else {
+    std::cout << "FAIL" << "\n";
   }
-
-  std::cout << "FAIL" << "\n";
-  if (!outcome_ok) {
-    std::cout << "  expected outcome: " << expected_outcome
-              << "  actual: " << actual_outcome << "\n";
-  }
-  if (!ai_ok) {
-    std::cout << "  expected ai_called: " << (expected_ai_called ? "true" : "false")
-              << "  actual: " << (actual_ai_called ? "true" : "false") << "\n";
-  }
-  return 1;
+  return rc;
 }
