@@ -321,6 +321,61 @@ int run_json_query(const std::string &prompt) {
   return 0;
 }
 
+int run_export_evidence(const std::string &prompt,
+                        const std::string &output_path) {
+  Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+  Services::ExecutionEngine engine;
+
+  auto res = run_engine_once(prompt, engine, ui);
+  auto files = extract_files_examined(res.evidence.facts);
+
+  json j;
+  j["prompt"] = prompt;
+  j["goal_type"] =
+      Services::ExecutionEngine::goal_type_name(static_cast<Services::ExecutionEngine::GoalType>(
+          res.goal_type));
+  j["outcome"] = Core::outcome_name(res.outcome);
+  j["confidence"] = res.confidence;
+  j["ai_called"] = Core::CommandRouter::should_call_ai(res);
+
+  auto &facts_arr = j["evidence"]["facts"];
+  for (auto &f : res.evidence.facts) {
+    facts_arr.push_back(f);
+  }
+
+  auto &files_arr = j["evidence"]["files_examined"];
+  for (auto &f : files) {
+    files_arr.push_back(f);
+  }
+
+  std::vector<std::string> tools;
+  for (auto &f : res.evidence.facts) {
+    if (f.find("grep") != std::string::npos &&
+        std::find(tools.begin(), tools.end(), "grep") == tools.end()) {
+      tools.push_back("grep");
+    }
+    if (f.find("read") != std::string::npos &&
+        std::find(tools.begin(), tools.end(), "read") == tools.end()) {
+      tools.push_back("read");
+    }
+  }
+  auto &tools_arr = j["evidence"]["tools"];
+  for (auto &t : tools) {
+    tools_arr.push_back(t);
+  }
+
+  std::ofstream ofs(output_path);
+  if (!ofs) {
+    std::cerr << "Cannot write evidence to " << output_path << "\n";
+    return 1;
+  }
+  ofs << j.dump(2) << std::endl;
+  std::cout << "Evidence exported to " << output_path << "\n";
+  return 0;
+}
+
 int run_scenario(const std::string &scenario_path) {
   std::ifstream ifs(scenario_path);
   if (!ifs) {
