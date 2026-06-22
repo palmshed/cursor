@@ -846,6 +846,12 @@ void CommandRouter::handle_shell_command(const std::string &input) {
 void CommandRouter::handle_meta_command(const std::string &input) {
   std::string command = trim_copy(input.substr(1));
 
+  // UX: an empty slash command ("/") should never be silent.
+  if (command.empty()) {
+    ui_.show_meta_help();
+    return;
+  }
+
   if (command == "help" || command == "?") {
     ui_.show_agent_documentation();
   } else if (command == "docs") {
@@ -935,11 +941,10 @@ void CommandRouter::toggle_inspect_mode() {
 
 void CommandRouter::toggle_llm_classifier() {
   agent_.state_.llm_classifier_ = !agent_.state_.llm_classifier_;
-  if (agent_.state_.llm_classifier_) {
-    ui_.show_pipeline_section("LLM classifier: ON");
-  } else {
-    ui_.show_pipeline_section("LLM classifier: OFF");
-  }
+  std::cout << (agent_.state_.llm_classifier_ ? Utils::Color::GREEN : Utils::Color::YELLOW)
+            << (agent_.state_.llm_classifier_ ? "[llm] LLM classifier: ON"
+                                 : "[llm] LLM classifier: OFF")
+            << Utils::Color::RESET << std::endl;
 }
 
 void CommandRouter::handle_mode_command(const std::string &arg) {
