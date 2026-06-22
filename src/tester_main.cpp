@@ -53,6 +53,8 @@ int main(int argc, char *argv[]) {
       category = rel.parent_path().string();
       // If nested deeper than one level, take the topmost subdir
       auto slash = category.find('/');
+      if (slash == std::string::npos)
+        slash = category.find('\\');
       if (slash != std::string::npos)
         category = category.substr(0, slash);
     }

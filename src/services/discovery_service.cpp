@@ -227,7 +227,7 @@ ProjectDiscovery DiscoveryService::do_scan(const std::string &project_root,
         d.impact_areas.push_back("replay/logging");
       else if (f.find("service") != std::string::npos)
         d.impact_areas.push_back("services");
-      else if (f.find("ui_manage") != std::string::npos || f.find("/ui/") != std::string::npos)
+      else if (f.find("ui_manage") != std::string::npos || f.find("/ui/") != std::string::npos || f.find("\\ui\\") != std::string::npos)
         d.impact_areas.push_back("UI layer");
       else if (f.find("test") != std::string::npos)
         d.impact_areas.push_back("tests");

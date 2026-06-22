@@ -9,10 +9,14 @@
 #include "services/discovery_service.h"
 #include "services/execution_engine.h"
 #include "services/file_service.h"
+#include "services/web_service.h"
 #include "ui/ui_manager.h"
 #include "utils/config.h"
 #include <algorithm>
+#include <chrono>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <set>
@@ -31,6 +35,278 @@ int check_command_assertions(const Services::StreamTelemetry &telemetry,
                              const json &expect);
 
 } // anonymous namespace
+
+void feed_consumer(TraceConsumer &consumer, const QueryResult &qr);
+
+class OpikConsumer : public TraceConsumer {
+private:
+  std::string prompt_;
+  std::vector<json> trace_events_;
+  std::chrono::steady_clock::time_point start_time_;
+  std::string start_time_iso_;
+
+public:
+  void start_session(const std::string &prompt) override {
+    prompt_ = prompt;
+    start_time_ = std::chrono::steady_clock::now();
+    start_time_iso_ = get_iso8601_timestamp();
+    trace_events_.clear();
+  }
+
+  void handle_event(const Core::TraceEvent &e) override {
+    json ev;
+    ev["tool"] = e.tool;
+    if (!e.args.empty()) {
+      ev["args"] = e.args;
+    }
+    if (!e.files.empty()) {
+      auto &f_arr = ev["files"];
+      for (auto &f : e.files) {
+        f_arr.push_back(f);
+      }
+    }
+    trace_events_.push_back(ev);
+  }
+
+  void end_session(const Services::ExecutionResult &result) override {
+    auto end_time = std::chrono::steady_clock::now();
+    std::string end_time_iso = get_iso8601_timestamp();
+    double duration = std::chrono::duration<double>(end_time - start_time_).count();
+
+    // Check if Opik is enabled
+    bool enabled = Utils::Config::get_env_var("OPIK_ENABLE") == "true" ||
+                   Utils::Config::get_env_var("OPIK_ENABLE") == "1" ||
+                   !Utils::Config::get_env_var("OPIK_API_KEY").empty();
+
+    if (!enabled) {
+      return;
+    }
+
+    // Determine project name
+    std::string project_name = Utils::Config::get_env_var("OPIK_PROJECT_NAME");
+    std::string scenario_name = Utils::Config::get_env_var("OPIK_SCENARIO_NAME");
+
+    if (project_name.empty()) {
+      if (!scenario_name.empty()) {
+        project_name = "Scenario Tests";
+      } else {
+        project_name = "Default Project";
+      }
+    }
+
+    // Get Opik API URL
+    std::string base_url = Utils::Config::get_env_var("OPIK_URL_OVERRIDE");
+    if (base_url.empty()) {
+      base_url = Utils::Config::get_env_var("OPIK_URL");
+    }
+    if (base_url.empty()) {
+      base_url = "http://localhost:5173/api";
+    }
+
+    // Standardize url to remove trailing slash
+    if (base_url.ends_with("/")) {
+      base_url.pop_back();
+    }
+
+    std::string url = base_url + "/v1/private/traces";
+
+    // Prepare JSON payload
+    json j;
+    j["name"] = !scenario_name.empty() ? scenario_name : "run_query";
+    j["project_name"] = project_name;
+    j["start_time"] = start_time_iso_;
+    j["end_time"] = end_time_iso;
+
+    j["input"] = {{"prompt", prompt_}};
+
+    std::string outcome_str = Core::outcome_name(result.outcome);
+    bool ai_called = Core::CommandRouter::should_call_ai(result);
+    std::string goal_type_str = Services::ExecutionEngine::goal_type_name(
+        static_cast<Services::ExecutionEngine::GoalType>(result.goal_type));
+
+    j["output"] = {
+        {"outcome", outcome_str},
+        {"ai_called", ai_called},
+        {"duration_seconds", duration},
+        {"trace_events", trace_events_}
+    };
+
+    j["metadata"] = {
+        {"goal_type", goal_type_str},
+        {"confidence", result.confidence}
+    };
+
+    // Add tags
+    std::vector<std::string> tags;
+    if (!scenario_name.empty()) {
+      tags.push_back("scenario-test");
+      tags.push_back(scenario_name);
+    }
+    if (!tags.empty()) {
+      j["tags"] = tags;
+    }
+
+    // Headers
+    HeaderMap headers;
+    std::string api_key = Utils::Config::get_env_var("OPIK_API_KEY");
+    if (!api_key.empty()) {
+      headers["Authorization"] = api_key;
+    }
+    std::string workspace = Utils::Config::get_env_var("OPIK_WORKSPACE");
+    if (!workspace.empty()) {
+      headers["Comet-Workspace"] = workspace;
+    }
+    headers["Content-Type"] = "application/json";
+
+    auto resp = Services::WebService::post_json(url, j.dump(), headers);
+    if (!resp.success) {
+      std::cerr << "[Opik] Failed to upload trace: " << resp.error_message << "\n";
+    }
+  }
+
+private:
+  std::string get_iso8601_timestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()) % 1000;
+    
+    std::stringstream ss;
+    #if defined(_WIN32)
+    struct tm gmt;
+    gmtime_s(&gmt, &in_time_t);
+    ss << std::put_time(&gmt, "%Y-%m-%dT%H:%M:%S");
+    #else
+    struct tm gmt;
+    gmtime_r(&in_time_t, &gmt);
+    ss << std::put_time(&gmt, "%Y-%m-%dT%H:%M:%S");
+    #endif
+    ss << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
+    return ss.str();
+  }
+};
+
+void upload_scenario_to_opik(
+    const std::string &scenario_path,
+    const std::string &type,
+    const std::string &input_val,
+    double duration,
+    bool passed,
+    const std::string &result_outcome,
+    bool ai_called,
+    const std::vector<Core::TraceEvent> &trace,
+    const json &expect) {
+
+  bool enabled = Utils::Config::get_env_var("OPIK_ENABLE") == "true" ||
+                 Utils::Config::get_env_var("OPIK_ENABLE") == "1" ||
+                 !Utils::Config::get_env_var("OPIK_API_KEY").empty();
+
+  if (!enabled) {
+    return;
+  }
+
+  std::string name = std::filesystem::path(scenario_path).filename().string();
+  std::string project_name = Utils::Config::get_env_var("OPIK_PROJECT_NAME");
+  if (project_name.empty()) {
+    project_name = "Scenario Tests";
+  }
+
+  std::string base_url = Utils::Config::get_env_var("OPIK_URL_OVERRIDE");
+  if (base_url.empty()) {
+    base_url = Utils::Config::get_env_var("OPIK_URL");
+  }
+  if (base_url.empty()) {
+    base_url = "http://localhost:5173/api";
+  }
+  if (base_url.ends_with("/")) {
+    base_url.pop_back();
+  }
+
+  std::string url = base_url + "/v1/private/traces";
+
+  // Format timestamps
+  auto now = std::chrono::system_clock::now();
+  auto start_time = now - std::chrono::duration_cast<std::chrono::system_clock::duration>(
+      std::chrono::duration<double>(duration));
+  
+  auto get_iso = [](std::chrono::system_clock::time_point tp) -> std::string {
+    auto in_time_t = std::chrono::system_clock::to_time_t(tp);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        tp.time_since_epoch()) % 1000;
+    std::stringstream ss;
+    #if defined(_WIN32)
+    struct tm gmt;
+    gmtime_s(&gmt, &in_time_t);
+    ss << std::put_time(&gmt, "%Y-%m-%dT%H:%M:%S");
+    #else
+    struct tm gmt;
+    gmtime_r(&in_time_t, &gmt);
+    ss << std::put_time(&gmt, "%Y-%m-%dT%H:%M:%S");
+    #endif
+    ss << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
+    return ss.str();
+  };
+
+  json j;
+  j["name"] = name;
+  j["project_name"] = project_name;
+  j["start_time"] = get_iso(start_time);
+  j["end_time"] = get_iso(now);
+
+  if (type == "prompt") {
+    j["input"] = {{"prompt", input_val}};
+  } else {
+    j["input"] = {{"command", input_val}};
+  }
+
+  json trace_events = json::array();
+  for (auto &e : trace) {
+    json ev;
+    ev["tool"] = e.tool;
+    if (!e.args.empty()) {
+      ev["args"] = e.args;
+    }
+    if (!e.files.empty()) {
+      auto &f_arr = ev["files"];
+      for (auto &f : e.files) {
+        f_arr.push_back(f);
+      }
+    }
+    trace_events.push_back(ev);
+  }
+
+  j["output"] = {
+      {"status", passed ? "PASS" : "FAIL"},
+      {"outcome", result_outcome},
+      {"ai_called", ai_called},
+      {"duration_seconds", duration},
+      {"trace_events", trace_events}
+  };
+
+  j["metadata"] = {
+      {"scenario_path", scenario_path},
+      {"type", type},
+      {"expectations", expect}
+  };
+
+  j["tags"] = json::array({"scenario-test", name, passed ? "passed" : "failed"});
+
+  HeaderMap headers;
+  std::string api_key = Utils::Config::get_env_var("OPIK_API_KEY");
+  if (!api_key.empty()) {
+    headers["Authorization"] = api_key;
+  }
+  std::string workspace = Utils::Config::get_env_var("OPIK_WORKSPACE");
+  if (!workspace.empty()) {
+    headers["Comet-Workspace"] = workspace;
+  }
+  headers["Content-Type"] = "application/json";
+
+  auto resp = Services::WebService::post_json(url, j.dump(), headers);
+  if (!resp.success) {
+    std::cerr << "[Opik] Failed to upload scenario trace: " << resp.error_message << "\n";
+  }
+}
 
 // ===================================================================
 // Shared execution path: one tool runner, always collects trace events
@@ -58,11 +334,13 @@ QueryResult run_query(const std::string &prompt) {
               ".", tc.args.empty() ? prompt : tc.args, "*");
           std::vector<Services::FileSearchResult> filtered;
           for (auto &x : r) {
-            if (x.file_path.find("/scenarios/") != std::string::npos)
+            std::string p = x.file_path;
+            std::replace(p.begin(), p.end(), '\\', '/');
+            if (p.find("/scenarios/") != std::string::npos)
               continue;
-            if (x.file_path.find("/build/") != std::string::npos)
+            if (p.find("/build/") != std::string::npos)
               continue;
-            if (x.file_path.find("/data/") != std::string::npos)
+            if (p.find("/data/") != std::string::npos)
               continue;
             filtered.push_back(x);
           }
@@ -135,117 +413,165 @@ QueryResult run_query(const std::string &prompt) {
       },
       ui);
 
-  return {prompt, res, trace};
+  QueryResult qr = {prompt, res, trace};
+  bool opik_enabled = Utils::Config::get_env_var("OPIK_ENABLE") == "true" ||
+                      Utils::Config::get_env_var("OPIK_ENABLE") == "1" ||
+                      !Utils::Config::get_env_var("OPIK_API_KEY").empty();
+  if (opik_enabled) {
+    OpikConsumer opik;
+    feed_consumer(opik, qr);
+  }
+  return qr;
 }
 
 // ===================================================================
 // Renderers
 // ===================================================================
 
-int render_json(const QueryResult &qr) {
-  auto files = extract_files_examined(qr.result.evidence.facts);
-
-  json j;
-  j["prompt"] = qr.prompt;
-  j["goal_type"] = Services::ExecutionEngine::goal_type_name(
-      static_cast<Services::ExecutionEngine::GoalType>(qr.result.goal_type));
-  j["outcome"] = Core::outcome_name(qr.result.outcome);
-  j["ai_called"] = Core::CommandRouter::should_call_ai(qr.result);
-  j["confidence"] = qr.result.confidence;
-
-  auto &files_arr = j["files_examined"];
-  for (auto &f : files) {
-    files_arr.push_back(f);
+void feed_consumer(TraceConsumer &consumer, const QueryResult &qr) {
+  consumer.start_session(qr.prompt);
+  for (auto &e : qr.trace) {
+    consumer.handle_event(e);
   }
-
-  auto &tools_arr = j["tools"];
-  std::vector<std::string> tools;
-  for (auto &f : qr.result.evidence.facts) {
-    if (f.find("grep") != std::string::npos &&
-        std::find(tools.begin(), tools.end(), "grep") == tools.end()) {
-      tools.push_back("grep");
-    }
-    if (f.find("read") != std::string::npos &&
-        std::find(tools.begin(), tools.end(), "read") == tools.end()) {
-      tools.push_back("read");
-    }
-  }
-  for (auto &t : tools) {
-    tools_arr.push_back(t);
-  }
-
-  std::cout << j.dump(2) << std::endl;
-  return 0;
+  consumer.end_session(qr.result);
 }
 
-int render_timeline(const QueryResult &qr) {
-  std::string route_name = Services::ExecutionEngine::goal_type_name(
-      static_cast<Services::ExecutionEngine::GoalType>(qr.result.goal_type));
-  std::cout << "[route] " << route_name << "\n\n";
+class JsonConsumer : public TraceConsumer {
+private:
+  std::string prompt_;
+  std::vector<Core::TraceEvent> trace_;
+public:
+  void start_session(const std::string &prompt) override {
+    prompt_ = prompt;
+  }
+  void handle_event(const Core::TraceEvent &event) override {
+    trace_.push_back(event);
+  }
+  void end_session(const Services::ExecutionResult &result) override {
+    auto files = extract_files_examined(result.evidence.facts);
 
-  for (auto &e : qr.trace) {
+    json j;
+    j["prompt"] = prompt_;
+    j["goal_type"] = Services::ExecutionEngine::goal_type_name(
+        static_cast<Services::ExecutionEngine::GoalType>(result.goal_type));
+    j["outcome"] = Core::outcome_name(result.outcome);
+    j["ai_called"] = Core::CommandRouter::should_call_ai(result);
+    j["confidence"] = result.confidence;
+
+    auto &files_arr = j["files_examined"];
+    for (auto &f : files) {
+      files_arr.push_back(f);
+    }
+
+    auto &tools_arr = j["tools"];
+    std::vector<std::string> tools;
+    for (auto &f : result.evidence.facts) {
+      if (f.find("grep") != std::string::npos &&
+          std::find(tools.begin(), tools.end(), "grep") == tools.end()) {
+        tools.push_back("grep");
+      }
+      if (f.find("read") != std::string::npos &&
+          std::find(tools.begin(), tools.end(), "read") == tools.end()) {
+        tools.push_back("read");
+      }
+    }
+    for (auto &t : tools) {
+      tools_arr.push_back(t);
+    }
+
+    std::cout << j.dump(2) << std::endl;
+  }
+};
+
+class TimelineConsumer : public TraceConsumer {
+private:
+  std::string prompt_;
+  std::vector<std::string> event_logs_;
+public:
+  void start_session(const std::string &prompt) override {
+    prompt_ = prompt;
+  }
+  void handle_event(const Core::TraceEvent &e) override {
+    std::ostringstream ss;
     if (e.tool == "grep") {
-      std::cout << "[search]\n";
-      std::cout << "  tool:    grep\n";
-      std::cout << "  query:   " << e.args << "\n";
-      std::cout << "  matches: " << e.files.size() << " files\n";
+      ss << "[search]\n";
+      ss << "  tool:    grep\n";
+      ss << "  query:   " << e.args << "\n";
+      ss << "  matches: " << e.files.size() << " files\n";
       if (e.files.size() <= 15) {
         for (auto &f : e.files)
-          std::cout << "    " << f << "\n";
+          ss << "    " << f << "\n";
       } else {
         for (int i = 0; i < 10 && i < (int)e.files.size(); i++)
-          std::cout << "    " << e.files[i] << "\n";
-        std::cout << "    ... (" << (e.files.size() - 10) << " more)\n";
+          ss << "    " << e.files[i] << "\n";
+        ss << "    ... (" << (e.files.size() - 10) << " more)\n";
       }
-      std::cout << "\n";
+      ss << "\n";
     } else if (e.tool == "read") {
-      std::cout << "[read]\n";
+      ss << "[read]\n";
       if (!e.files.empty()) {
-        std::cout << "  files:\n";
+        ss << "  files:\n";
         for (auto &f : e.files)
-          std::cout << "    " << f << "\n";
+          ss << "    " << f << "\n";
       } else {
-        std::cout << "  files: none\n";
+        ss << "  files: none\n";
       }
-      std::cout << "\n";
+      ss << "\n";
     } else if (e.tool == "discovery") {
-      std::cout << "[discovery]\n\n";
+      ss << "[discovery]\n\n";
     } else if (e.tool == "gh" || e.tool == "cmake" || e.tool == "ctest") {
-      std::cout << "[" << e.tool << "]\n";
-      std::cout << "  args: " << e.args << "\n\n";
+      ss << "[" << e.tool << "]\n";
+      ss << "  args: " << e.args << "\n\n";
     } else {
-      std::cout << "[" << e.tool << "]\n\n";
+      ss << "[" << e.tool << "]\n\n";
     }
+    event_logs_.push_back(ss.str());
   }
+  void end_session(const Services::ExecutionResult &result) override {
+    std::string route_name = Services::ExecutionEngine::goal_type_name(
+        static_cast<Services::ExecutionEngine::GoalType>(result.goal_type));
+    std::cout << "[route] " << route_name << "\n\n";
 
-  std::cout << "[evidence]\n";
-  std::cout << "  facts: " << qr.result.evidence.facts.size() << " collected\n\n";
+    for (auto &log : event_logs_) {
+      std::cout << log;
+    }
 
-  std::cout << "[outcome]\n";
-  std::cout << "  result: " << Core::outcome_name(qr.result.outcome) << "\n\n";
+    std::cout << "[evidence]\n";
+    std::cout << "  facts: " << result.evidence.facts.size() << " collected\n\n";
 
-  bool will_call_ai = Core::CommandRouter::should_call_ai(qr.result);
-  std::cout << "[ai]\n";
-  if (will_call_ai) {
-    std::cout << "  called: yes\n";
-    if (!qr.result.ai_response.empty())
-      std::cout << "  response: " << qr.result.ai_response.substr(0, 200) << "\n";
-  } else {
-    std::cout << "  called: no (outcome != success)\n";
+    std::cout << "[outcome]\n";
+    std::cout << "  result: " << Core::outcome_name(result.outcome) << "\n\n";
+
+    bool will_call_ai = Core::CommandRouter::should_call_ai(result);
+    std::cout << "[ai]\n";
+    if (will_call_ai) {
+      std::cout << "  called: yes\n";
+      if (!result.ai_response.empty())
+        std::cout << "  response: " << result.ai_response.substr(0, 200) << "\n";
+    } else {
+      std::cout << "  called: no (outcome != success)\n";
+    }
+    std::cout << "\n";
   }
-  std::cout << "\n";
+};
 
-  return 0;
-}
-
-int write_trace(const QueryResult &qr, const std::string &output_path) {
-  json j;
-  auto &evts = j["events"];
-  for (auto &e : qr.trace) {
+class TraceFileConsumer : public TraceConsumer {
+private:
+  std::string prompt_;
+  std::string output_path_;
+  json j_;
+  bool success_{true};
+public:
+  TraceFileConsumer(const std::string &output_path) : output_path_(output_path) {}
+  bool was_successful() const { return success_; }
+  void start_session(const std::string &prompt) override {
+    prompt_ = prompt;
+  }
+  void handle_event(const Core::TraceEvent &e) override {
     json ev;
     ev["tool"] = e.tool;
     if (e.tool == "grep") {
-      ev["query"] = e.args.empty() ? qr.prompt : e.args;
+      ev["query"] = e.args.empty() ? prompt_ : e.args;
     }
     if (!e.files.empty()) {
       auto &f_arr = ev["files"];
@@ -253,66 +579,105 @@ int write_trace(const QueryResult &qr, const std::string &output_path) {
         f_arr.push_back(f);
       }
     }
-    evts.push_back(ev);
+    j_["events"].push_back(ev);
   }
-  j["outcome"] = Core::outcome_name(qr.result.outcome);
-  j["ai_called"] = Core::CommandRouter::should_call_ai(qr.result);
+  void end_session(const Services::ExecutionResult &result) override {
+    j_["outcome"] = Core::outcome_name(result.outcome);
+    j_["ai_called"] = Core::CommandRouter::should_call_ai(result);
 
-  std::ofstream ofs(output_path);
-  if (!ofs) {
-    std::cerr << "Cannot write trace to " << output_path << "\n";
-    return 1;
+    std::ofstream ofs(output_path_);
+    if (!ofs) {
+      std::cerr << "Cannot write trace to " << output_path_ << "\n";
+      success_ = false;
+      return;
+    }
+    ofs << j_.dump(2) << std::endl;
+    std::cout << "Trace written to " << output_path_ << "\n";
   }
-  ofs << j.dump(2) << std::endl;
-  std::cout << "Trace written to " << output_path << "\n";
+};
+
+class EvidenceExporterConsumer : public TraceConsumer {
+private:
+  std::string prompt_;
+  std::string output_path_;
+  bool success_{true};
+public:
+  EvidenceExporterConsumer(const std::string &output_path) : output_path_(output_path) {}
+  bool was_successful() const { return success_; }
+  void start_session(const std::string &prompt) override {
+    prompt_ = prompt;
+  }
+  void handle_event(const Core::TraceEvent &event) override {}
+  void end_session(const Services::ExecutionResult &result) override {
+    auto files = extract_files_examined(result.evidence.facts);
+
+    json j;
+    j["prompt"] = prompt_;
+    j["goal_type"] = Services::ExecutionEngine::goal_type_name(
+        static_cast<Services::ExecutionEngine::GoalType>(result.goal_type));
+    j["outcome"] = Core::outcome_name(result.outcome);
+    j["confidence"] = result.confidence;
+    j["ai_called"] = Core::CommandRouter::should_call_ai(result);
+
+    auto &facts_arr = j["evidence"]["facts"];
+    for (auto &f : result.evidence.facts) {
+      facts_arr.push_back(f);
+    }
+
+    auto &files_arr = j["evidence"]["files_examined"];
+    for (auto &f : files) {
+      files_arr.push_back(f);
+    }
+
+    std::vector<std::string> tools;
+    for (auto &f : result.evidence.facts) {
+      if (f.find("grep") != std::string::npos &&
+          std::find(tools.begin(), tools.end(), "grep") == tools.end()) {
+        tools.push_back("grep");
+      }
+      if (f.find("read") != std::string::npos &&
+          std::find(tools.begin(), tools.end(), "read") == tools.end()) {
+        tools.push_back("read");
+      }
+    }
+    auto &tools_arr = j["evidence"]["tools"];
+    for (auto &t : tools) {
+      tools_arr.push_back(t);
+    }
+
+    std::ofstream ofs(output_path_);
+    if (!ofs) {
+      std::cerr << "Cannot write evidence to " << output_path_ << "\n";
+      success_ = false;
+      return;
+    }
+    ofs << j.dump(2) << std::endl;
+    std::cout << "Evidence exported to " << output_path_ << "\n";
+  }
+};
+
+int render_json(const QueryResult &qr) {
+  JsonConsumer consumer;
+  feed_consumer(consumer, qr);
   return 0;
 }
 
-int export_evidence(const QueryResult &qr, const std::string &output_path) {
-  auto files = extract_files_examined(qr.result.evidence.facts);
-
-  json j;
-  j["prompt"] = qr.prompt;
-  j["goal_type"] = Services::ExecutionEngine::goal_type_name(
-      static_cast<Services::ExecutionEngine::GoalType>(qr.result.goal_type));
-  j["outcome"] = Core::outcome_name(qr.result.outcome);
-  j["confidence"] = qr.result.confidence;
-  j["ai_called"] = Core::CommandRouter::should_call_ai(qr.result);
-
-  auto &facts_arr = j["evidence"]["facts"];
-  for (auto &f : qr.result.evidence.facts) {
-    facts_arr.push_back(f);
-  }
-
-  auto &files_arr = j["evidence"]["files_examined"];
-  for (auto &f : files) {
-    files_arr.push_back(f);
-  }
-
-  std::vector<std::string> tools;
-  for (auto &f : qr.result.evidence.facts) {
-    if (f.find("grep") != std::string::npos &&
-        std::find(tools.begin(), tools.end(), "grep") == tools.end()) {
-      tools.push_back("grep");
-    }
-    if (f.find("read") != std::string::npos &&
-        std::find(tools.begin(), tools.end(), "read") == tools.end()) {
-      tools.push_back("read");
-    }
-  }
-  auto &tools_arr = j["evidence"]["tools"];
-  for (auto &t : tools) {
-    tools_arr.push_back(t);
-  }
-
-  std::ofstream ofs(output_path);
-  if (!ofs) {
-    std::cerr << "Cannot write evidence to " << output_path << "\n";
-    return 1;
-  }
-  ofs << j.dump(2) << std::endl;
-  std::cout << "Evidence exported to " << output_path << "\n";
+int render_timeline(const QueryResult &qr) {
+  TimelineConsumer consumer;
+  feed_consumer(consumer, qr);
   return 0;
+}
+
+int write_trace(const QueryResult &qr, const std::string &output_path) {
+  TraceFileConsumer consumer(output_path);
+  feed_consumer(consumer, qr);
+  return consumer.was_successful() ? 0 : 1;
+}
+
+int export_evidence(const QueryResult &qr, const std::string &output_path) {
+  EvidenceExporterConsumer consumer(output_path);
+  feed_consumer(consumer, qr);
+  return consumer.was_successful() ? 0 : 1;
 }
 
 // ===================================================================
@@ -422,20 +787,93 @@ int run_scenario(const std::string &scenario_path) {
 
   if (is_prompt) {
     std::string prompt = j["prompt"];
+    auto start_time = std::chrono::steady_clock::now();
     auto qr = run_query(prompt);
     int rc = check_prompt_assertions(qr.result, expect, qr.trace);
+    auto end_time = std::chrono::steady_clock::now();
+    double duration = std::chrono::duration<double>(end_time - start_time).count();
+
     std::cout << (rc == 0 ? "PASS" : "FAIL") << "\n";
+
+    upload_scenario_to_opik(
+        scenario_path,
+        "prompt",
+        prompt,
+        duration,
+        rc == 0,
+        Core::outcome_name(qr.result.outcome),
+        Core::CommandRouter::should_call_ai(qr.result),
+        qr.trace,
+        expect
+    );
+
     return rc;
   }
 
   if (is_command) {
     std::string command = j["command"];
+#if defined(_WIN32)
+    // Resolve `./build/bin/cursor-agent` to the correct local Windows path
+    std::string exe_path;
+    if (std::filesystem::exists("build/bin/Release/cursor-agent.exe")) {
+      exe_path = "build\\bin\\Release\\cursor-agent.exe";
+    } else if (std::filesystem::exists("build/bin/Debug/cursor-agent.exe")) {
+      exe_path = "build\\bin\\Debug\\cursor-agent.exe";
+    } else if (std::filesystem::exists("build/bin/cursor-agent.exe")) {
+      exe_path = "build\\bin\\cursor-agent.exe";
+    } else {
+      exe_path = "build\\bin\\cursor-agent.exe"; // Fallback
+    }
+
+    size_t pos = 0;
+    while ((pos = command.find("./build/bin/cursor-agent", pos)) != std::string::npos) {
+      command.replace(pos, 25, exe_path);
+      pos += exe_path.length();
+    }
+
+    pos = 0;
+    while ((pos = command.find("echo \"/\"", pos)) != std::string::npos) {
+      command.replace(pos, 8, "echo /");
+      pos += 6;
+    }
+#endif
+
+    std::string name = std::filesystem::path(scenario_path).filename().string();
+#if defined(_WIN32)
+    _putenv_s("OPIK_SCENARIO_NAME", name.c_str());
+#else
+    setenv("OPIK_SCENARIO_NAME", name.c_str(), 1);
+#endif
+
+    auto start_time = std::chrono::steady_clock::now();
     Services::StreamTelemetry telemetry;
     Utils::Config::load_environment();
     std::string output = Services::CommandService::execute_with_telemetry(
         command, telemetry);
     int rc = check_command_assertions(telemetry, output, expect);
+    auto end_time = std::chrono::steady_clock::now();
+    double duration = std::chrono::duration<double>(end_time - start_time).count();
+
     std::cout << (rc == 0 ? "PASS" : "FAIL") << "\n";
+
+#if defined(_WIN32)
+    _putenv_s("OPIK_SCENARIO_NAME", "");
+#else
+    unsetenv("OPIK_SCENARIO_NAME");
+#endif
+
+    upload_scenario_to_opik(
+        scenario_path,
+        "command",
+        command,
+        duration,
+        rc == 0,
+        std::to_string(telemetry.exit_code),
+        false,
+        {},
+        expect
+    );
+
     return rc;
   }
 
