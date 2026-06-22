@@ -573,7 +573,7 @@ target_link_libraries(cursor-agent PRIVATE
 )
 
 if(CURSOR_BUILD_TESTS)
-    add_executable(cursor-tests tests/main_test.cpp src/utils/version.cpp)
+    add_executable(cursor-tests tests/main_test.cpp tests/ci_investigation_test.cpp src/utils/version.cpp)
     target_include_directories(cursor-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}/include
@@ -695,20 +695,25 @@ if(CURSOR_BUILD_TESTS)
     list(APPEND CURSOR_CHECK_TEST_COMMANDS COMMAND ${CMAKE_BINARY_DIR}/cursor-tests)
     list(APPEND CURSOR_CHECK_TEST_COMMANDS COMMAND bash ${CMAKE_SOURCE_DIR}/tests/e2e/run_local_batch.sh $<TARGET_FILE:cursor-agent>)
     list(APPEND CURSOR_CHECK_DEPENDS cursor-tests)
+    list(APPEND CURSOR_CHECK_DEPENDS cursor-tester)
 endif()
 
 # Add custom check target for testing and validation
 add_custom_target(check
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cursor-agent
-    COMMAND echo "Running automated tests..."
-    COMMAND $<TARGET_FILE:cursor-agent> --version
-    COMMAND $<TARGET_FILE:cursor-agent> --help
-    ${CURSOR_CHECK_TEST_COMMANDS}
-    COMMAND echo "Checking binary exists..."
-    COMMAND test -f $<TARGET_FILE:cursor-agent>
-    COMMAND echo "Validating executable permissions..."
-    COMMAND test -x $<TARGET_FILE:cursor-agent>
-    COMMAND echo "All checks passed!"
+    COMMAND echo ""
+    COMMAND echo "============================================"
+    COMMAND echo "  Unit Tests"
+    COMMAND echo "============================================"
+    COMMAND ${CMAKE_BINARY_DIR}/cursor-tests
+    COMMAND echo "============================================"
+    COMMAND echo "  Scenario Tests"
+    COMMAND echo "============================================"
+    COMMAND ${CMAKE_BINARY_DIR}/bin/cursor-tester ${CMAKE_SOURCE_DIR}/scenarios/
+    COMMAND echo "============================================"
+    COMMAND echo "  All checks passed!"
+    COMMAND echo "============================================"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     DEPENDS ${CURSOR_CHECK_DEPENDS}
     COMMENT "Running comprehensive project validation"
 )

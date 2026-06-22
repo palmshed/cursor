@@ -1,0 +1,7 @@
+{
+  "prompt": "find all files that define trim functions",
+  "expect": {
+    "files_examined_min": 1,
+    "evidence_nonempty": true
+  }
+}

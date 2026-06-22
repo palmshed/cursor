@@ -1,0 +1,7 @@
+{
+  "command": "./build/bin/cursor-agent --json \"what is 2+2\" 2>&1",
+  "expect": {
+    "output_contains": "files_examined",
+    "exit_code": 0
+  }
+}

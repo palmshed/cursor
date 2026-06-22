@@ -1,0 +1,7 @@
+{
+  "prompt": "find the function ZYX_DOES_NOT_EXIST_123456",
+  "expect": {
+    "ai_called": false,
+    "outcome": "insufficient_evidence"
+  }
+}

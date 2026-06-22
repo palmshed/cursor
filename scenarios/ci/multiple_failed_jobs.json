@@ -1,0 +1,6 @@
+{
+  "command": "./build/bin/cursor-agent --ci-investigate 2>&1",
+  "expect": {
+    "output_contains": "CI Investigation"
+  }
+}

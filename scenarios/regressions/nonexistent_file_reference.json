@@ -1,0 +1,7 @@
+{
+  "prompt": "what is in src/XYZZY_NONEXISTENT_NOPE_NOPE.go",
+  "expect": {
+    "ai_called": false,
+    "outcome": "insufficient_evidence"
+  }
+}

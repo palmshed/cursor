@@ -1,0 +1,7 @@
+{
+  "prompt": "what is the version defined in version.h",
+  "expect": {
+    "ai_called": true,
+    "files_examined_min": 1
+  }
+}

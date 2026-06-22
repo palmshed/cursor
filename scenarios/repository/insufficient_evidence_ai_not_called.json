@@ -1,0 +1,7 @@
+{
+  "prompt": "what is in file XYZZY_NONEXISTENT_NOPE_FILE",
+  "expect": {
+    "ai_called": false,
+    "outcome": "insufficient_evidence"
+  }
+}
