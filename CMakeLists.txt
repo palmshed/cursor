@@ -631,6 +631,14 @@ set_target_properties(cursor-tester PROPERTIES
     MACOSX_RPATH ON
 )
 
+# check-scenarios: runs all scenarios through cursor-tester
+add_custom_target(check-scenarios
+    COMMAND $<TARGET_FILE:cursor-tester> scenarios/
+    DEPENDS cursor-tester
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Running scenario verification suite"
+)
+
 # On macOS, add additional settings
 if(APPLE)
     target_link_options(cursor-agent PRIVATE
