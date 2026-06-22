@@ -1,6 +1,6 @@
 {
   "command": "./build/bin/cursor-agent --ci-investigate-latest-failure 2>&1",
   "expect": {
-    "output_contains": ["CI Latest Failure", "No recent failed workflow runs found"]
+    "output_contains": ["CI Latest Failure", "No recent failed workflow runs found", "GitHub CLI"]
   }
 }
