@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
                 << "  --calibrate           Show confidence calibration analysis\n"
                 << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n"
                 << "  --trace <file> <prompt>  Run with tool tracing, write trace.json\n"
+                << "  --stream-report <file> <cmd>  Run command with streaming telemetry\n"
                 << "  --scenario <file>     Run scenario JSON and verify expected outcome\n";
       return 0;
     }
@@ -257,6 +258,28 @@ int main(int argc, char *argv[]) {
       }
       Utils::Config::load_environment();
       return run_trace_query(prompt, trace_path);
+    }
+    if (arg == "--stream-report") {
+      std::string report_path;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        report_path = argv[++i];
+      } else {
+        std::cerr << "Usage: --stream-report <report.json> <command>\n";
+        return 2;
+      }
+      std::string command;
+      if (i + 1 < argc) {
+        // Collect remaining args as the command
+        command = argv[++i];
+        while (i + 1 < argc) {
+          command += " ";
+          command += argv[++i];
+        }
+      } else {
+        std::cerr << "Missing command for --stream-report\n";
+        return 2;
+      }
+      return run_stream_report(command, report_path);
     }
     if (arg == "--scenario") {
       std::string scenario_path;

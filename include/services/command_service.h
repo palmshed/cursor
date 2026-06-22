@@ -4,6 +4,18 @@
 #include <string>
 
 namespace Services {
+
+struct StreamTelemetry {
+  std::string command;
+  long long started_at{0};
+  long long first_output_at{0};
+  long long last_output_at{0};
+  long long completed_at{0};
+  int lines_streamed{0};
+  int exit_code{0};
+  bool timed_out{false};
+};
+
 class CommandService {
 private:
   static const std::array<std::string, 9> dangerous_commands;
@@ -22,5 +34,11 @@ public:
   static std::string execute(const std::string &command,
                              int timeout_seconds = 30,
                              size_t max_bytes = 100 * 1024);
+
+  // Execute with streaming telemetry recording
+  static std::string execute_with_telemetry(const std::string &command,
+                                            StreamTelemetry &telemetry,
+                                            int timeout_seconds = 30,
+                                            size_t max_bytes = 100 * 1024);
 };
 } // namespace Services
