@@ -38,6 +38,15 @@ int check_command_assertions(const Services::StreamTelemetry &telemetry,
 
 void feed_consumer(TraceConsumer &consumer, const QueryResult &qr);
 
+static bool is_opik_enabled() {
+  std::string enable_val = Utils::Config::get_env_var("OPIK_ENABLE");
+  if (!enable_val.empty()) {
+    return enable_val == "true" || enable_val == "1";
+  }
+  std::string api_key = Utils::Config::get_env_var("OPIK_API_KEY");
+  return !api_key.empty() && api_key != "your_opik_api_key_here";
+}
+
 class OpikConsumer : public TraceConsumer {
 private:
   std::string prompt_;
@@ -73,12 +82,7 @@ public:
     std::string end_time_iso = get_iso8601_timestamp();
     double duration = std::chrono::duration<double>(end_time - start_time_).count();
 
-    // Check if Opik is enabled
-    bool enabled = Utils::Config::get_env_var("OPIK_ENABLE") == "true" ||
-                   Utils::Config::get_env_var("OPIK_ENABLE") == "1" ||
-                   !Utils::Config::get_env_var("OPIK_API_KEY").empty();
-
-    if (!enabled) {
+    if (!is_opik_enabled()) {
       return;
     }
 
@@ -197,11 +201,7 @@ void upload_scenario_to_opik(
     const std::vector<Core::TraceEvent> &trace,
     const json &expect) {
 
-  bool enabled = Utils::Config::get_env_var("OPIK_ENABLE") == "true" ||
-                 Utils::Config::get_env_var("OPIK_ENABLE") == "1" ||
-                 !Utils::Config::get_env_var("OPIK_API_KEY").empty();
-
-  if (!enabled) {
+  if (!is_opik_enabled()) {
     return;
   }
 
@@ -414,10 +414,7 @@ QueryResult run_query(const std::string &prompt) {
       ui);
 
   QueryResult qr = {prompt, res, trace};
-  bool opik_enabled = Utils::Config::get_env_var("OPIK_ENABLE") == "true" ||
-                      Utils::Config::get_env_var("OPIK_ENABLE") == "1" ||
-                      !Utils::Config::get_env_var("OPIK_API_KEY").empty();
-  if (opik_enabled) {
+  if (is_opik_enabled()) {
     OpikConsumer opik;
     feed_consumer(opik, qr);
   }
@@ -607,7 +604,7 @@ public:
   void start_session(const std::string &prompt) override {
     prompt_ = prompt;
   }
-  void handle_event(const Core::TraceEvent &event) override {}
+  void handle_event(const Core::TraceEvent &) override {}
   void end_session(const Services::ExecutionResult &result) override {
     auto files = extract_files_examined(result.evidence.facts);
 

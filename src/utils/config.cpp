@@ -58,7 +58,9 @@ void load_environment(const std::string &filename) {
       }
 
       if (!key.empty()) {
-        set_env_var(key, value);
+        if (!has_env_var(key)) {
+          set_env_var(key, value);
+        }
       }
     }
   }
