@@ -289,3 +289,63 @@ int run_json_query(const std::string &prompt) {
   std::cout << j.dump(2) << std::endl;
   return 0;
 }
+
+int run_scenario(const std::string &scenario_path) {
+  std::ifstream ifs(scenario_path);
+  if (!ifs) {
+    std::cerr << "FAIL " << scenario_path << "  (cannot open)\n";
+    return 1;
+  }
+  json j;
+  try {
+    ifs >> j;
+  } catch (...) {
+    std::cerr << "FAIL " << scenario_path << "  (invalid JSON)\n";
+    return 1;
+  }
+
+  std::string prompt = j.value("prompt", "");
+  if (prompt.empty()) {
+    std::cerr << "FAIL " << scenario_path << "  (missing 'prompt')\n";
+    return 1;
+  }
+
+  auto expect = j["expect"];
+  std::string expected_outcome = expect.value("outcome", "success");
+  bool expected_ai_called = expect.value("ai_called", true);
+
+  return run_scenario_prompt(prompt, expected_outcome, expected_ai_called);
+}
+
+int run_scenario_prompt(const std::string &prompt,
+                        const std::string &expected_outcome,
+                        bool expected_ai_called) {
+  Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+  Services::ExecutionEngine engine;
+
+  auto res = run_engine_once(prompt, engine, ui);
+
+  std::string actual_outcome = Core::outcome_name(res.outcome);
+  bool actual_ai_called = Core::CommandRouter::should_call_ai(res);
+
+  bool outcome_ok = (actual_outcome == expected_outcome);
+  bool ai_ok = (actual_ai_called == expected_ai_called);
+
+  if (outcome_ok && ai_ok) {
+    std::cout << "PASS" << "\n";
+    return 0;
+  }
+
+  std::cout << "FAIL" << "\n";
+  if (!outcome_ok) {
+    std::cout << "  expected outcome: " << expected_outcome
+              << "  actual: " << actual_outcome << "\n";
+  }
+  if (!ai_ok) {
+    std::cout << "  expected ai_called: " << (expected_ai_called ? "true" : "false")
+              << "  actual: " << (actual_ai_called ? "true" : "false") << "\n";
+  }
+  return 1;
+}
