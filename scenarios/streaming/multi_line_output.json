@@ -1,0 +1,8 @@
+{
+  "command": "printf 'line1\\nline2\\nline3\\n'",
+  "expect": {
+    "exit_code": 0,
+    "lines_streamed_min": 3,
+    "output_contains": "line2"
+  }
+}

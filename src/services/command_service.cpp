@@ -9,6 +9,9 @@
 #include <future>
 #include <regex>
 #include <stdexcept>
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 
 namespace Services {
 const std::array<std::string, 9> CommandService::dangerous_commands = {
@@ -48,9 +51,17 @@ CommandService::execute_command([[maybe_unused]] const std::string &command,
     result += buffer;
   }
 
-  int exit_code = Utils::Platform::close_process(pipe);
-  if (exit_code != 0) {
-    result += "\nExit code: " + std::to_string(exit_code);
+  {
+    int raw_status = Utils::Platform::close_process(pipe);
+#ifdef _WIN32
+    int exit_code = raw_status;
+#else
+    int exit_code = WIFEXITED(raw_status)
+        ? WEXITSTATUS(raw_status) : raw_status;
+#endif
+    if (exit_code != 0) {
+      result += "\nExit code: " + std::to_string(exit_code);
+    }
   }
 
   return result.empty() ? "Command completed" : result;
@@ -132,7 +143,15 @@ std::string CommandService::execute_with_telemetry(
         result += buffer;
       }
 
-      telemetry.exit_code = Utils::Platform::close_process(pipe);
+      {
+        int raw_status = Utils::Platform::close_process(pipe);
+#ifdef _WIN32
+        telemetry.exit_code = raw_status;
+#else
+        telemetry.exit_code = WIFEXITED(raw_status)
+            ? WEXITSTATUS(raw_status) : raw_status;
+#endif
+      }
       telemetry.completed_at = std::chrono::duration_cast<std::chrono::milliseconds>(
           std::chrono::steady_clock::now().time_since_epoch()).count();
 

@@ -1,0 +1,8 @@
+{
+  "command": "zzz_nonexistent_cmd_42_xyzzy",
+  "expect": {
+    "exit_code": 127,
+    "lines_streamed_min": 0,
+    "timed_out": false
+  }
+}

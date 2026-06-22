@@ -1,0 +1,7 @@
+{
+  "prompt": "where is XYZZY_CURSOR_NONEXISTENT_ZZZZ_42",
+  "expect": {
+    "outcome": "insufficient_evidence",
+    "ai_called": false
+  }
+}

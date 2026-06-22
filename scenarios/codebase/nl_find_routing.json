@@ -1,0 +1,7 @@
+{
+  "prompt": "find test files in project",
+  "expect": {
+    "files_examined_min": 1,
+    "evidence_nonempty": true
+  }
+}

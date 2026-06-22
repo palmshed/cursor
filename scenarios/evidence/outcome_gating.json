@@ -1,0 +1,6 @@
+{
+  "prompt": "where is XYZZY_CRS_NONEXISTENT_GUARD",
+  "expect": {
+    "ai_called": false
+  }
+}

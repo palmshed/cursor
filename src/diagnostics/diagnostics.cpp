@@ -25,11 +25,14 @@ struct TraceEvent {
   std::vector<std::string> files;
 };
 
-// Shared tool runner used by both run_diagnostics and run_json_query.
+// Shared tool runner used by all engine invocations.
+// Tracks grep results to support read operations (mimics command_router behavior).
 Services::ExecutionResult run_engine_once(
     const std::string &prompt,
     Services::ExecutionEngine &engine,
     Core::UIManager &ui) {
+
+  std::vector<Services::FileSearchResult> last_grep_results;
 
   return engine.execute(
       prompt,
@@ -37,10 +40,18 @@ Services::ExecutionResult run_engine_once(
         if (tc.tool == "grep") {
           auto r = Services::FileService::search_in_directory(
               ".", tc.args.empty() ? prompt : tc.args, "*");
-          if (r.empty())
+          // Filter out scenario files to prevent test strings from contaminating results.
+          std::vector<Services::FileSearchResult> filtered;
+          for (auto &x : r) {
+            if (x.file_path.find("/scenarios/") != std::string::npos)
+              continue;
+            filtered.push_back(x);
+          }
+          last_grep_results = filtered;
+          if (filtered.empty())
             return "no matches";
           std::string out;
-          for (auto &x : r) {
+          for (auto &x : filtered) {
             out += x.file_path + ":" + std::to_string(x.line_number) + ": " +
                    x.line_content + "\n";
           }
@@ -48,7 +59,20 @@ Services::ExecutionResult run_engine_once(
         }
 
         if (tc.tool == "read") {
-          return "no files to read";
+          if (last_grep_results.empty())
+            return "no files to read";
+          std::set<std::string> unique_files;
+          for (auto &x : last_grep_results)
+            unique_files.insert(x.file_path);
+          std::string out;
+          int count = 0;
+          for (auto &f : unique_files) {
+            if (count >= 5) break;
+            std::string content = Services::FileService::read_file_range(f, 1, 30);
+            out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+            count++;
+          }
+          return out;
         }
 
         if (tc.tool == "discovery") {
@@ -101,7 +125,8 @@ int run_trace_query(const std::string &prompt,
   Services::ExecutionEngine engine;
 
   std::vector<TraceEvent> trace;
-  std::vector<Services::FileSearchResult> last_grep_results;
+  // Shared grep results for read operations (mimics command_router behavior).
+  std::vector<Services::FileSearchResult> trace_grep_results;
 
   auto res = engine.execute(
       prompt,
@@ -113,14 +138,21 @@ int run_trace_query(const std::string &prompt,
         if (tc.tool == "grep") {
           auto r = Services::FileService::search_in_directory(
               ".", tc.args.empty() ? prompt : tc.args, "*");
-          last_grep_results = r;
+          // Filter out scenario files to prevent test strings from contaminating results.
+          std::vector<Services::FileSearchResult> filtered;
           for (auto &x : r) {
+            if (x.file_path.find("/scenarios/") != std::string::npos)
+              continue;
+            filtered.push_back(x);
+          }
+          trace_grep_results = filtered;
+          for (auto &x : filtered) {
             ev.files.push_back(x.file_path);
           }
           trace.push_back(ev);
-          if (r.empty()) return "no matches";
+          if (filtered.empty()) return "no matches";
           std::string out;
-          for (auto &x : r) {
+          for (auto &x : filtered) {
             out += x.file_path + ":" + std::to_string(x.line_number) + ": " +
                    x.line_content + "\n";
           }
@@ -128,12 +160,12 @@ int run_trace_query(const std::string &prompt,
         }
 
         if (tc.tool == "read") {
-          if (last_grep_results.empty()) {
+          if (trace_grep_results.empty()) {
             trace.push_back(ev);
             return "no files to read";
           }
           std::set<std::string> unique_files;
-          for (auto &x : last_grep_results)
+          for (auto &x : trace_grep_results)
             unique_files.insert(x.file_path);
           int count = 0;
           for (auto &f : unique_files) {
