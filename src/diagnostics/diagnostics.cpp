@@ -359,13 +359,31 @@ QueryResult run_query(const std::string &prompt) {
         }
 
         if (tc.tool == "read") {
-          if (grep_results.empty()) {
-            trace.push_back(ev);
-            return "no files to read";
+          std::vector<std::string> unique_files;
+          std::set<std::string> seen;
+
+          if (!tc.args.empty()) {
+            std::istringstream ss(tc.args);
+            std::string fname;
+            while (ss >> fname) {
+              if (seen.find(fname) == seen.end()) {
+                seen.insert(fname);
+                unique_files.push_back(fname);
+              }
+            }
+          } else {
+            if (grep_results.empty()) {
+              trace.push_back(ev);
+              return "no files to read";
+            }
+            for (auto &x : grep_results) {
+              if (seen.find(x.file_path) == seen.end()) {
+                seen.insert(x.file_path);
+                unique_files.push_back(x.file_path);
+              }
+            }
           }
-          std::set<std::string> unique_files;
-          for (auto &x : grep_results)
-            unique_files.insert(x.file_path);
+
           int count = 0;
           for (auto &f : unique_files) {
             if (count >= 5) break;
