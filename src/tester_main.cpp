@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
   Utils::Config::load_environment();
 
   std::vector<std::string> scenario_files;
-  for (auto &entry : fs::directory_iterator(scenarios_dir)) {
+  for (auto &entry : fs::recursive_directory_iterator(scenarios_dir)) {
     if (entry.path().extension() == ".json") {
       scenario_files.push_back(entry.path().string());
     }

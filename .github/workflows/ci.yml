@@ -96,7 +96,13 @@ jobs:
       - name: test
         shell: bash
         run: |
-          cmake --build build --target preflight --config ${{ matrix.build_type }} || true
+          echo "=== Unit Tests ==="
+          ctest --test-dir build --output-on-failure -C ${{ matrix.build_type }}
+          echo "=== Scenario Tests ==="
+          cmake --build build --target check-scenarios --config ${{ matrix.build_type }}
+          echo "=== Summary ==="
+          echo "Unit tests passed"
+          echo "Scenarios passed"
 
       - uses: actions/upload-artifact@v6
         with:
