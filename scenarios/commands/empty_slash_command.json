@@ -1,5 +1,5 @@
 {
-  "command": "/",
+  "command": "echo \"/\" | ./build/bin/cursor-agent --batch",
   "expect": {
     "output_contains": "Available meta commands"
   }
