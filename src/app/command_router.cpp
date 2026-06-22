@@ -160,18 +160,27 @@ std::string CommandRouter::process_user_input(const std::string &input) {
                      ": " + r.line_content + "\n";
           }
         } else if (tc.tool == "read") {
-          std::set<std::string> unique_files;
+          std::vector<std::string> unique_files;
+          std::set<std::string> seen;
 
           // If explicit files were requested, use those
           if (!tc.args.empty()) {
             std::istringstream ss(tc.args);
             std::string fname;
-            while (ss >> fname)
-              unique_files.insert(fname);
+            while (ss >> fname) {
+              if (seen.find(fname) == seen.end()) {
+                seen.insert(fname);
+                unique_files.push_back(fname);
+              }
+            }
           } else if (!last_grep_results.empty()) {
-            // Otherwise read files from last grep results
-            for (auto &r : last_grep_results)
-              unique_files.insert(r.file_path);
+            // Otherwise read files from last grep results, preserving the rank-sorted order
+            for (auto &r : last_grep_results) {
+              if (seen.find(r.file_path) == seen.end()) {
+                seen.insert(r.file_path);
+                unique_files.push_back(r.file_path);
+              }
+            }
           }
 
           if (unique_files.empty()) {
