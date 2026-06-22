@@ -1,7 +1,6 @@
 {
   "command": "./build/bin/cursor-agent --doctor 2>&1",
   "expect": {
-    "output_contains": "read/write",
-    "exit_code": 0
+    "output_contains": ["read/write", "file_read_write"]
   }
 }

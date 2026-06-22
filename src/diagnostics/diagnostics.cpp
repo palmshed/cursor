@@ -563,9 +563,28 @@ int check_command_assertions(const Services::StreamTelemetry &telemetry,
   }
 
   if (expect.contains("output_contains")) {
-    std::string needle = expect["output_contains"];
-    if (output.find(needle) == std::string::npos) {
-      std::cout << "  expected output contains: \"" << needle << "\"\n";
+    json needle = expect["output_contains"];
+    bool found = false;
+    if (needle.is_array()) {
+      for (auto &n : needle) {
+        if (output.find(n.get<std::string>()) != std::string::npos) {
+          found = true;
+          break;
+        }
+      }
+    } else {
+      if (output.find(needle.get<std::string>()) != std::string::npos) {
+        found = true;
+      }
+    }
+    if (!found) {
+      std::cout << "  expected output contains one of: ";
+      if (needle.is_array()) {
+        for (auto &n : needle) std::cout << "\"" << n.get<std::string>() << "\" ";
+      } else {
+        std::cout << "\"" << needle.get<std::string>() << "\"";
+      }
+      std::cout << "\n";
       all_ok = false;
     }
   }
