@@ -69,7 +69,8 @@ int main(int argc, char *argv[]) {
                 << "  --dashboard [filter]  Show outcome dashboard (e.g. outcome=user_rejected)\n"
                 << "  --calibrate           Show confidence calibration analysis\n"
                 << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n"
-                << "  --trace <file> <prompt>  Run with tool tracing, write trace.json\n";
+                << "  --trace <file> <prompt>  Run with tool tracing, write trace.json\n"
+                << "  --scenario <file>     Run scenario JSON and verify expected outcome\n";
       return 0;
     }
     if (arg == "--update") {
@@ -258,9 +259,15 @@ int main(int argc, char *argv[]) {
       return run_trace_query(prompt, trace_path);
     }
     if (arg == "--scenario") {
-      // Not implemented in this milestone
-      std::cerr << "--scenario not implemented yet\n";
-      return 2;
+      std::string scenario_path;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        scenario_path = argv[++i];
+      } else {
+        std::cerr << "Usage: --scenario <scenario.json>\n";
+        return 2;
+      }
+      Utils::Config::load_environment();
+      return run_scenario(scenario_path);
     }
     if (arg == "--dashboard") {
 
