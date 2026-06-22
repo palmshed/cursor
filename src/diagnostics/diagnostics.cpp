@@ -8,6 +8,7 @@
 #include "services/file_service.h"
 #include "ui/ui_manager.h"
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <set>
@@ -16,6 +17,12 @@
 
 namespace {
 using json = nlohmann::json;
+
+struct TraceEvent {
+  std::string tool;
+  std::string args;
+  std::vector<std::string> files;
+};
 
 // Shared tool runner used by both run_diagnostics and run_json_query.
 Services::ExecutionResult run_engine_once(
@@ -84,6 +91,117 @@ void extract_from_fact(const std::string &fact, std::set<std::string> &files) {
 }
 
 } // namespace
+
+int run_trace_query(const std::string &prompt,
+                    const std::string &output_path) {
+  Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+  Services::ExecutionEngine engine;
+
+  std::vector<TraceEvent> trace;
+  std::vector<Services::FileSearchResult> last_grep_results;
+
+  auto res = engine.execute(
+      prompt,
+      [&](const Services::ToolCall &tc) -> std::string {
+        TraceEvent ev;
+        ev.tool = tc.tool;
+        ev.args = tc.args;
+
+        if (tc.tool == "grep") {
+          auto r = Services::FileService::search_in_directory(
+              ".", tc.args.empty() ? prompt : tc.args, "*");
+          last_grep_results = r;
+          for (auto &x : r) {
+            ev.files.push_back(x.file_path);
+          }
+          trace.push_back(ev);
+          if (r.empty()) return "no matches";
+          std::string out;
+          for (auto &x : r) {
+            out += x.file_path + ":" + std::to_string(x.line_number) + ": " +
+                   x.line_content + "\n";
+          }
+          return out;
+        }
+
+        if (tc.tool == "read") {
+          if (last_grep_results.empty()) {
+            trace.push_back(ev);
+            return "no files to read";
+          }
+          std::set<std::string> unique_files;
+          for (auto &x : last_grep_results)
+            unique_files.insert(x.file_path);
+          int count = 0;
+          for (auto &f : unique_files) {
+            if (count >= 5) break;
+            ev.files.push_back(f);
+            count++;
+          }
+          trace.push_back(ev);
+          if (ev.files.empty()) return "no files to read";
+          std::string out;
+          count = 0;
+          for (auto &f : unique_files) {
+            if (count >= 5) break;
+            std::string content = Services::FileService::read_file_range(f, 1, 30);
+            out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+            count++;
+          }
+          return out;
+        }
+
+        if (tc.tool == "discovery") {
+          trace.push_back(ev);
+          auto d = Services::DiscoveryService::scan(".", prompt);
+          return "Project: " + d.project_type;
+        }
+
+        if (tc.tool == "gh") {
+          trace.push_back(ev);
+          return Services::CommandService::execute("gh " + tc.args);
+        }
+
+        if (tc.tool == "cmake" || tc.tool == "ctest") {
+          trace.push_back(ev);
+          return Services::CommandService::execute(tc.args);
+        }
+
+        trace.push_back(ev);
+        return "unknown tool";
+      },
+      ui);
+
+  json j;
+  auto &evts = j["events"];
+  for (auto &e : trace) {
+    json ev;
+    ev["tool"] = e.tool;
+    if (e.tool == "grep") {
+      ev["query"] = e.args.empty() ? prompt : e.args;
+    }
+    if (!e.files.empty()) {
+      auto &f_arr = ev["files"];
+      for (auto &f : e.files) {
+        f_arr.push_back(f);
+      }
+    }
+    evts.push_back(ev);
+  }
+  j["outcome"] = Core::outcome_name(res.outcome);
+  j["ai_called"] = Core::CommandRouter::should_call_ai(res);
+
+  std::ofstream ofs(output_path);
+  if (!ofs) {
+    std::cerr << "Cannot write trace to " << output_path << "\n";
+    return 1;
+  }
+  ofs << j.dump(2) << std::endl;
+  std::cout << "Trace written to " << output_path << "\n";
+  return 0;
+}
 
 std::vector<std::string> extract_files_examined(
     const std::vector<std::string> &facts) {
