@@ -1,7 +1,11 @@
 #include "services/ci_investigation_service.h"
+#include "services/ai_service.h"
 #include "services/command_service.h"
+#include "agent_mode.h"
+#include "utils/config.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <sstream>
 #include <unordered_map>
@@ -311,6 +315,382 @@ CiInvestigationResult CiInvestigationService::investigate() {
 
   result.summary = summary;
   return result;
+}
+
+// Forward declaration for JSON helper used by get_failed_steps
+static std::string extract_val_in(const std::string &obj, const std::string &key);
+
+// ---------------------------------------------------------------------------
+// Step 1: Deterministic failed-run targeting
+// ---------------------------------------------------------------------------
+
+long long CiInvestigationService::get_latest_failure_run_id() {
+  std::string output = Services::CommandService::execute(
+      "gh run list --limit 10 "
+      "--json databaseId,conclusion 2>/dev/null");
+
+  if (output.empty() || output.find("Exit code:") != std::string::npos)
+    return 0;
+
+  // Parse JSON array to find first failure
+  size_t pos = 0;
+  while ((pos = output.find('{', pos)) != std::string::npos) {
+    size_t end = output.find('}', pos);
+    if (end == std::string::npos) break;
+    std::string obj = output.substr(pos, end - pos + 1);
+    pos = end + 1;
+
+    auto extract_val = [&](const std::string &key) -> std::string {
+      size_t k = obj.find("\"" + key + "\":");
+      if (k == std::string::npos) return "";
+      k = obj.find(':', k) + 1;
+      while (k < obj.size() && (obj[k] == ' ' || obj[k] == '\t')) k++;
+      if (obj[k] == '"') {
+        k++;
+        size_t q = obj.find('"', k);
+        return (q == std::string::npos) ? "" : obj.substr(k, q - k);
+      }
+      size_t c = obj.find_first_of(",}", k);
+      return (c == std::string::npos) ? "" : obj.substr(k, c - k);
+    };
+
+    std::string conclusion = extract_val("conclusion");
+    if (conclusion == "failure") {
+      std::string id_str = extract_val("databaseId");
+      if (!id_str.empty()) {
+        try { return std::stoll(id_str); } catch (...) { return 0; }
+      }
+    }
+  }
+
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Deterministic failed-step extraction via gh run view --json jobs
+// ---------------------------------------------------------------------------
+
+std::vector<CiFailureDetail> CiInvestigationService::get_failed_steps(
+    long long run_id) {
+
+  std::string output = Services::CommandService::execute(
+      "gh run view " + std::to_string(run_id) +
+      " --json jobs 2>/dev/null");
+
+  if (output.empty() || output.find("Exit code:") != std::string::npos)
+    return {};
+
+  return parse_failed_steps_json(output, run_id);
+}
+
+std::vector<CiFailureDetail> CiInvestigationService::parse_failed_steps_json(
+    const std::string &json_output, long long run_id) {
+
+  std::vector<CiFailureDetail> failures;
+
+  // Output: {"jobs":[{"name":"...","conclusion":"...","steps":[...]}]}
+  size_t jobs_start = json_output.find("\"jobs\"");
+  if (jobs_start == std::string::npos) return failures;
+  jobs_start = json_output.find(':', jobs_start);
+  if (jobs_start == std::string::npos) return failures;
+  jobs_start = json_output.find('[', jobs_start);
+  if (jobs_start == std::string::npos) return failures;
+  jobs_start++; // past '['
+
+  size_t brace_depth = 0;
+  size_t job_start = jobs_start;
+
+  for (size_t i = jobs_start; i < json_output.size(); i++) {
+    if (json_output[i] == '{') {
+      if (brace_depth == 0) job_start = i;
+      brace_depth++;
+    }
+    if (json_output[i] == '}') {
+      brace_depth--;
+      if (brace_depth == 0) {
+        std::string job_obj = json_output.substr(job_start, i - job_start + 1);
+
+        auto extract_val = [&](const std::string &key) -> std::string {
+          size_t k = job_obj.find("\"" + key + "\":");
+          if (k == std::string::npos) return "";
+          k = job_obj.find(':', k) + 1;
+          while (k < job_obj.size() && (job_obj[k] == ' ' || job_obj[k] == '\t')) k++;
+          if (job_obj[k] == '"') {
+            k++;
+            size_t q = job_obj.find('"', k);
+            return (q == std::string::npos) ? "" : job_obj.substr(k, q - k);
+          }
+          size_t c = job_obj.find_first_of(",}", k);
+          return (c == std::string::npos) ? "" : job_obj.substr(k, c - k);
+        };
+
+        std::string job_conclusion = extract_val("conclusion");
+        std::string job_name = extract_val("name");
+
+        if (job_conclusion == "failure" && !job_name.empty()) {
+          bool found_steps = false;
+          size_t steps_start = job_obj.find("\"steps\"");
+          if (steps_start != std::string::npos) {
+            steps_start = job_obj.find(':', steps_start);
+            if (steps_start != std::string::npos) {
+              steps_start = job_obj.find('[', steps_start);
+              if (steps_start != std::string::npos) {
+                found_steps = true;
+                steps_start++; // past '['
+                size_t step_brace = 0;
+                size_t step_start = steps_start;
+                for (size_t j = steps_start; j < job_obj.size(); j++) {
+                  if (job_obj[j] == '{') {
+                    if (step_brace == 0) step_start = j;
+                    step_brace++;
+                  }
+                  if (job_obj[j] == '}') {
+                    step_brace--;
+                    if (step_brace == 0) {
+                      std::string step_obj = job_obj.substr(step_start, j - step_start + 1);
+                      std::string step_name = extract_val_in(step_obj, "name");
+                      std::string step_conclusion = extract_val_in(step_obj, "conclusion");
+
+                      if (step_conclusion == "failure" && !step_name.empty()) {
+                        CiFailureDetail fd;
+                        fd.run_id = run_id;
+                        fd.job_name = job_name;
+                        fd.step_name = step_name;
+                        failures.push_back(std::move(fd));
+                      }
+                    }
+                  }
+                  if (step_brace == 0 && job_obj[j] == ']') break;
+                }
+              }
+            }
+          }
+          if (!found_steps) {
+            CiFailureDetail fd;
+            fd.run_id = run_id;
+            fd.job_name = job_name;
+            failures.push_back(std::move(fd));
+          }
+        }
+      }
+    }
+    if (brace_depth == 0 && json_output[i] == ']') break;
+  }
+
+  return failures;
+}
+
+// Helper: extract a JSON string value from a substring
+static std::string extract_val_in(const std::string &obj, const std::string &key) {
+  size_t k = obj.find("\"" + key + "\":");
+  if (k == std::string::npos) return "";
+  k = obj.find(':', k) + 1;
+  while (k < obj.size() && (obj[k] == ' ' || obj[k] == '\t')) k++;
+  if (k >= obj.size()) return "";
+  if (obj[k] == '"') {
+    k++;
+    size_t q = obj.find('"', k);
+    return (q == std::string::npos) ? "" : obj.substr(k, q - k);
+  }
+  size_t c = obj.find_first_of(",}", k);
+  return (c == std::string::npos) ? "" : obj.substr(k, c - k);
+}
+
+// ---------------------------------------------------------------------------
+// Step 3: Deterministic error-snippet extraction
+// ---------------------------------------------------------------------------
+
+std::string CiInvestigationService::get_error_snippet(long long run_id) {
+  std::string logs = Services::CommandService::execute(
+      "gh run view " + std::to_string(run_id) +
+      " --log 2>/dev/null | grep -E \"(error|Error|ERROR|FAIL|failed|FAILED|"
+      "Assertion|expected|not found|No such|Exit code|fatal|"
+      "undefined reference|No matching|warning:)\" | head -30");
+
+  if (logs.empty() || logs.find("Exit code:") != std::string::npos)
+    return "";
+
+  // Collect up to 15 unique error lines
+  std::vector<std::string> lines;
+  std::istringstream stream(logs);
+  std::string line;
+  while (std::getline(stream, line)) {
+    // Trim leading timestamp/log level noise
+    size_t content_pos = line.find("build (");
+    if (content_pos == std::string::npos)
+      content_pos = line.find("e2e");
+    if (content_pos == std::string::npos)
+      content_pos = line.find('\t');
+    if (content_pos == std::string::npos)
+      content_pos = 0;
+    else
+      content_pos = line.find('\t', content_pos);
+    if (content_pos == std::string::npos || content_pos + 1 >= line.size())
+      content_pos = 0;
+    else
+      content_pos++;
+
+    std::string content = line.substr(content_pos);
+    if (content.empty()) continue;
+
+    // Skip lines with only whitespace/formatting
+    bool meaningful = false;
+    for (auto c : content) {
+      if (isprint(static_cast<unsigned char>(c)) && !isspace(static_cast<unsigned char>(c))) {
+        meaningful = true;
+        break;
+      }
+    }
+    if (!meaningful) continue;
+
+    lines.push_back(content);
+    if (lines.size() >= 15) break;
+  }
+
+  // If no error lines found via grep, try raw log tail
+  if (lines.empty()) {
+    std::string raw = Services::CommandService::execute(
+        "gh run view " + std::to_string(run_id) +
+        " --log 2>/dev/null | tail -50");
+    std::istringstream raw_stream(raw);
+    std::string raw_line;
+    while (std::getline(raw_stream, raw_line)) {
+      std::string trimmed = trim(raw_line);
+      if (!trimmed.empty()) {
+        lines.push_back(trimmed);
+        if (lines.size() >= 10) break;
+      }
+    }
+  }
+
+  std::string result;
+  for (auto &l : lines) {
+    result += l + "\n";
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Combined: steps 2+3 for a single run ID
+// ---------------------------------------------------------------------------
+
+std::string CiInvestigationService::extract_ci_failure(long long run_id) {
+  // Step 2: get failed steps
+  auto steps = get_failed_steps(run_id);
+
+  // Build the failure report
+  std::string report;
+
+  if (steps.empty()) {
+    report += "Run #" + std::to_string(run_id) + ": no failed steps found.\n";
+    // Try to get run info
+    std::string info = Services::CommandService::execute(
+        "gh run view " + std::to_string(run_id) +
+        " --json conclusion,displayTitle,workflowName 2>/dev/null");
+    if (!info.empty() && info.find("Exit code:") == std::string::npos) {
+      report += "Run info: " + info.substr(0, 200) + "\n";
+    }
+    return report;
+  }
+
+  report += "Workflow: " + steps[0].job_name + "\n";
+  for (auto &f : steps) {
+    if (!f.job_name.empty())
+      report += "Job: " + f.job_name + "\n";
+    if (!f.step_name.empty())
+      report += "Step: " + f.step_name + "\n";
+    report += "Conclusion: failure\n";
+  }
+
+  // Step 3: get error snippet
+  std::string snippet = get_error_snippet(run_id);
+  if (!snippet.empty()) {
+    report += "Error:\n";
+    report += snippet;
+  }
+
+  return report;
+}
+
+// ---------------------------------------------------------------------------
+// Step 5: Root-cause synthesis (AI layer)
+// ---------------------------------------------------------------------------
+
+// Try to detect an available AI provider from the environment.
+// Returns AgentMode::MODE_UNSET if none found.
+static Core::AgentMode detect_ai_provider(std::string &out_api_key) {
+  static const std::pair<const char *, Core::AgentMode> providers[] = {
+    {"TOGETHER_API_KEY", Core::AgentMode::MODE_TOGETHER},
+    {"CEREBRAS_API_KEY", Core::AgentMode::MODE_CEREBRAS},
+    {"FIREWORKS_API_KEY", Core::AgentMode::MODE_FIREWORKS},
+    {"GROQ_API_KEY", Core::AgentMode::MODE_GROQ},
+    {"DEEPSEEK_API_KEY", Core::AgentMode::MODE_DEEPSEEK},
+    {"OPENAI_API_KEY", Core::AgentMode::MODE_OPENAI},
+  };
+  for (auto &p : providers) {
+    std::string key = Utils::Config::get_env_var(p.first);
+    if (!key.empty()) {
+      out_api_key = key;
+      return p.second;
+    }
+  }
+  // Check for local Ollama
+  std::string ollama = Utils::Config::get_env_var("OLLAMA_HOST");
+  if (!ollama.empty() || Utils::Config::has_env_var("OLLAMA_HOST")) {
+    return Core::AgentMode::MODE_LLAMA_3B;
+  }
+  return Core::AgentMode::MODE_UNSET;
+}
+
+std::string CiInvestigationService::synthesize_root_cause(long long run_id) {
+  // Build structured failure context (job/step only, no pre-filtered error snippet)
+  auto steps = get_failed_steps(run_id);
+  std::string context;
+
+  if (steps.empty()) {
+    context = "Run #" + std::to_string(run_id) + ": no failed steps found.\n";
+  } else {
+    context += "Workflow run #" + std::to_string(run_id) + "\n";
+    for (auto &f : steps) {
+      if (!f.job_name.empty())
+        context += "  Job: " + f.job_name + "\n";
+      if (!f.step_name.empty())
+        context += "  Step: " + f.step_name + "\n";
+    }
+  }
+
+  // Try to detect AI provider
+  std::string api_key;
+  Core::AgentMode mode = detect_ai_provider(api_key);
+  if (mode == Core::AgentMode::MODE_UNSET) {
+    // Fall back to deterministic report with snippet
+    return extract_ci_failure(run_id) +
+        "\n[AI analysis unavailable: no AI provider configured]\n";
+  }
+
+  try {
+    Services::AIService ai(mode, api_key);
+    if (!ai.is_available()) {
+      return extract_ci_failure(run_id) +
+          "\n[AI analysis unavailable: provider not ready]\n";
+    }
+
+    std::string prompt =
+        "You are a CI failure analyst. Review the following GitHub Actions "
+        "workflow run and identify the root cause.\n\n"
+        "Instructions:\n"
+        "- Examine the failed jobs and steps below\n"
+        "- Determine the most likely root cause\n"
+        "- Suggest a fix\n\n"
+        + context +
+        "\nRoot cause analysis:\n";
+
+    std::string analysis = ai.chat(prompt, "");
+    return context + "\n--- AI Root-Cause Analysis ---\n" + analysis + "\n";
+  } catch (std::exception &e) {
+    return extract_ci_failure(run_id) +
+        "\n[AI analysis error: " + e.what() + "]\n";
+  }
 }
 
 } // namespace Services

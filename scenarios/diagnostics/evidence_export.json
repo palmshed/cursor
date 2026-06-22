@@ -1,0 +1,7 @@
+{
+  "command": "./build/bin/cursor-agent --export-evidence /tmp/test_evidence.json \"list source files in src/services\" 2>&1",
+  "expect": {
+    "output_contains": "Evidence exported",
+    "exit_code": 0
+  }
+}

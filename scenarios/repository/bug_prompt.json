@@ -1,0 +1,7 @@
+{
+  "prompt": "where is the replay service header file implemented",
+  "expect": {
+    "files_examined_min": 1,
+    "evidence_nonempty": true
+  }
+}

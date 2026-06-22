@@ -65,11 +65,16 @@ int main(int argc, char *argv[]) {
                 << "  --capabilities        List all capabilities\n"
                 << "  --self-test-workflows Run workflow benchmark scenarios\n"
                 << "  --benchmark           Run workflow benchmark scenarios (alias)\n"
-                << "  --ci-investigate      Investigate recent CI failures\n"
+                << "  --ci-investigate           Investigate recent CI failures\n"
+                << "  --ci-investigate-run <id>  Extract failure details for specific run\n"
+                << "  --ci-investigate-latest-failure  Extract failure for most recent failed run\n"
+                << "  --ci-analyze <id>             AI root-cause analysis for specific run\n"
+                << "  --ci-analyze-latest-failure   AI root-cause analysis for latest failure\n"
                 << "  --dashboard [filter]  Show outcome dashboard (e.g. outcome=user_rejected)\n"
                 << "  --calibrate           Show confidence calibration analysis\n"
                 << "  --json <prompt>       Single-prompt JSON diagnostics (with files_examined)\n"
                 << "  --trace <file> <prompt>  Run with tool tracing, write trace.json\n"
+                << "  --timeline <prompt>    Run with inline investigation timeline\n"
                 << "  --stream-report <file> <cmd>  Run command with streaming telemetry\n"
                 << "  --export-evidence <file> <prompt>  Export evidence as JSON\n"
                 << "  --scenario <file>     Run scenario JSON and verify expected outcome\n";
@@ -221,6 +226,60 @@ int main(int argc, char *argv[]) {
       }
       return result.failures.empty() ? 0 : 1;
     }
+    if (arg == "--ci-investigate-run" && i + 1 < argc) {
+      Utils::Config::load_environment();
+      std::string run_id_str = argv[++i];
+      long long run_id = 0;
+      try { run_id = std::stoll(run_id_str); } catch (...) {
+        std::cerr << "Invalid run ID: " << run_id_str << "\n";
+        return 2;
+      }
+      std::cout << "\n--- CI Investigate Run #" << run_id << " ---\n";
+      std::string report = Services::CiInvestigationService::extract_ci_failure(run_id);
+      std::cout << report;
+      std::cout << "---\n";
+      return 0;
+    }
+    if (arg == "--ci-investigate-latest-failure") {
+      Utils::Config::load_environment();
+      long long run_id = Services::CiInvestigationService::get_latest_failure_run_id();
+      if (run_id == 0) {
+        std::cout << "No recent failed workflow runs found.\n";
+        return 1;
+      }
+      std::cout << "\n--- CI Latest Failure (Run #" << run_id << ") ---\n";
+      std::string report = Services::CiInvestigationService::extract_ci_failure(run_id);
+      std::cout << report;
+      std::cout << "---\n";
+      return 0;
+    }
+    if (arg == "--ci-analyze" && i + 1 < argc) {
+      Utils::Config::load_environment();
+      std::string run_id_str = argv[++i];
+      long long run_id = 0;
+      try { run_id = std::stoll(run_id_str); } catch (...) {
+        std::cerr << "Invalid run ID: " << run_id_str << "\n";
+        return 2;
+      }
+      std::cout << "\n--- CI Analysis Run #" << run_id << " ---\n";
+      std::string result = Services::CiInvestigationService::synthesize_root_cause(run_id);
+      std::cout << result;
+      std::cout << "---\n";
+      return 0;
+    }
+    if (arg == "--ci-analyze-latest-failure") {
+      Utils::Config::load_environment();
+      long long run_id = Services::CiInvestigationService::get_latest_failure_run_id();
+      if (run_id == 0) {
+        std::cout << "No recent failed workflow runs found.\n";
+        return 1;
+      }
+      std::cout << "\n--- CI Analysis (Run #" << run_id << ") ---\n";
+      std::string result = Services::CiInvestigationService::synthesize_root_cause(run_id);
+      std::cout << result;
+      std::cout << "---\n";
+      return 0;
+    }
     if (arg == "--diagnostics") {
       std::string prompt;
       if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -259,6 +318,17 @@ int main(int argc, char *argv[]) {
       }
       Utils::Config::load_environment();
       return run_trace_query(prompt, trace_path);
+    }
+    if (arg == "--timeline") {
+      std::string prompt;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        prompt = argv[++i];
+      } else {
+        std::cerr << "Usage: --timeline <prompt>\n";
+        return 2;
+      }
+      Utils::Config::load_environment();
+      return run_timeline(prompt);
     }
     if (arg == "--export-evidence") {
       std::string export_path;

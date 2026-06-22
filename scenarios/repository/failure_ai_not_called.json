@@ -1,0 +1,6 @@
+{
+  "prompt": "what is in XYZZY_NONEXISTENT_FUNCTION implementation",
+  "expect": {
+    "ai_called": false
+  }
+}
