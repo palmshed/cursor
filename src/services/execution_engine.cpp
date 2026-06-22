@@ -109,6 +109,13 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
                            "who are you", "what can you"}))
     return GeneralChat;
 
+  // Codebase overview: broad questions about the entire project
+  if (contains_any(goal, {"tell me about", "overview", "describe",
+                           "what is this"}) &&
+      contains_any(goal, {"codebase", "project", "repo", "repository",
+                           "application"}))
+    return CodebaseOverview;
+
   if (contains_any(goal, {"where", "what is", "what does", "what's",
                            "how does", "how is", "how are",
                            "find", "search", "grep", "locate",
@@ -134,7 +141,8 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal_llm(
     "Respond with ONLY the category name, nothing else.\n\n"
     "Categories:\n"
     "GeneralChat - Greetings, how-to questions, general conversation\n"
-    "CodebaseQuery - Questions about code, looking up definitions, searching\n"
+    "CodebaseOverview - High-level questions about the entire project or codebase\n"
+    "CodebaseQuery - Questions about specific code, looking up definitions, searching\n"
     "CodeChange - Add, modify, or remove code\n"
     "CICheck - CI/CD pipeline status or investigation\n"
     "GitHubInvestigation - GitHub Actions run investigation\n\n"
@@ -143,6 +151,7 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal_llm(
   std::string response = ai_->chat(prompt, "");
   for (auto &c : response) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
+  if (response.find("codebaseoverview") != std::string::npos) return CodebaseOverview;
   if (response.find("codebasequery") != std::string::npos) return CodebaseQuery;
   if (response.find("codechange") != std::string::npos) return CodeChange;
   if (response.find("cicheck") != std::string::npos) return CICheck;
@@ -154,6 +163,7 @@ std::string ExecutionEngine::goal_type_name(GoalType t) {
   switch (t) {
     case CICheck: return "CI Investigation";
     case CodebaseQuery: return "Repository Investigation";
+    case CodebaseOverview: return "Codebase Overview";
     case CodeChange: return "Code Change";
     case GitHubInvestigation: return "GitHub Investigation";
     case GeneralChat: return "General Chat";
@@ -184,6 +194,8 @@ std::vector<EvidenceClass> ExecutionEngine::required_evidence(
         default:
           return {EvidenceClass::FileSearch, EvidenceClass::FileContent};
       }
+    case CodebaseOverview:
+      return {EvidenceClass::Discovery, EvidenceClass::FileContent};
     case CodeChange:
       return {EvidenceClass::Discovery,
               EvidenceClass::FileSearch,
@@ -248,6 +260,16 @@ ToolCall ExecutionEngine::select_next_tool(
         return {"gh", "run view " + run_id + " --log"};
       }
 
+      return {};
+    }
+
+    case CodebaseOverview: {
+      // 1. Discover project structure
+      if (!evidence.has_fact_containing("discovery"))
+        return {"discovery", ""};
+      // 2. Read key project files
+      if (!evidence.has_fact_containing("read"))
+        return {"read", "README.md CMakeLists.txt AGENTS.md"};
       return {};
     }
 
@@ -400,6 +422,30 @@ ToolCall ExecutionEngine::select_next_tool_llm(
   std::string prompt = "You are investigating a codebase.\n";
   prompt += "Goal type: " + goal_type_name(type) + "\n";
   prompt += "User request: " + goal + "\n\n";
+
+  // Gate awareness: tell the LLM what evidence classes are still needed
+  auto required = required_evidence(goal, type);
+  if (!required.empty()) {
+    prompt += "Required evidence (ALL must be satisfied to complete):\n";
+    for (auto &ec : required) {
+      bool have_it = false;
+      for (auto &c : evidence.classes)
+        if (c == ec) { have_it = true; break; }
+      const char *name = "Unknown";
+      switch (ec) {
+        case EvidenceClass::FileSearch: name = "FileSearch (use grep)"; break;
+        case EvidenceClass::FileContent: name = "FileContent (use read)"; break;
+        case EvidenceClass::Discovery: name = "Discovery (use discovery)"; break;
+        case EvidenceClass::GitLog: name = "GitLog (use git)"; break;
+        case EvidenceClass::Build: name = "Build (use cmake)"; break;
+        case EvidenceClass::Test: name = "Test (use ctest)"; break;
+        case EvidenceClass::CIWorkflow: name = "CIWorkflow (use gh)"; break;
+      }
+      prompt += std::string("  ") + name + (have_it ? " [DONE]" : " [NEEDED]") + "\n";
+    }
+    prompt += "\nPrioritize tools that satisfy [NEEDED] evidence classes.\n\n";
+  }
+
   prompt += "Evidence collected so far:\n";
   for (auto &f : evidence.facts)
     prompt += "  " + f + "\n";
@@ -460,6 +506,10 @@ bool ExecutionEngine::check_completion(const std::string &goal,
     case GitHubInvestigation:
       return evidence.has_fact_containing("gh run view") &&
              evidence.has_fact_containing("--log");
+
+    case CodebaseOverview:
+      return evidence.has_fact_containing("discovery") &&
+             evidence.has_fact_containing("read:results");
 
     case CodebaseQuery: {
       auto need = detect_evidence_need(goal);
