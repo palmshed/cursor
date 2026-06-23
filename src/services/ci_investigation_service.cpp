@@ -1,7 +1,7 @@
 #include "services/ci_investigation_service.h"
 #include "services/ai_service.h"
 #include "services/command_service.h"
-#include "agent_mode.h"
+#include "core/model_catalog.h"
 #include "utils/config.h"
 
 #include <algorithm>
@@ -617,29 +617,33 @@ std::string CiInvestigationService::extract_ci_failure(long long run_id) {
 // ---------------------------------------------------------------------------
 
 // Try to detect an available AI provider from the environment.
-// Returns AgentMode::MODE_UNSET if none found.
-static Core::AgentMode detect_ai_provider(std::string &out_api_key) {
-  static const std::pair<const char *, Core::AgentMode> providers[] = {
-    {"TOGETHER_API_KEY", Core::AgentMode::MODE_TOGETHER},
-    {"CEREBRAS_API_KEY", Core::AgentMode::MODE_CEREBRAS},
-    {"FIREWORKS_API_KEY", Core::AgentMode::MODE_FIREWORKS},
-    {"GROQ_API_KEY", Core::AgentMode::MODE_GROQ},
-    {"DEEPSEEK_API_KEY", Core::AgentMode::MODE_DEEPSEEK},
-    {"OPENAI_API_KEY", Core::AgentMode::MODE_OPENAI},
+// Returns nullptr if none found.
+static const Core::ModelConfig* detect_ai_provider(std::string &out_api_key) {
+  // Ordered preference: first key found wins.
+  static const std::pair<const char*, Core::Provider> kProviders[] = {
+    {"TOGETHER_API_KEY",  Core::Provider::Together},
+    {"CEREBRAS_API_KEY",  Core::Provider::Cerebras},
+    {"FIREWORKS_API_KEY", Core::Provider::Fireworks},
+    {"GROQ_API_KEY",      Core::Provider::Groq},
+    {"DEEPSEEK_API_KEY",  Core::Provider::DeepSeek},
+    {"OPENAI_API_KEY",    Core::Provider::OpenAI},
   };
-  for (auto &p : providers) {
-    std::string key = Utils::Config::get_env_var(p.first);
+  for (auto& [env_var, provider] : kProviders) {
+    std::string key = Utils::Config::get_env_var(env_var);
     if (!key.empty()) {
       out_api_key = key;
-      return p.second;
+      // Return the first catalog model for this provider.
+      auto models = Core::ModelCatalog::models_for_provider(provider);
+      if (!models.empty()) return models.front();
     }
   }
-  // Check for local Ollama
-  std::string ollama = Utils::Config::get_env_var("OLLAMA_HOST");
-  if (!ollama.empty() || Utils::Config::has_env_var("OLLAMA_HOST")) {
-    return Core::AgentMode::MODE_LLAMA_3B;
+  // Check for local Ollama.
+  if (!Utils::Config::get_env_var("OLLAMA_HOST").empty() ||
+      Utils::Config::has_env_var("OLLAMA_HOST")) {
+    auto models = Core::ModelCatalog::models_for_provider(Core::Provider::Ollama);
+    if (!models.empty()) return models.front();
   }
-  return Core::AgentMode::MODE_UNSET;
+  return nullptr;
 }
 
 std::string CiInvestigationService::synthesize_root_cause(long long run_id) {
@@ -661,15 +665,15 @@ std::string CiInvestigationService::synthesize_root_cause(long long run_id) {
 
   // Try to detect AI provider
   std::string api_key;
-  Core::AgentMode mode = detect_ai_provider(api_key);
-  if (mode == Core::AgentMode::MODE_UNSET) {
+  const Core::ModelConfig* model = detect_ai_provider(api_key);
+  if (!model) {
     // Fall back to deterministic report with snippet
     return extract_ci_failure(run_id) +
         "\n[AI analysis unavailable: no AI provider configured]\n";
   }
 
   try {
-    Services::AIService ai(mode, api_key);
+    Services::AIService ai(*model, api_key);
     if (!ai.is_available()) {
       return extract_ci_failure(run_id) +
           "\n[AI analysis unavailable: provider not ready]\n";

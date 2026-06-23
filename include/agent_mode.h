@@ -12,6 +12,7 @@ enum class AgentMode : std::uint8_t {
   MODE_FIREWORKS = 6,
   MODE_GROQ = 7,
   MODE_DEEPSEEK = 8,
-  MODE_OPENAI = 9
+  MODE_OPENAI = 9,
+  MODE_OPENROUTER = 10
 };
 } // namespace Core

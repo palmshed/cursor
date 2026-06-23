@@ -32,8 +32,7 @@ static long long now_epoch() {
 
 static json state_to_json(const Core::SessionState &s) {
   return json{
-      {"mode", static_cast<int>(s.mode_)},
-      {"ollama_model", s.ollama_model_},
+      {"model_id",   s.active_model.id},
       {"verbose_mode", s.verbose_mode_},
       {"command_count", s.command_count_},
       {"token_usage", s.token_usage_},
@@ -46,13 +45,17 @@ static json state_to_json(const Core::SessionState &s) {
 
 static Core::SessionState json_to_state(const json &j) {
   Core::SessionState s;
-  s.mode_ = static_cast<Core::AgentMode>(j.value("mode", 0));
-  s.ollama_model_ = j.value("ollama_model", "");
-  s.verbose_mode_ = j.value("verbose_mode", false);
+  // Restore model from catalog by id; fall back to default if not found.
+  const std::string model_id = j.value("model_id", "");
+  if (!model_id.empty()) {
+    const Core::ModelConfig* mc = Core::ModelCatalog::find_model(model_id);
+    if (mc) s.active_model = *mc;
+  }
+  s.verbose_mode_  = j.value("verbose_mode", false);
   s.command_count_ = j.value("command_count", 0);
-  s.token_usage_ = j.value("token_usage", 0LL);
+  s.token_usage_   = j.value("token_usage", 0LL);
   s.last_confidence_before = j.value("last_confidence_before", 0.0);
-  s.last_confidence_after = j.value("last_confidence_after", 0.0);
+  s.last_confidence_after  = j.value("last_confidence_after",  0.0);
   if (j.contains("last_outcome"))
     s.last_outcome = Core::outcome_from_name(j.value("last_outcome", "insufficient_evidence"));
   if (j.contains("last_execution_path"))

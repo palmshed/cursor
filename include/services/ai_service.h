@@ -1,34 +1,36 @@
 #pragma once
+#include "core/model_catalog.h"
 #include <nlohmann/json.hpp>
 #include <string>
 
-// Forward declarations
-namespace Core {
-enum class AgentMode : std::uint8_t;
-}
-
 namespace Services {
+
 class AIService {
 private:
-  Core::AgentMode mode_;
-  std::string api_key_;
-  std::string model_name_;
+  Core::ModelConfig  model_;
+  Core::ProviderConfig provider_;
+  std::string        api_key_;
 
-  [[nodiscard]] bool is_online_mode() const;
-  nlohmann::json create_standard_payload(const std::string &model,
-                                         const std::string &user_input,
-                                         const std::string &context);
-  nlohmann::json create_payload(const std::string &user_input,
-                                const std::string &context);
-  std::string get_api_url();
-  std::string parse_cerebras_stream(const std::string &response);
+  nlohmann::json build_system_prompt(const std::string& context) const;
+  nlohmann::json create_payload(const std::string& user_input,
+                                const std::string& context) const;
+  std::string    parse_sse_stream(const std::string& response) const;
+  std::string    parse_response(const std::string& body) const;
+  std::string    get_url() const;
 
 public:
-  AIService(Core::AgentMode mode, const std::string &api_key = "");
+  // Construct from a fully resolved ModelConfig + the caller's API key.
+  AIService(const Core::ModelConfig& model, const std::string& api_key = "");
 
-  void set_model_name(const std::string &name) { model_name_ = name; }
+  // Override the api_model string at runtime (e.g. when Ollama lists models).
+  void override_api_model(const std::string& name);
 
-  std::string chat(const std::string &user_input, const std::string &context);
-  bool is_available();
+  bool        is_available() const;
+  std::string chat(const std::string& user_input, const std::string& context);
+
+  // Read-only accessors used by diagnostics / session logging.
+  const Core::ModelConfig&    model()    const { return model_; }
+  const Core::ProviderConfig& provider() const { return provider_; }
 };
+
 } // namespace Services

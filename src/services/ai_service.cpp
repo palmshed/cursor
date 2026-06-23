@@ -1,98 +1,46 @@
 #include "services/ai_service.h"
-#include "agent_mode.h"
 #include "services/web_service.h"
-#include "utils/config.h"
-#include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <sstream>
 
-// Use the HeaderMap from web_service.h
-
-// Reuse the CaseInsensitiveCompare and HeaderMap from web_service.h
+// Use the HeaderMap type from web_service.h
 
 namespace Services {
 
-AIService::AIService(Core::AgentMode mode, const std::string &api_key)
-    : mode_(mode), api_key_(api_key) {}
+// ── Construction ──────────────────────────────────────────────────────────────
 
-bool AIService::is_online_mode() const {
-  return mode_ == Core::AgentMode::MODE_TOGETHER ||
-         mode_ == Core::AgentMode::MODE_CEREBRAS ||
-         mode_ == Core::AgentMode::MODE_FIREWORKS ||
-         mode_ == Core::AgentMode::MODE_GROQ ||
-         mode_ == Core::AgentMode::MODE_DEEPSEEK ||
-         mode_ == Core::AgentMode::MODE_OPENAI;
+AIService::AIService(const Core::ModelConfig& model,
+                     const std::string& api_key)
+    : model_(model),
+      provider_(Core::ModelCatalog::provider(model.provider)),
+      api_key_(api_key) {}
+
+void AIService::override_api_model(const std::string& name) {
+  model_.api_model = name;
 }
 
-bool AIService::is_available() {
-  // For online providers API key is required.
-  if (is_online_mode()) {
+// ── Availability ──────────────────────────────────────────────────────────────
+
+bool AIService::is_available() const {
+  if (provider_.online) {
     return !api_key_.empty();
   }
-  // Offline modes don't need an API key (they talk to local server)
-  return true;
+  return true; // local providers (Ollama) never need a key
 }
 
-std::string AIService::get_api_url() {
+// ── URL selection ─────────────────────────────────────────────────────────────
+
+std::string AIService::get_url() const {
   if (std::getenv("TEST_MODE")) {
-    // Use mock URLs for testing
-    switch (mode_) {
-    case Core::AgentMode::MODE_TOGETHER:
-      return "http://mock-together/v1/chat/completions";
-    case Core::AgentMode::MODE_CEREBRAS:
-      return "http://mock-cerebras/v1/chat/completions";
-    case Core::AgentMode::MODE_FIREWORKS:
-      return "http://mock-fireworks/inference/v1/chat/completions";
-    case Core::AgentMode::MODE_GROQ:
-      return "http://mock-groq/openai/v1/chat/completions";
-    case Core::AgentMode::MODE_DEEPSEEK:
-      return "http://mock-deepseek/v1/chat/completions";
-    case Core::AgentMode::MODE_OPENAI:
-      return "http://mock-openai/v1/chat/completions";
-    case Core::AgentMode::MODE_LLAMA_3B:
-    case Core::AgentMode::MODE_LLAMA_LATEST:
-    case Core::AgentMode::MODE_LLAMA_31:
-    default:
-      return "http://mock-ollama:11434/api/chat";
-    }
-  } else {
-    switch (mode_) {
-    case Core::AgentMode::MODE_TOGETHER:
-      return "https://api.together.xyz/v1/chat/completions";
-    case Core::AgentMode::MODE_CEREBRAS:
-      return "https://api.cerebras.ai/v1/chat/completions";
-    case Core::AgentMode::MODE_FIREWORKS:
-      return "https://api.fireworks.ai/inference/v1/chat/completions";
-    case Core::AgentMode::MODE_GROQ:
-      return "https://api.groq.com/openai/v1/chat/completions";
-    case Core::AgentMode::MODE_DEEPSEEK:
-      return "https://api.deepseek.com/v1/chat/completions";
-    case Core::AgentMode::MODE_OPENAI:
-      return "https://api.openai.com/v1/chat/completions";
-    case Core::AgentMode::MODE_LLAMA_3B:
-    case Core::AgentMode::MODE_LLAMA_LATEST:
-    case Core::AgentMode::MODE_LLAMA_31:
-    default:
-      return "http://localhost:11434/api/chat";
-    }
+    return provider_.test_url;
   }
+  return provider_.base_url;
 }
 
-nlohmann::json AIService::create_standard_payload(const std::string &model,
-                                                  const std::string &user_input,
-                                                  const std::string &context) {
-  std::string system_prompt = "You are a helpful AI assistant. " + context;
-  return {{"model", model},
-          {"messages",
-           {{{"role", "system"}, {"content", system_prompt}},
-            {{"role", "user"}, {"content", user_input}}}},
-          {"max_tokens", 1000},
-          {"temperature", 0.7}};
-}
+// ── System prompt ─────────────────────────────────────────────────────────────
 
-nlohmann::json AIService::create_payload(const std::string &user_input,
-                                         const std::string &context) {
-  std::string system_prompt =
+nlohmann::json AIService::build_system_prompt(const std::string& context) const {
+  const std::string body =
       "You are an advanced AI agent with comprehensive codebase analysis and "
       "development capabilities.\n\n"
       "BASIC COMMANDS:\n"
@@ -147,208 +95,156 @@ nlohmann::json AIService::create_payload(const std::string &user_input,
       "the evidence already contains the answer.\n\n"
       "Conversation history:\n" +
       context;
+  return body;
+}
 
-  switch (mode_) {
-  case Core::AgentMode::MODE_TOGETHER: // Together AI
-    return create_standard_payload(
-        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", user_input,
-        system_prompt);
-  case Core::AgentMode::MODE_CEREBRAS: // Cerebras
-    return {{"model", "llama-4-maverick-17b-128e-instruct"},
+// ── Payload construction ──────────────────────────────────────────────────────
+
+nlohmann::json AIService::create_payload(const std::string& user_input,
+                                         const std::string& context) const {
+  const std::string system_prompt = build_system_prompt(context);
+
+  // Cerebras uses streaming SSE
+  if (provider_.response_fmt == Core::ResponseFormat::SSEStream) {
+    return {{"model", model_.api_model},
             {"messages",
              {{{"role", "system"}, {"content", system_prompt}},
-              {{"role", "user"}, {"content", user_input}}}},
+              {{"role", "user"},   {"content", user_input}}}},
             {"stream", true},
             {"max_completion_tokens", 4096},
             {"temperature", 0.7},
             {"top_p", 0.9}};
-  case Core::AgentMode::MODE_FIREWORKS: // Fireworks
-    return create_standard_payload(
-        "accounts/fireworks/models/llama-v3-70b-instruct", user_input,
-        system_prompt);
-  case Core::AgentMode::MODE_GROQ: // Groq
-    return create_standard_payload("llama-3.1-70b-versatile", user_input,
-                                   system_prompt);
-  case Core::AgentMode::MODE_DEEPSEEK: // DeepSeek
-    return create_standard_payload("deepseek-chat", user_input, system_prompt);
-  case Core::AgentMode::MODE_OPENAI: // OpenAI
-    return create_standard_payload("gpt-4", user_input, system_prompt);
-  case Core::AgentMode::MODE_LLAMA_3B: // Local Ollama models
-  case Core::AgentMode::MODE_LLAMA_LATEST:
-  case Core::AgentMode::MODE_LLAMA_31:
-  default: {
-    std::string model = model_name_.empty() ? "llama3.2:3b" : model_name_;
-    return {{"model", model},
+  }
+
+  // Ollama uses its own format
+  if (provider_.response_fmt == Core::ResponseFormat::OllamaChat) {
+    return {{"model", model_.api_model},
             {"stream", false},
             {"messages",
              {{{"role", "system"}, {"content", system_prompt}},
-              {{"role", "user"}, {"content", user_input}}}}};
+              {{"role", "user"},   {"content", user_input}}}}};
   }
-  }
+
+  // Standard OpenAI-compatible format
+  return {{"model", model_.api_model},
+          {"messages",
+           {{{"role", "system"}, {"content", system_prompt}},
+            {{"role", "user"},   {"content", user_input}}}},
+          {"max_tokens", 1000},
+          {"temperature", 0.7}};
 }
 
-std::string AIService::parse_cerebras_stream(const std::string &response) {
-  // Response is server-sent events style; accumulate content deltas.
+// ── SSE stream parser (Cerebras) ──────────────────────────────────────────────
+
+std::string AIService::parse_sse_stream(const std::string& response) const {
   std::string result;
   std::istringstream stream(response);
   std::string line;
 
   while (std::getline(stream, line)) {
-    // trim leading spaces
-    if (line.starts_with("data: ")) {
-      std::string json_str = line.substr(6);
-      if (json_str == "[DONE]")
-        break;
+    if (!line.starts_with("data: ")) continue;
+    std::string json_str = line.substr(6);
+    if (json_str == "[DONE]") break;
 
-      try {
-        auto json = nlohmann::json::parse(json_str);
-        if (json.contains("choices") && !json["choices"].empty()) {
-          auto &choice = json["choices"][0];
-          if (choice.contains("delta") && choice["delta"].contains("content")) {
-            // content might be string
-            result += choice["delta"]["content"].get<std::string>();
-          } else if (choice.contains("text")) {
-            result += choice["text"].get<std::string>();
-          }
+    try {
+      auto j = nlohmann::json::parse(json_str);
+      if (j.contains("choices") && !j["choices"].empty()) {
+        auto& choice = j["choices"][0];
+        if (choice.contains("delta") && choice["delta"].contains("content")) {
+          result += choice["delta"]["content"].get<std::string>();
+        } else if (choice.contains("text")) {
+          result += choice["text"].get<std::string>();
         }
-      } catch (const std::exception &) {
-        // ignore malformed chunk and continue
-        continue;
       }
+    } catch (const std::exception&) {
+      continue; // ignore malformed chunk
     }
   }
   return result;
 }
 
-std::string safe_get_string(const nlohmann::json &j,
-                            const std::initializer_list<std::string> &path,
-                            const std::string &fallback = "") {
-  const nlohmann::json *cur = &j;
-  for (const auto &p : path) {
-    if (!cur->is_object() || !cur->contains(p))
-      return fallback;
-    cur = &((*cur)[p]);
+// ── Response parser ───────────────────────────────────────────────────────────
+
+std::string AIService::parse_response(const std::string& body) const {
+  // Strip leading whitespace
+  const size_t start = body.find_first_not_of(" \t\r\n");
+  const std::string clean = (start == std::string::npos) ? body : body.substr(start);
+
+  auto j = nlohmann::json::parse(clean);
+
+  switch (provider_.response_fmt) {
+  case Core::ResponseFormat::OllamaChat:
+    if (j.contains("message") && j["message"].contains("content"))
+      return j["message"]["content"].get<std::string>();
+    if (j.contains("response"))
+      return j["response"].get<std::string>();
+    break;
+
+  case Core::ResponseFormat::OpenAIChat:
+  case Core::ResponseFormat::SSEStream: // non-stream fallback
+    if (j.contains("choices") && !j["choices"].empty()) {
+      auto& choice = j["choices"][0];
+      if (choice.contains("message") && choice["message"].contains("content"))
+        return choice["message"]["content"].get<std::string>();
+      if (choice.contains("text"))
+        return choice["text"].get<std::string>();
+    }
+    break;
   }
-  if (cur->is_string())
-    return cur->get<std::string>();
-  return fallback;
+
+  return "Error: Unexpected response format from AI service: " + body;
 }
 
-std::string AIService::chat(const std::string &user_input,
-                            const std::string &context) {
+// ── Public chat interface ─────────────────────────────────────────────────────
+
+std::string AIService::chat(const std::string& user_input,
+                            const std::string& context) {
   if (!is_available()) {
     return "Error: AI service is not available. Please check your API key and "
            "internet connection.";
   }
 
-  auto payload = create_payload(user_input, context);
-  auto url = get_api_url();
+  const auto payload  = create_payload(user_input, context);
+  const auto url      = get_url();
 
   try {
-    // Set up headers
     HeaderMap headers = {{"Content-Type", "application/json"},
-                         {"Accept", "text/event-stream"}};
+                         {"Accept",       "application/json"},
+                         {"User-Agent",   "Cursor/1.0"}};
 
-    // Set API key in appropriate header based on service
-    switch (mode_) {
-    case Core::AgentMode::MODE_TOGETHER:  // Together AI
-    case Core::AgentMode::MODE_FIREWORKS: // Fireworks
-    case Core::AgentMode::MODE_GROQ:      // Groq
-    case Core::AgentMode::MODE_DEEPSEEK:  // DeepSeek
-    case Core::AgentMode::MODE_OPENAI:    // OpenAI
+    // Auth header
+    switch (provider_.auth_scheme) {
+    case Core::AuthScheme::BearerToken:
       headers["Authorization"] = "Bearer " + api_key_;
       break;
-    case Core::AgentMode::MODE_CEREBRAS: // Cerebras
-      headers["X-API-Key"] = api_key_;
+    case Core::AuthScheme::XApiKey:
+      headers["X-API-Key"]  = api_key_;
+      headers["Accept"]     = "text/event-stream";
       break;
-    case Core::AgentMode::MODE_LLAMA_3B: // Local Ollama
-    case Core::AgentMode::MODE_LLAMA_LATEST:
-    case Core::AgentMode::MODE_LLAMA_31:
-      // No API key needed for local
-      break;
-    case Core::AgentMode::MODE_UNSET:
-      // No action
+    case Core::AuthScheme::None:
       break;
     }
 
-    // Use WebService to make the HTTP request
     WebService web_service;
-    std::string json_body = payload.dump();
-
-    WebResponse response;
-    if (mode_ == Core::AgentMode::MODE_TOGETHER ||
-        mode_ == Core::AgentMode::MODE_CEREBRAS ||
-        mode_ == Core::AgentMode::MODE_FIREWORKS ||
-        mode_ == Core::AgentMode::MODE_GROQ ||
-        mode_ == Core::AgentMode::MODE_DEEPSEEK ||
-        mode_ == Core::AgentMode::MODE_OPENAI ||
-        mode_ == Core::AgentMode::MODE_LLAMA_3B ||
-        mode_ == Core::AgentMode::MODE_LLAMA_LATEST ||
-        mode_ == Core::AgentMode::MODE_LLAMA_31) {
-      // All providers use POST
-      response = web_service.post_json(url, json_body, headers);
-    } else {
-      // Fallback (should not happen)
-      response = web_service.post_json(url, json_body, headers);
-    }
+    const std::string json_body = payload.dump();
+    const WebResponse response  = web_service.post_json(url, json_body, headers);
 
     if (response.status_code != 200) {
-      std::string error_content = response.content;
-      if (error_content.length() > 500) {
-        error_content = error_content.substr(0, 500) + "...[truncated]";
-      }
+      std::string err = response.content;
+      if (err.length() > 500) err = err.substr(0, 500) + "...[truncated]";
       return "Error: AI service returned status code " +
-             std::to_string(response.status_code) + " - " + error_content +
+             std::to_string(response.status_code) + " - " + err +
              " | Error: " + response.error_message;
     }
 
-    // Handle streaming response for Cerebras
-    if (mode_ == Core::AgentMode::MODE_CEREBRAS) {
-      return parse_cerebras_stream(response.content);
+    // Streaming response (Cerebras SSE)
+    if (provider_.response_fmt == Core::ResponseFormat::SSEStream) {
+      return parse_sse_stream(response.content);
     }
 
-    // Parse the response based on the service
-    auto json_response = nlohmann::json::parse(response.content);
+    return parse_response(response.content);
 
-    // Handle different response formats
-    switch (mode_) {
-    case Core::AgentMode::MODE_TOGETHER:  // Together AI
-    case Core::AgentMode::MODE_FIREWORKS: // Fireworks
-    case Core::AgentMode::MODE_GROQ:      // Groq
-    case Core::AgentMode::MODE_DEEPSEEK:  // DeepSeek
-    case Core::AgentMode::MODE_OPENAI:    // OpenAI
-    case Core::AgentMode::MODE_CEREBRAS:  // Cerebras
-      if (json_response.contains("choices") &&
-          !json_response["choices"].empty()) {
-        auto &choice = json_response["choices"][0];
-        if (choice.contains("message") &&
-            choice["message"].contains("content")) {
-          return choice["message"]["content"].get<std::string>();
-        } else if (choice.contains("text")) {
-          return choice["text"].get<std::string>();
-        }
-      }
-      break;
-    case Core::AgentMode::MODE_LLAMA_3B: // Local Ollama
-    case Core::AgentMode::MODE_LLAMA_LATEST:
-    case Core::AgentMode::MODE_LLAMA_31:
-      if (json_response.contains("message") &&
-          json_response["message"].contains("content")) {
-        return json_response["message"]["content"].get<std::string>();
-      } else if (json_response.contains("response")) {
-        return json_response["response"].get<std::string>();
-      }
-      break;
-    case Core::AgentMode::MODE_UNSET:
-      // No action
-      break;
-    }
-
-    // If we get here, the response format wasn't as expected
-    return "Error: Unexpected response format from AI service: " +
-           response.content;
-
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     return "Error: " + std::string(e.what());
   }
   return "Error: Unknown error occurred in AI service";
