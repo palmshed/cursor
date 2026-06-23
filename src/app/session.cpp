@@ -3,6 +3,7 @@
 #include "app/common.h"
 #include "app/menu.h"
 #include "app/startup.h"
+#include "services/ai_service.h"
 #include "services/command_service.h"
 #include "services/replay_service.h"
 #include "utils/ui.h"
@@ -17,13 +18,9 @@
 #ifdef _WIN32
 #include <io.h>
 #else
+#include <sys/select.h>
 #include <termios.h>
 #include <unistd.h>
-#endif
-
-#ifdef CURSOR_USE_LIBEDIT
-extern "C" char *readline(const char *);
-extern "C" void add_history(const char *);
 #endif
 
 // ---------------------------------------------------------------------------
@@ -31,23 +28,9 @@ extern "C" void add_history(const char *);
 // ---------------------------------------------------------------------------
 
 static std::string read_prompt(const std::string &prompt,
-                               const std::vector<std::string> &history,
-                                Core::UIManager &ui) {
+                                const std::vector<std::string> &history,
+                                 Core::UIManager &ui) {
   (void)ui;
-#ifdef CURSOR_USE_LIBEDIT
-  (void)history;
-  char *line = readline(prompt.c_str());
-  if (line == nullptr) {
-    std::cin.setstate(std::ios::eofbit);
-    return {};
-  }
-  std::string input(line);
-  if (!input.empty()) {
-    add_history(line);
-  }
-  std::free(line);
-  return input;
-#else
 #ifdef _WIN32
   (void)prompt;
   (void)history;
@@ -62,11 +45,24 @@ static std::string read_prompt(const std::string &prompt,
   std::string saved;
   int cursor = 0;
   int history_index = (int)history.size();
+  bool esc_pending = false;
   struct termios oldt, newt;
   tcgetattr(STDIN_FILENO, &oldt);
   newt = oldt;
   newt.c_lflag &= ~(ICANON | ECHO);
   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+  tcflush(STDIN_FILENO, TCIFLUSH);
+
+  // Print the hint line below the input line (dim, clears itself on redraw).
+  auto show_hint = [&](const std::string& msg) {
+    std::cout << "\n\033[90m" << msg << "\033[0m\033[1A\r"
+              << "\033[" << ((int)prompt.size() + cursor) << "C"
+              << std::flush;
+  };
+
+  auto clear_hint = [&]() {
+    std::cout << "\n\033[2K\r\033[1A" << std::flush;
+  };
 
   auto redraw = [&]() {
     // Clear input line and hint line
@@ -79,53 +75,91 @@ static std::string read_prompt(const std::string &prompt,
               << std::flush;
   };
 
+  // Draw the initial prompt before waiting for the first keystroke.
+  redraw();
+
   while (true) {
-    int ch = std::cin.get();
-    if (ch == EOF || ch == '\n' || ch == '\r') {
+    unsigned char ch;
+    ssize_t n = read(STDIN_FILENO, &ch, 1);
+    if (n <= 0 || ch == '\n' || ch == '\r') {
+      clear_hint();
+      esc_pending = false;
+      if (n <= 0) std::cin.setstate(std::ios::eofbit);
       break;
     }
     if (ch == 127 || ch == '\b') {
+      esc_pending = false;
       if (cursor > 0) {
         buf.erase(cursor - 1, 1);
         cursor--;
         redraw();
       }
     } else if (ch == '\033') {
-      if (std::cin.get() == '[') {
-        int c = std::cin.get();
-        if (c == 'A' && history_index > 0) {
-          if (history_index == (int)history.size()) {
-            saved = buf;
+      struct timeval tv = {0, 50000};
+      fd_set fds;
+      FD_ZERO(&fds);
+      FD_SET(STDIN_FILENO, &fds);
+
+      clear_hint();
+      int sel_ret = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+      if (sel_ret > 0) {
+        char seq[2] = {0};
+        esc_pending = false;
+        if (read(STDIN_FILENO, seq, 1) == 1 && seq[0] == '[') {
+          if (read(STDIN_FILENO, seq + 1, 1) == 1) {
+            int c = seq[1];
+            if (c == 'A' && history_index > 0) {
+              if (history_index == (int)history.size()) saved = buf;
+              history_index--;
+              buf = history[history_index];
+              cursor = (int)buf.size();
+              redraw();
+            } else if (c == 'B' && history_index < (int)history.size()) {
+              history_index++;
+              buf = history_index == (int)history.size() ? saved : history[history_index];
+              cursor = (int)buf.size();
+              redraw();
+            } else if (c == 'D' && cursor > 0) {
+              cursor--;
+              redraw();
+            } else if (c == 'C' && cursor < (int)buf.size()) {
+              cursor++;
+              redraw();
+            }
           }
-          history_index--;
-          buf = history[history_index];
-          cursor = (int)buf.size();
-          redraw();
-        } else if (c == 'B' && history_index < (int)history.size()) {
-          history_index++;
-          buf = history_index == (int)history.size() ? saved
-                                                     : history[history_index];
-          cursor = (int)buf.size();
-          redraw();
-        } else if (c == 'D' && cursor > 0) {
-          cursor--;
-          redraw();
-        } else if (c == 'C' && cursor < (int)buf.size()) {
+        } else if (seq[0] >= 32 && seq[0] < 127) {
+          buf.insert(cursor, 1, seq[0]);
           cursor++;
           redraw();
         }
+      } else {
+        if (esc_pending) {
+          tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+          std::cout << "\n";
+          return "\x1b";
+        }
+        esc_pending = true;
+        show_hint("  press ESC again to go back");
       }
     } else if (ch >= 32 && ch < 127) {
+      if (esc_pending) {
+        esc_pending = false;
+        clear_hint();
+      }
       buf.insert(cursor, 1, (char)ch);
       cursor++;
       redraw();
+    } else {
+      if (esc_pending) {
+        esc_pending = false;
+        clear_hint();
+      }
     }
   }
 
   tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
   std::cout << "\n";
   return buf;
-#endif
 #endif
 }
 
@@ -180,16 +214,18 @@ void Session::run() {
         "ls -1 build/bin/ 2>/dev/null || echo '(no build/bin)'");
   }
 
+  const auto& m = agent_.state_.active_model;
   std::string mode_name = Startup::is_online_mode(agent_) ? "online" : "offline";
-  std::string model_name = agent_.state_.ollama_model_.empty()
-      ? "local"
-      : agent_.state_.ollama_model_;
+  std::string provider  = m.display_name;
+  std::string model_name = m.api_model;
 
   if (tty) {
-    std::cout << "\033[90m" << mode_name << " · " << model_name
-              << Utils::Color::RESET << "\n\n";
+    std::cout << "\033[90m" << mode_name
+              << (provider.empty() ? "" : " · " + provider)
+              << " · " << model_name
+              << Utils::Color::RESET << "\n\n" << std::flush;
   } else {
-    ui_.print_ready_interface(mode_name, model_name);
+    ui_.print_ready_interface(mode_name + (provider.empty() ? "" : " · " + provider), model_name);
   }
 
   std::vector<std::string> input_history;
@@ -197,14 +233,26 @@ void Session::run() {
     std::string user_input;
     if (tty) {
       user_input = read_prompt("> ", input_history, ui_);
-      if (std::cin.eof()) {
-        break;
+      if (std::cin.eof()) break;
+
+      // Double-ESC sentinel: return to model selection
+      if (user_input == "\x1b") {
+        std::cout << "\n";
+        startup.initialize(agent_);
+        // Refresh status line with the newly chosen model
+        const auto& m2 = agent_.state_.active_model;
+        std::string mn2 = Startup::is_online_mode(agent_) ? "online" : "offline";
+        std::cout << "\033[90m" << mn2
+                  << " · " << m2.display_name
+                  << " · " << m2.api_model
+                  << Utils::Color::RESET << "\n\n" << std::flush;
+        // Reset the cached AIService so it picks up the new model
+        agent_.ai_service_.reset();
+        continue;
       }
     } else {
       std::cout << "> " << std::flush;
-      if (!std::getline(std::cin, user_input)) {
-        break;
-      }
+      if (!std::getline(std::cin, user_input)) break;
     }
 
     user_input = trim_copy(user_input);

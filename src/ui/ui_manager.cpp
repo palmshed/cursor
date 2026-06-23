@@ -445,17 +445,7 @@ void UIManager::show_memory_context(const std::string &context) {
 }
 
 void UIManager::show_session_stats() {
-  std::string mode_str =
-      (agent_.state_.mode_ == Agent::Mode::MODE_TOGETHER   ? "Together AI"
-       : agent_.state_.mode_ == Agent::Mode::MODE_CEREBRAS ? "Cerebras"
-       : agent_.state_.mode_ == Agent::Mode::MODE_FIREWORKS ? "Fireworks"
-       : agent_.state_.mode_ == Agent::Mode::MODE_GROQ ? "Groq"
-       : agent_.state_.mode_ == Agent::Mode::MODE_DEEPSEEK ? "DeepSeek"
-       : agent_.state_.mode_ == Agent::Mode::MODE_OPENAI ? "OpenAI"
-       : agent_.state_.mode_ == Agent::Mode::MODE_LLAMA_3B ? "Llama 3B"
-       : agent_.state_.mode_ == Agent::Mode::MODE_LLAMA_LATEST ? "Llama Latest"
-       : agent_.state_.mode_ == Agent::Mode::MODE_LLAMA_31 ? "Llama 3.1"
-                                                     : "Local Ollama");
+  const std::string mode_str = agent_.state_.active_model.display_name;
   std::cout << "Session Statistics:" << std::endl;
   std::cout << "  Mode: " << mode_str << std::endl;
   std::cout << "  Shell Mode: " << (agent_.shell_mode() ? "Active" : "Inactive")

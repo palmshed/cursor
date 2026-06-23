@@ -753,10 +753,8 @@ void CommandRouter::handle_direct_command(const std::string &input) {
 
 std::string CommandRouter::handle_ai_chat(const std::string &input) {
   if (!agent_.ai_service_) {
-    agent_.ai_service_ = std::make_unique<Services::AIService>(agent_.state_.mode_, agent_.api_key_);
-    if (!agent_.state_.ollama_model_.empty()) {
-      agent_.ai_service_->set_model_name(agent_.state_.ollama_model_);
-    }
+    agent_.ai_service_ = std::make_unique<Services::AIService>(
+        agent_.state_.active_model, agent_.api_key_);
   }
 
   if (!agent_.ai_service_->is_available()) {
@@ -2646,12 +2644,9 @@ void CommandRouter::handle_error_command(const std::string &command) {
 static void print_state_diff(const Core::SessionState &before,
                               const Core::SessionState &after) {
   std::vector<std::string> changes;
-  if (before.mode_ != after.mode_)
-    changes.push_back("mode " + std::to_string(static_cast<int>(before.mode_)) +
-                      "\xe2\x86\x92" + std::to_string(static_cast<int>(after.mode_)));
-  if (before.ollama_model_ != after.ollama_model_)
-    changes.push_back("model " + before.ollama_model_ + "\xe2\x86\x92" +
-                      after.ollama_model_);
+  if (before.active_model.id != after.active_model.id)
+    changes.push_back("model " + before.active_model.display_name +
+                      "\xe2\x86\x92" + after.active_model.display_name);
   if (before.verbose_mode_ != after.verbose_mode_)
     changes.push_back("verbose " + std::string(before.verbose_mode_ ? "on" : "off") +
                       "\xe2\x86\x92" + (after.verbose_mode_ ? "on" : "off"));
