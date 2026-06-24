@@ -34,7 +34,7 @@ jobs:
           cp build/bin/cursor-agent release/cursor-linux
           cd release && tar -czf cursor_${GITHUB_REF_NAME}_linux_amd64.tar.gz cursor-linux
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: cursor-linux
           path: release/*.tar.gz
@@ -75,7 +75,7 @@ jobs:
           cp ../.env.example bottle/cursor/${version}/.env.example
           tar -C bottle -czf cursor-${version}.arm64_sequoia.bottle.tar.gz cursor
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: cursor-macos
           path: |
@@ -112,7 +112,7 @@ jobs:
           cp build/bin/Release/cursor-agent.exe release/cursor-windows.exe
           cd release && 7z a -tzip cursor_${GITHUB_REF_NAME}_windows_amd64.zip cursor-windows.exe
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: cursor-windows
           path: release/*.zip
