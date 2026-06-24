@@ -261,8 +261,12 @@ endif()
 set(CPR_MIN_VERSION "1.10.0")
 set(CPR_FOUND FALSE)
 
-# First try to find CPR using config mode
-find_package(cpr ${CPR_MIN_VERSION} QUIET)
+# First try to find CPR using config mode.
+# Skip on macOS — Homebrew cpr bottles often reference stale Xcode SDK
+# paths that don't exist on the runner, causing CMake 3.31+ to error.
+if(NOT APPLE)
+    find_package(cpr ${CPR_MIN_VERSION} QUIET)
+endif()
 
 if(TARGET cpr::cpr)
     message(STATUS "Found CPR (config mode): ${cpr_VERSION}")
@@ -285,26 +289,6 @@ else()
         )
         set(CPR_FOUND TRUE)
     endif()
-endif()
-
-# Verify cpr include directories exist (workaround for Homebrew bottles
-# referencing stale Xcode SDK paths on newer/macOS ARM runners).
-if(CPR_FOUND AND TARGET cpr::cpr)
-    get_target_property(_cpr_incs cpr::cpr INTERFACE_INCLUDE_DIRECTORIES)
-    set(_valid_incs "")
-    foreach(_dir ${_cpr_incs})
-        if(EXISTS "${_dir}")
-            list(APPEND _valid_incs "${_dir}")
-        endif()
-    endforeach()
-    if(NOT _valid_incs)
-        message(STATUS "CPR include directories missing, building from source")
-        set(CPR_FOUND FALSE)
-    elseif(_valid_incs STREQUAL _cpr_incs)
-        message(STATUS "CPR include directories verified")
-    endif()
-    unset(_cpr_incs)
-    unset(_valid_incs)
 endif()
 
 if(NOT CPR_FOUND)
