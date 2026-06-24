@@ -1,0 +1,7 @@
+{
+  "prompt": "what is the last commit",
+  "expect": {
+    "tools_used": ["git"],
+    "evidence_nonempty": true
+  }
+}
