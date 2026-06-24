@@ -153,10 +153,10 @@ std::string CommandRouter::process_user_input(const std::string &input) {
           last_grep_results = Services::FileService::search_in_directory(
               ".", tc.args.empty() ? trimmed_input : tc.args, "*");
           if (last_grep_results.empty()) {
-            tr.stdout = "no matches";
+            tr.out = "no matches";
           } else {
             for (auto &r : last_grep_results)
-              tr.stdout += r.file_path + ":" + std::to_string(r.line_number) +
+              tr.out += r.file_path + ":" + std::to_string(r.line_number) +
                      ": " + r.line_content + "\n";
           }
         } else if (tc.tool == "read") {
@@ -184,37 +184,37 @@ std::string CommandRouter::process_user_input(const std::string &input) {
           }
 
           if (unique_files.empty()) {
-            tr.stdout = "no files to read";
+            tr.out = "no files to read";
           } else {
             int count = 0;
             for (auto &f : unique_files) {
               if (count >= 5) break;
               std::string content = Services::FileService::read_file_range(f, 1, 30);
               if (content.empty()) continue;  // skip missing files
-              tr.stdout += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+              tr.out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
               count++;
             }
-            if (tr.stdout.empty()) tr.stdout = "no files to read";
+            if (tr.out.empty()) tr.out = "no files to read";
           }
         } else if (tc.tool == "gh") {
           std::string raw = Services::CommandService::execute("gh " + tc.args);
-          if (raw.starts_with("Error:")) { tr.stderr = raw; tr.exit_code = 1; }
-          else { tr.stdout = raw; }
+          if (raw.starts_with("Error:")) { tr.err = raw; tr.exit_code = 1; }
+          else { tr.out = raw; }
         } else if (tc.tool == "git") {
           std::string raw = Services::CommandService::execute("git " + tc.args);
-          if (raw.starts_with("Error:")) { tr.stderr = raw; tr.exit_code = 1; }
-          else { tr.stdout = raw; }
+          if (raw.starts_with("Error:")) { tr.err = raw; tr.exit_code = 1; }
+          else { tr.out = raw; }
         } else if (tc.tool == "cmake" || tc.tool == "ctest") {
           std::string raw = Services::CommandService::execute(tc.args);
-          if (raw.find("Error:") != std::string::npos) { tr.stderr = raw; tr.exit_code = 1; }
-          else { tr.stdout = raw; }
+          if (raw.find("Error:") != std::string::npos) { tr.err = raw; tr.exit_code = 1; }
+          else { tr.out = raw; }
         } else if (tc.tool == "discovery") {
           auto d = Services::DiscoveryService::scan(".", trimmed_input);
-          tr.stdout = "Project: " + d.project_type + "\n";
-          tr.stdout += "Sources: " + std::to_string(d.source_file_count) + "\n";
-          tr.stdout += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
+          tr.out = "Project: " + d.project_type + "\n";
+          tr.out += "Sources: " + std::to_string(d.source_file_count) + "\n";
+          tr.out += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
         } else {
-          tr.stdout = "unknown tool";
+          tr.out = "unknown tool";
         }
         return tr;
       },

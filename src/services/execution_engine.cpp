@@ -652,7 +652,7 @@ ToolCall ExecutionEngine::select_next_tool_llm(
       prompt += "  Result: " + std::string(tr.success() ? "SUCCESS" : "FAILED") + "\n";
       prompt += "  stdout:\n";
       // Show first 300 chars of stdout, indented
-      std::string out = tr.stdout;
+      std::string out = tr.out;
       if (out.size() > 300) out = out.substr(0, 300) + "...";
       if (!out.empty()) {
         std::istringstream lines(out);
@@ -660,9 +660,9 @@ ToolCall ExecutionEngine::select_next_tool_llm(
         while (std::getline(lines, line))
           prompt += "    " + line + "\n";
       }
-      if (!tr.stderr.empty()) {
+      if (!tr.err.empty()) {
         prompt += "  stderr:\n";
-        std::string err = tr.stderr;
+        std::string err = tr.err;
         if (err.size() > 200) err = err.substr(0, 200) + "...";
         std::istringstream lines(err);
         std::string line;
@@ -784,7 +784,7 @@ bool ExecutionEngine::goal_is_achieved(const std::string &goal,
 // ---------------------------------------------------------------------------
 
 static bool has_grep_output(const ToolResult &tr) {
-  return !tr.stdout.empty() && tr.stdout != "no matches";
+  return !tr.out.empty() && tr.out != "no matches";
 }
 
 static std::string extract_first_file(const std::string &grep_output) {
@@ -816,14 +816,14 @@ std::string ExecutionEngine::build_review_report(
   for (auto &tr : tool_history) {
     if (tr.tool == "discovery") {
       r << "\nProject:\n";
-      std::istringstream in(tr.stdout);
+      std::istringstream in(tr.out);
       std::string line;
       while (std::getline(in, line))
         if (!line.empty()) r << "  " << line << "\n";
     }
     if (tr.tool == "git" && tr.args == "log --oneline -10") {
       r << "\nRecent commits:\n";
-      std::istringstream in(tr.stdout);
+      std::istringstream in(tr.out);
       std::string line;
       int count = 0;
       while (std::getline(in, line) && count < 5) {
@@ -838,7 +838,7 @@ std::string ExecutionEngine::build_review_report(
   for (auto &tr : tool_history) {
     // Dead code: AgentMode enum
     if (tr.tool == "grep" && tr.args == "AgentMode" && has_grep_output(tr)) {
-      auto f = extract_first_file(tr.stdout);
+      auto f = extract_first_file(tr.out);
       append_finding(r, findings,
         "Legacy AgentMode enum remains",
         "Medium",
@@ -850,7 +850,7 @@ std::string ExecutionEngine::build_review_report(
 
     // Dead code: MODE_ constants
     if (tr.tool == "grep" && tr.args == "MODE_" && has_grep_output(tr)) {
-      auto f = extract_first_file(tr.stdout);
+      auto f = extract_first_file(tr.out);
       append_finding(r, findings,
         "MODE_ constants from unused AgentMode system",
         "Low",
@@ -861,7 +861,7 @@ std::string ExecutionEngine::build_review_report(
 
     // Duplication: AuthProvider
     if (tr.tool == "grep" && tr.args == "AuthProvider" && has_grep_output(tr)) {
-      auto f = extract_first_file(tr.stdout);
+      auto f = extract_first_file(tr.out);
       append_finding(r, findings,
         "AuthProvider duplicates ModelCatalog metadata",
         "Medium",
@@ -874,7 +874,7 @@ std::string ExecutionEngine::build_review_report(
 
     // Duplication: provider_label functions
     if (tr.tool == "grep" && tr.args == "provider_label|category_label|tier_label|api_key_var" && has_grep_output(tr)) {
-      auto f = extract_first_file(tr.stdout);
+      auto f = extract_first_file(tr.out);
       append_finding(r, findings,
         "Duplicate provider display-name functions in startup.cpp",
         "Low",
@@ -921,13 +921,13 @@ std::string ExecutionEngine::build_review_report(
     // Test coverage gaps
     if (tr.tool == "read" && tr.args == "tests/validation_runner.cpp") {
       std::vector<std::string> untested;
-      if (tr.stdout.find("CodeChange") == std::string::npos)
+      if (tr.out.find("CodeChange") == std::string::npos)
         untested.push_back("CodeChange");
-      if (tr.stdout.find("CICheck") == std::string::npos)
+      if (tr.out.find("CICheck") == std::string::npos)
         untested.push_back("CICheck");
-      if (tr.stdout.find("GitHubInvestigation") == std::string::npos)
+      if (tr.out.find("GitHubInvestigation") == std::string::npos)
         untested.push_back("GitHubInvestigation");
-      if (tr.stdout.find("ArchitectureReview") == std::string::npos)
+      if (tr.out.find("ArchitectureReview") == std::string::npos)
         untested.push_back("ArchitectureReview");
       if (!untested.empty()) {
         std::string evidence = "tests/validation_runner.cpp: queries vector\n"
@@ -995,19 +995,19 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     tr.tool = tc.tool;
     tr.args = tc.args;
     result.tool_history.push_back(tr);
-    ui.show_tool_output(tr.stdout);
+    ui.show_tool_output(tr.out);
 
     std::string fact = tc.tool;
     if (!tc.args.empty())
       fact += " " + tc.args;
     evidence.add_fact(fact);
     evidence.facts.push_back("[" + fact + "] " +
-                              tr.stdout.substr(0, 200));
+                              tr.out.substr(0, 200));
 
     // Track whether tool produced meaningful results (separate from attempt)
     bool has_results = false;
     if (tc.tool == "grep") {
-      has_results = !tr.stdout.empty() && tr.stdout != "no matches";
+      has_results = !tr.out.empty() && tr.out != "no matches";
       result.recovery_metrics.grep_attempts++;
       if (has_results) {
         result.recovery_metrics.grep_success++;
@@ -1015,13 +1015,13 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         result.recovery_metrics.grep_zero_hit++;
       }
     } else if (tc.tool == "read") {
-      has_results = !tr.stdout.empty() && tr.stdout != "no files to read";
+      has_results = !tr.out.empty() && tr.out != "no files to read";
       result.recovery_metrics.read_attempts++;
       if (has_results) {
         result.recovery_metrics.read_success++;
       }
     } else {
-      has_results = !tr.stdout.empty();
+      has_results = !tr.out.empty();
     }
     if (has_results)
       evidence.add_fact(tc.tool + ":results");
@@ -1034,11 +1034,11 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         evidence.mark_evidence_class(EvidenceClass::FileContent);
       else if (tc.tool == "discovery")
         evidence.mark_evidence_class(EvidenceClass::Discovery);
-      else if (tc.tool == "cmake" && tr.stdout.find("error") == std::string::npos)
+      else if (tc.tool == "cmake" && tr.out.find("error") == std::string::npos)
         evidence.mark_evidence_class(EvidenceClass::Build);
       else if (tc.tool == "ctest" &&
-               tr.stdout.find("failed") == std::string::npos &&
-               tr.stdout.find("FAILED") == std::string::npos)
+               tr.out.find("failed") == std::string::npos &&
+               tr.out.find("FAILED") == std::string::npos)
         evidence.mark_evidence_class(EvidenceClass::Test);
       else if (tc.tool == "gh")
         evidence.mark_evidence_class(EvidenceClass::CIWorkflow);
@@ -1050,7 +1050,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     ConfidenceResult cr;
     if (tc.tool == "grep") {
       int hits = 0;
-      std::istringstream ss(tr.stdout);
+      std::istringstream ss(tr.out);
       std::string line;
       while (std::getline(ss, line))
         if (!line.empty() && line != "no matches")
@@ -1062,11 +1062,11 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     } else if (tc.tool == "read") {
       cr = ConfidenceService::after_read(1, true);
     } else if (tc.tool == "cmake") {
-      bool ok = tr.stdout.find("error") == std::string::npos;
-      cr = ConfidenceService::after_build(ok, ok ? "" : tr.stdout.substr(0, 200));
+      bool ok = tr.out.find("error") == std::string::npos;
+      cr = ConfidenceService::after_build(ok, ok ? "" : tr.out.substr(0, 200));
     } else if (tc.tool == "ctest") {
-      bool ok = (tr.stdout.find("failed") == std::string::npos &&
-                 tr.stdout.find("FAILED") == std::string::npos);
+      bool ok = (tr.out.find("failed") == std::string::npos &&
+                 tr.out.find("FAILED") == std::string::npos);
       cr.score = ok ? 0.9 : 0.3;
       cr.reason = ok ? "tests passed" : "tests failed";
     } else {
@@ -1096,10 +1096,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     if (!tr.success())
       summary += " (exit " + std::to_string(tr.exit_code) + ")";
     summary += "\n";
-    if (!tr.stderr.empty()) {
-      summary += "  stderr: " + tr.stderr.substr(0, 200) + "\n";
+    if (!tr.err.empty()) {
+      summary += "  stderr: " + tr.err.substr(0, 200) + "\n";
     }
-    std::string out = tr.stdout;
+    std::string out = tr.out;
     if (out.size() > 300) out = out.substr(0, 300) + "...";
     if (!out.empty()) {
       summary += "  Output:\n";

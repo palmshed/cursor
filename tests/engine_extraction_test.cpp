@@ -136,7 +136,7 @@ int main() {
           auto results =
               Services::FileService::search_in_directory(".", tc.args, "*");
           if (results.empty()) {
-            tr.stdout = "no matches";
+            tr.out = "no matches";
           } else {
             std::ostringstream out;
             for (auto &r : results) {
@@ -148,29 +148,29 @@ int main() {
               }
             }
             last_grep = out.str();
-            tr.stdout = last_grep;
+            tr.out = last_grep;
           }
           return tr;
         }
         if (tc.tool == "read") {
           std::string path = tc.args.empty() ? first_path(last_grep) : tc.args;
           if (path.empty()) {
-            tr.stdout = "no file to read";
+            tr.out = "no file to read";
           } else {
-            tr.stdout = Services::FileService::read_file_range(path, 0, 30);
+            tr.out = Services::FileService::read_file_range(path, 0, 30);
           }
           return tr;
         }
-        if (tc.tool == "gh") { tr.stdout = "[]"; return tr; }
-        if (tc.tool == "cmake") { tr.stdout = "build succeeded"; return tr; }
-        if (tc.tool == "ctest") { tr.stdout = "tests passed"; return tr; }
+        if (tc.tool == "gh") { tr.out = "[]"; return tr; }
+        if (tc.tool == "cmake") { tr.out = "build succeeded"; return tr; }
+        if (tc.tool == "ctest") { tr.out = "tests passed"; return tr; }
         if (tc.tool == "discovery") {
-          tr.stdout = "Project type: C++ (cmake), sources: 42, services: 12, "
+          tr.out = "Project type: C++ (cmake), sources: 42, services: 12, "
                  "has_tests: yes";
           return tr;
         }
         if (tc.tool == "git") {
-          tr.stdout = "abc1234 feat: add evidence system\n"
+          tr.out = "abc1234 feat: add evidence system\n"
                  "def5678 fix: improve read tool";
           return tr;
         }
