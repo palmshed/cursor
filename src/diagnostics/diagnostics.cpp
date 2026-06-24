@@ -323,7 +323,8 @@ QueryResult run_query(const std::string &prompt) {
 
   auto res = engine.execute(
       prompt,
-      [&](const Services::ToolCall &tc) -> std::string {
+      [&](const Services::ToolCall &tc) -> Services::ToolResult {
+        Services::ToolResult tr;
         Core::TraceEvent ev;
         ev.type = Core::TraceEventType::ToolStarted;
         ev.tool = tc.tool;
@@ -348,14 +349,15 @@ QueryResult run_query(const std::string &prompt) {
           for (auto &x : filtered)
             ev.files.push_back(x.file_path);
           trace.push_back(ev);
-          if (filtered.empty())
-            return "no matches";
-          std::string out;
-          for (auto &x : filtered) {
-            out += x.file_path + ":" + std::to_string(x.line_number) + ": " +
-                   x.line_content + "\n";
+          if (filtered.empty()) {
+            tr.stdout = "no matches";
+          } else {
+            for (auto &x : filtered) {
+              tr.stdout += x.file_path + ":" + std::to_string(x.line_number) + ": " +
+                     x.line_content + "\n";
+            }
           }
-          return out;
+          return tr;
         }
 
         if (tc.tool == "read") {
@@ -374,7 +376,8 @@ QueryResult run_query(const std::string &prompt) {
           } else {
             if (grep_results.empty()) {
               trace.push_back(ev);
-              return "no files to read";
+              tr.stdout = "no files to read";
+              return tr;
             }
             for (auto &x : grep_results) {
               if (seen.find(x.file_path) == seen.end()) {
@@ -391,43 +394,49 @@ QueryResult run_query(const std::string &prompt) {
             count++;
           }
           trace.push_back(ev);
-          if (ev.files.empty())
-            return "no files to read";
-          std::string out;
-          count = 0;
-          for (auto &f : unique_files) {
-            if (count >= 5) break;
-            std::string content =
-                Services::FileService::read_file_range(f, 1, 30);
-            out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
-            count++;
+          if (ev.files.empty()) {
+            tr.stdout = "no files to read";
+          } else {
+            count = 0;
+            for (auto &f : unique_files) {
+              if (count >= 5) break;
+              std::string content =
+                  Services::FileService::read_file_range(f, 1, 30);
+              tr.stdout += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+              count++;
+            }
           }
-          return out;
+          return tr;
         }
 
         if (tc.tool == "discovery") {
           trace.push_back(ev);
           auto d = Services::DiscoveryService::scan(".", prompt);
-          return "Project: " + d.project_type;
+          tr.stdout = "Project: " + d.project_type;
+          return tr;
         }
 
         if (tc.tool == "gh") {
           trace.push_back(ev);
-          return Services::CommandService::execute("gh " + tc.args);
+          tr.stdout = Services::CommandService::execute("gh " + tc.args);
+          return tr;
         }
 
         if (tc.tool == "git") {
           trace.push_back(ev);
-          return Services::CommandService::execute("git " + tc.args);
+          tr.stdout = Services::CommandService::execute("git " + tc.args);
+          return tr;
         }
 
         if (tc.tool == "cmake" || tc.tool == "ctest") {
           trace.push_back(ev);
-          return Services::CommandService::execute(tc.args);
+          tr.stdout = Services::CommandService::execute(tc.args);
+          return tr;
         }
 
         trace.push_back(ev);
-        return "unknown tool";
+        tr.stdout = "unknown tool";
+        return tr;
       },
       ui);
 
