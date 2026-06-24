@@ -15,6 +15,16 @@ struct ToolCall {
   std::string args;
 };
 
+struct ToolResult {
+  std::string tool;
+  std::string args;
+  std::string stdout;
+  std::string stderr;
+  int exit_code{0};
+
+  bool success() const { return exit_code == 0; }
+};
+
 enum EvidenceClass : int { FileSearch, FileContent, GitLog, Build, Test, Discovery, CIWorkflow };
 enum EvidenceNeed : int { Default, CommitHistory };
 enum class ClassifierMode : int { Deterministic, LLM };
@@ -38,6 +48,7 @@ struct ExecutionResult {
   std::string summary;
   std::string ai_response;
   EvidenceStore evidence;
+  std::vector<ToolResult> tool_history;
   int goal_type{0};
   double confidence{0.0};
   bool stopped_early{false};
@@ -49,9 +60,9 @@ struct ExecutionResult {
 
 class ExecutionEngine {
 public:
-  using ToolRunner = std::function<std::string(const ToolCall &)>;
+  using ToolRunner = std::function<ToolResult(const ToolCall &)>;
 
-  enum GoalType { GeneralChat, CodebaseQuery, CodebaseOverview, CodeChange, CICheck, GitHubInvestigation };
+  enum GoalType { GeneralChat, SessionState, CommitHistory, CodebaseQuery, CodebaseOverview, CodeChange, CICheck, GitHubInvestigation, ArchitectureReview };
 
   ExecutionEngine() = default;
 
@@ -75,13 +86,16 @@ private:
   GoalType classify_goal(const std::string &goal);
   GoalType classify_goal_llm(const std::string &goal);
   ToolCall select_next_tool(const std::string &goal, GoalType type,
-                            const EvidenceStore &evidence);
+                            const EvidenceStore &evidence,
+                            const std::vector<ToolResult> &tool_history = {});
   ToolCall select_next_tool_llm(const std::string &goal, GoalType type,
-                                const EvidenceStore &evidence);
+                                const EvidenceStore &evidence,
+                                const std::vector<ToolResult> &tool_history = {});
   bool check_completion(const std::string &goal, GoalType type,
                         const EvidenceStore &evidence);
   static EvidenceNeed detect_evidence_need(const std::string &goal);
   static std::vector<EvidenceClass> required_evidence(const std::string &goal, GoalType type);
+  std::string build_review_report(const std::vector<ToolResult> &tool_history) const;
 };
 
 } // namespace Services
