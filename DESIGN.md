@@ -218,13 +218,60 @@ Here's what I found...
 
 The progress indicator disappears.
 
-### Shell Command Execution
+---
+
+## Review Operations
+
+Some operations are investigative by nature.
+
+Examples:
+
+* architecture review
+* validation runs
+* benchmark execution
+* repository audits
+
+For these operations, progress visibility is expected.
+
+Example:
+
+```text
+> review architecture
+
+cursor
+
+Reviewing architecture...
+
+  ✓ project structure
+  ✓ execution engine
+  ✓ session state
+  ✓ validation coverage
+  ✓ telemetry
+
+Architecture Review Complete
+```
+
+Rules:
+
+* show investigation progress
+* show findings
+* avoid raw tool output
+* avoid internal command syntax
+* prefer concise summaries over execution details
+
+When users explicitly request investigation, visibility is appropriate.
+
+Normal conversation remains answer-focused.
+
+---
+
+## Shell Command Execution
 
 When executing native processes (e.g., compilations, test suites) during validation or verification, the agent enforces constraints to prevent terminal locking and buffer flooding:
 
-* **Hanging Prevention**: Commands have a configurable timeout (defaulting to 30 seconds) to prevent hanging the shell.
-* **Output Truncation**: Console output is capped (defaulting to 100 KB) to ensure terminal buffers are not flooded, keeping logs quiet and readable.
-* **Progress over Telemetry**: Standard output from background executions is suppressed in normal mode, presenting clean progress bars/checks instead of raw build streams.
+* Hanging Prevention: Commands have a configurable timeout (defaulting to 30 seconds)
+* Output Truncation: Console output is capped (defaulting to 100 KB)
+* Progress over Telemetry: Background execution output is suppressed in normal mode
 
 ---
 
@@ -425,6 +472,31 @@ The interface must remain usable with:
 Meaning should not depend on color alone.
 
 The interface should remain understandable when all styling is removed.
+
+---
+
+## Observation Phase
+
+The system is currently optimized for evidence collection and validation.
+
+Operational workflows may expose more execution detail than normal conversation mode.
+
+Examples:
+
+* architecture review
+* validation runner
+* benchmark execution
+* replay analysis
+
+These workflows exist to improve system quality rather than answer user questions directly.
+
+Rules:
+
+* expose findings, not implementation details
+* expose progress, not telemetry streams
+* expose conclusions, not internal orchestration
+
+Normal conversation should remain the default experience.
 
 ---
 
