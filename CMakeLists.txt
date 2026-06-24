@@ -264,6 +264,7 @@ set(CPR_FOUND FALSE)
 # First try to find CPR using config mode.
 # Skip on macOS — Homebrew cpr bottles often reference stale Xcode SDK
 # paths that don't exist on the runner, causing CMake 3.31+ to error.
+# Build from source via FetchContent on macOS for reliability.
 if(NOT APPLE)
     find_package(cpr ${CPR_MIN_VERSION} QUIET)
 endif()
@@ -271,8 +272,8 @@ endif()
 if(TARGET cpr::cpr)
     message(STATUS "Found CPR (config mode): ${cpr_VERSION}")
     set(CPR_FOUND TRUE)
-else()
-    # If not found, try to find the library directly
+elseif(NOT APPLE)
+    # If not found (non-macOS), try to find the library directly
     find_library(CPR_LIBRARY NAMES cpr)
     find_path(CPR_INCLUDE_DIR NAMES cpr/cpr.h)
 
