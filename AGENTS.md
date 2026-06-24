@@ -1,6 +1,6 @@
 # AGENTS Architecture Guide
 
-This document describes the architecture as it exists today.
+This document describes the current architecture as it exists today.
 
 It is not runtime help and does not document CLI commands.
 
