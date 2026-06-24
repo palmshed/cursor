@@ -147,16 +147,16 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   agent_.state_.last_confidence_before = agent_.state_.last_confidence_after;
 
   auto engine_result = engine.execute(trimmed_input,
-      [&](const Services::ToolCall &tc) -> std::string {
-        std::string result;
+      [&](const Services::ToolCall &tc) -> Services::ToolResult {
+        Services::ToolResult tr;
         if (tc.tool == "grep") {
           last_grep_results = Services::FileService::search_in_directory(
               ".", tc.args.empty() ? trimmed_input : tc.args, "*");
           if (last_grep_results.empty()) {
-            result = "no matches";
+            tr.stdout = "no matches";
           } else {
             for (auto &r : last_grep_results)
-              result += r.file_path + ":" + std::to_string(r.line_number) +
+              tr.stdout += r.file_path + ":" + std::to_string(r.line_number) +
                      ": " + r.line_content + "\n";
           }
         } else if (tc.tool == "read") {
@@ -184,35 +184,39 @@ std::string CommandRouter::process_user_input(const std::string &input) {
           }
 
           if (unique_files.empty()) {
-            result = "no files to read";
+            tr.stdout = "no files to read";
           } else {
             int count = 0;
             for (auto &f : unique_files) {
               if (count >= 5) break;
               std::string content = Services::FileService::read_file_range(f, 1, 30);
               if (content.empty()) continue;  // skip missing files
-              result += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+              tr.stdout += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
               count++;
             }
-            if (result.empty()) result = "no files to read";
+            if (tr.stdout.empty()) tr.stdout = "no files to read";
           }
         } else if (tc.tool == "gh") {
-          result = Services::CommandService::execute("gh " + tc.args);
+          std::string raw = Services::CommandService::execute("gh " + tc.args);
+          if (raw.starts_with("Error:")) { tr.stderr = raw; tr.exit_code = 1; }
+          else { tr.stdout = raw; }
         } else if (tc.tool == "git") {
-          result = Services::CommandService::execute("git " + tc.args);
-        } else if (tc.tool == "cmake") {
-          result = Services::CommandService::execute(tc.args);
-        } else if (tc.tool == "ctest") {
-          result = Services::CommandService::execute(tc.args);
+          std::string raw = Services::CommandService::execute("git " + tc.args);
+          if (raw.starts_with("Error:")) { tr.stderr = raw; tr.exit_code = 1; }
+          else { tr.stdout = raw; }
+        } else if (tc.tool == "cmake" || tc.tool == "ctest") {
+          std::string raw = Services::CommandService::execute(tc.args);
+          if (raw.find("Error:") != std::string::npos) { tr.stderr = raw; tr.exit_code = 1; }
+          else { tr.stdout = raw; }
         } else if (tc.tool == "discovery") {
           auto d = Services::DiscoveryService::scan(".", trimmed_input);
-          result = "Project: " + d.project_type + "\n";
-          result += "Sources: " + std::to_string(d.source_file_count) + "\n";
-          result += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
+          tr.stdout = "Project: " + d.project_type + "\n";
+          tr.stdout += "Sources: " + std::to_string(d.source_file_count) + "\n";
+          tr.stdout += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
         } else {
-          result = "unknown tool";
+          tr.stdout = "unknown tool";
         }
-        return result;
+        return tr;
       },
       ui_);
 
@@ -227,6 +231,14 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     agent_.state_.last_execution_path = Core::ExecutionPath::TaskPipeline;
     ui_.show_pipeline_section("Full task pipeline");
     return handle_task_with_planning(trimmed_input);
+  }
+
+  // ArchitectureReview: render the structured report directly, no AI chat
+  if (engine_result.goal_type ==
+      static_cast<int>(Services::ExecutionEngine::ArchitectureReview)) {
+    agent_.state_.last_execution_path = Core::ExecutionPath::Engine;
+    std::cout << engine_result.summary;
+    return engine_result.summary;
   }
 
   // ChatOnly if engine ran no tools (GeneralChat, no investigation)
@@ -791,7 +803,7 @@ std::string CommandRouter::handle_ai_chat(const std::string &input) {
     full_context = agent_context + "\n\n" + full_context;
   }
 
-  std::string system_prompt = "You are an advanced AI agent with comprehensive codebase analysis capabilities.";
+  std::string system_prompt = "Answer questions from repository evidence.";
   ui_.show_ai_prompt(system_prompt, input);
 
   std::string response = agent_.ai_service_->chat(input, full_context);
