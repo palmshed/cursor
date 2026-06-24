@@ -18,8 +18,8 @@ struct ToolCall {
 struct ToolResult {
   std::string tool;
   std::string args;
-  std::string stdout;
-  std::string stderr;
+  std::string out;
+  std::string err;
   int exit_code{0};
 
   bool success() const { return exit_code == 0; }

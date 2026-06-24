@@ -350,10 +350,10 @@ QueryResult run_query(const std::string &prompt) {
             ev.files.push_back(x.file_path);
           trace.push_back(ev);
           if (filtered.empty()) {
-            tr.stdout = "no matches";
+            tr.out = "no matches";
           } else {
             for (auto &x : filtered) {
-              tr.stdout += x.file_path + ":" + std::to_string(x.line_number) + ": " +
+              tr.out += x.file_path + ":" + std::to_string(x.line_number) + ": " +
                      x.line_content + "\n";
             }
           }
@@ -376,7 +376,7 @@ QueryResult run_query(const std::string &prompt) {
           } else {
             if (grep_results.empty()) {
               trace.push_back(ev);
-              tr.stdout = "no files to read";
+              tr.out = "no files to read";
               return tr;
             }
             for (auto &x : grep_results) {
@@ -395,14 +395,14 @@ QueryResult run_query(const std::string &prompt) {
           }
           trace.push_back(ev);
           if (ev.files.empty()) {
-            tr.stdout = "no files to read";
+            tr.out = "no files to read";
           } else {
             count = 0;
             for (auto &f : unique_files) {
               if (count >= 5) break;
               std::string content =
                   Services::FileService::read_file_range(f, 1, 30);
-              tr.stdout += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+              tr.out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
               count++;
             }
           }
@@ -412,30 +412,30 @@ QueryResult run_query(const std::string &prompt) {
         if (tc.tool == "discovery") {
           trace.push_back(ev);
           auto d = Services::DiscoveryService::scan(".", prompt);
-          tr.stdout = "Project: " + d.project_type;
+          tr.out = "Project: " + d.project_type;
           return tr;
         }
 
         if (tc.tool == "gh") {
           trace.push_back(ev);
-          tr.stdout = Services::CommandService::execute("gh " + tc.args);
+          tr.out = Services::CommandService::execute("gh " + tc.args);
           return tr;
         }
 
         if (tc.tool == "git") {
           trace.push_back(ev);
-          tr.stdout = Services::CommandService::execute("git " + tc.args);
+          tr.out = Services::CommandService::execute("git " + tc.args);
           return tr;
         }
 
         if (tc.tool == "cmake" || tc.tool == "ctest") {
           trace.push_back(ev);
-          tr.stdout = Services::CommandService::execute(tc.args);
+          tr.out = Services::CommandService::execute(tc.args);
           return tr;
         }
 
         trace.push_back(ev);
-        tr.stdout = "unknown tool";
+        tr.out = "unknown tool";
         return tr;
       },
       ui);

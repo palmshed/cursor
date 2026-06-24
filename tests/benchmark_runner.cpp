@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
                     || r.file_path.find("scenarios/") != std::string::npos;
               }), results.end());
           if (results.empty()) {
-            tr.stdout = "no matches";
+            tr.out = "no matches";
           } else {
             std::ostringstream out;
             for (auto &r : results) {
@@ -88,31 +88,31 @@ int main(int argc, char **argv) {
               if (out.tellp() > 10000) { out << "..."; break; }
             }
             last_grep = out.str();
-            tr.stdout = last_grep;
+            tr.out = last_grep;
           }
           return tr;
         }
         if (tc.tool == "read") {
           std::string path = tc.args.empty() ? first_path(last_grep) : tc.args;
-          if (path.empty()) { tr.stdout = "no file to read"; return tr; }
-          tr.stdout = Services::FileService::read_file_range(path, 0, 30);
+          if (path.empty()) { tr.out = "no file to read"; return tr; }
+          tr.out = Services::FileService::read_file_range(path, 0, 30);
           return tr;
         }
-        if (tc.tool == "gh") { tr.stdout = "[]"; return tr; }
+        if (tc.tool == "gh") { tr.out = "[]"; return tr; }
         if (tc.tool == "git") {
-          tr.stdout = Services::CommandService::execute("git " + tc.args);
+          tr.out = Services::CommandService::execute("git " + tc.args);
           return tr;
         }
-        if (tc.tool == "cmake") { tr.stdout = "build succeeded"; return tr; }
-        if (tc.tool == "ctest") { tr.stdout = "tests passed"; return tr; }
+        if (tc.tool == "cmake") { tr.out = "build succeeded"; return tr; }
+        if (tc.tool == "ctest") { tr.out = "tests passed"; return tr; }
         if (tc.tool == "discovery") {
           auto d = Services::DiscoveryService::scan(".", query);
-          tr.stdout = "Project: " + d.project_type + "\n";
-          tr.stdout += "Sources: " + std::to_string(d.source_file_count) + "\n";
-          tr.stdout += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
+          tr.out = "Project: " + d.project_type + "\n";
+          tr.out += "Sources: " + std::to_string(d.source_file_count) + "\n";
+          tr.out += "Tests: " + std::string(d.has_tests ? "yes" : "no") + "\n";
           return tr;
         }
-        tr.stdout = "unknown tool";
+        tr.out = "unknown tool";
         return tr;
       };
 
