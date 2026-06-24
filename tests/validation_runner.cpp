@@ -27,8 +27,8 @@ static std::string first_path(const std::string &grep_out) {
 }
 
 static std::string classify_failure(const std::string &outcome,
-                                     const std::string &goal,
-                                     const std::string &goal_type,
+                                     const std::string &,
+                                     const std::string &,
                                      const std::vector<std::string> &tools) {
   if (outcome != "success") {
     if (tools.empty() || (tools.size() == 1 && tools[0].find("grep") != std::string::npos &&
@@ -41,11 +41,11 @@ static std::string classify_failure(const std::string &outcome,
   return "None";
 }
 
-static std::string root_cause(const std::string &outcome,
-                               const std::string &goal,
-                               const std::string &goal_type,
-                               const std::vector<std::string> &tools,
-                               const std::string &failure_class) {
+static std::string root_cause(const std::string &,
+                                const std::string &,
+                                const std::string &,
+                                const std::vector<std::string> &tools,
+                                const std::string &failure_class) {
   if (failure_class == "Retrieval") {
     if (tools.empty()) return "No tools executed — classified as GeneralChat instead of investigation";
     if (tools.size() == 1 && tools[0].find("grep") != std::string::npos)
