@@ -114,7 +114,7 @@ jobs:
           echo "=== Summary ==="
           echo "Scenarios passed"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: cursor-${{ matrix.os }}-${{ matrix.build_type }}
           path: |
@@ -162,7 +162,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
       - run: docker compose -f tests/e2e/docker-compose.yml --project-directory . up --abort-on-container-exit --exit-code-from e2e-tests
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-logs
           path: tests/e2e/e2e_test.log
