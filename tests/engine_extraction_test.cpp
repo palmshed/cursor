@@ -55,8 +55,8 @@ static const char *QUERIES[] = {
     "grep CommandRouter",
     "read file include/app/command_router.h",
     "show memory",
-    "find quantum entanglement analysis code",
-    "search for nonexistent_class_xyz in this codebase",
+    "find xqkz_2024_quantum_entanglement module",
+    "search for xqkz_2024_nonexistent_class in this codebase",
     "find the UIManager declaration",
     "where is DiscoveryService defined",
     "find the Outcome enum",
@@ -91,11 +91,15 @@ static const char *QUERIES[] = {
     "Where is the main executable defined?",
     "How does confidence scoring work?",
     // Negative test (expects evidence failure)
-    "Where is the Kubernetes deployment?",
+    "where is xqkz_2024_kubernetes_deployment",
     // Specific routing/extraction tests
     "how is evidence gating implemented",
     "where do we call gh run view",
     "tell me how repository investigation works",
+    // Commit history routing tests
+    "what is the last commit",
+    "can you check the last commit",
+    "show me the latest commit",
     // GitHub Actions benchmarks
     "can you check this log https://github.com/owner/repo/actions/runs/12345",
     "Why did CI fail?",
@@ -126,35 +130,51 @@ int main() {
       Services::ExecutionEngine engine;
 
       std::string last_grep;
-      auto runner = [&last_grep](const Services::ToolCall &tc) -> std::string {
+      auto runner = [&last_grep](const Services::ToolCall &tc) -> Services::ToolResult {
+        Services::ToolResult tr;
         if (tc.tool == "grep") {
           auto results =
               Services::FileService::search_in_directory(".", tc.args, "*");
-          if (results.empty()) return "no matches";
-          std::ostringstream out;
-          for (auto &r : results) {
-            out << r.file_path << ":" << r.line_number << ": "
-                << r.line_content << "\n";
-            if (out.tellp() > 10000) {
-              out << "...";
-              break;
+          if (results.empty()) {
+            tr.stdout = "no matches";
+          } else {
+            std::ostringstream out;
+            for (auto &r : results) {
+              out << r.file_path << ":" << r.line_number << ": "
+                  << r.line_content << "\n";
+              if (out.tellp() > 10000) {
+                out << "...";
+                break;
+              }
             }
+            last_grep = out.str();
+            tr.stdout = last_grep;
           }
-          last_grep = out.str();
-          return last_grep;
+          return tr;
         }
         if (tc.tool == "read") {
           std::string path = tc.args.empty() ? first_path(last_grep) : tc.args;
-          if (path.empty()) return "no file to read";
-          return Services::FileService::read_file_range(path, 0, 30);
+          if (path.empty()) {
+            tr.stdout = "no file to read";
+          } else {
+            tr.stdout = Services::FileService::read_file_range(path, 0, 30);
+          }
+          return tr;
         }
-        if (tc.tool == "gh") return "[]";
-        if (tc.tool == "cmake") return "build succeeded";
-        if (tc.tool == "ctest") return "tests passed";
-        if (tc.tool == "discovery")
-          return "Project type: C++ (cmake), sources: 42, services: 12, "
+        if (tc.tool == "gh") { tr.stdout = "[]"; return tr; }
+        if (tc.tool == "cmake") { tr.stdout = "build succeeded"; return tr; }
+        if (tc.tool == "ctest") { tr.stdout = "tests passed"; return tr; }
+        if (tc.tool == "discovery") {
+          tr.stdout = "Project type: C++ (cmake), sources: 42, services: 12, "
                  "has_tests: yes";
-        return "";
+          return tr;
+        }
+        if (tc.tool == "git") {
+          tr.stdout = "abc1234 feat: add evidence system\n"
+                 "def5678 fix: improve read tool";
+          return tr;
+        }
+        return tr;
       };
 
       auto result = engine.execute(q, runner, ui);
