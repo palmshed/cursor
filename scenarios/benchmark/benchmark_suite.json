@@ -1,0 +1,366 @@
+{
+  "_meta": {
+    "description": "Repository investigation benchmark suite",
+    "target": "ExecutionEngine investigation quality",
+    "categories": [
+      "symbol-lookup", "implementation-lookup", "call-site",
+      "architecture", "git-history", "config", "refactoring", "recovery"
+    ],
+    "difficulty": ["easy", "medium", "hard"],
+    "instructions": "Run each query through cursor --batch and classify outcome into retrieval/gate/ranking/synthesis failure"
+  },
+  "queries": [
+    {
+      "id": "sym-001",
+      "difficulty": "easy",
+      "category": "symbol-lookup",
+      "query": "find the Outcome enum",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep Outcome"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches", "grep reads wrong files", "ranking: too many matches"]
+    },
+    {
+      "id": "sym-002",
+      "difficulty": "easy",
+      "category": "symbol-lookup",
+      "query": "where is ExecutionEngine defined",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep ExecutionEngine"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches", "ranking: header vs impl confusion"]
+    },
+    {
+      "id": "sym-003",
+      "difficulty": "easy",
+      "category": "symbol-lookup",
+      "query": "find CommandRouter",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep CommandRouter"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches"]
+    },
+    {
+      "id": "impl-001",
+      "difficulty": "medium",
+      "category": "implementation-lookup",
+      "query": "where is replay implemented",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep replay", "read replay_service.h"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep too broad", "ranking: replay vs replay_service vs replayer"]
+    },
+    {
+      "id": "impl-002",
+      "difficulty": "medium",
+      "category": "implementation-lookup",
+      "query": "where is evidence gating implemented",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep evidence gating"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["keyword extraction drops 'evidence gating'", "grep no matches"]
+    },
+    {
+      "id": "impl-003",
+      "difficulty": "medium",
+      "category": "implementation-lookup",
+      "query": "find the planning service",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep planning"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep too broad (planning appears in many files)"]
+    },
+    {
+      "id": "impl-004",
+      "difficulty": "medium",
+      "category": "implementation-lookup",
+      "query": "find the confidence heuristic",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep confidence"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep too broad", "ranking: confidence is everywhere"]
+    },
+    {
+      "id": "impl-005",
+      "difficulty": "hard",
+      "category": "implementation-lookup",
+      "query": "where is the dashboard service defined",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep dashboard", "read dashboard_service.h"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep broad match for 'dashboard'", "ranking failure on file selection"]
+    },
+    {
+      "id": "call-001",
+      "difficulty": "medium",
+      "category": "call-site",
+      "query": "where do we call gh run view",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep gh run view"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["keyword extraction loses multi-word term", "grep no matches"]
+    },
+    {
+      "id": "call-002",
+      "difficulty": "medium",
+      "category": "call-site",
+      "query": "who invokes check_completion",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep check_completion"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches", "keyword extraction drops 'check_completion'"]
+    },
+    {
+      "id": "call-003",
+      "difficulty": "hard",
+      "category": "call-site",
+      "query": "where is TraceConsumer used",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep TraceConsumer"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches"]
+    },
+    {
+      "id": "call-004",
+      "difficulty": "hard",
+      "category": "call-site",
+      "query": "where do we call handle_direct_command",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep handle_direct_command"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches"]
+    },
+    {
+      "id": "arch-001",
+      "difficulty": "easy",
+      "category": "architecture",
+      "query": "how does repository investigation work",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep repository investigation"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches", "synthesis: answer from model priors instead of evidence"]
+    },
+    {
+      "id": "arch-002",
+      "difficulty": "medium",
+      "category": "architecture",
+      "query": "explain the telemetry pipeline",
+      "goal_type": "CodebaseOverview",
+      "tools": ["discovery", "read AGENTS.md"],
+      "evidence_class": ["Discovery", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["classification as CodebaseQuery instead of CodebaseOverview", "synthesis: weak answer despite good discovery"]
+    },
+    {
+      "id": "arch-003",
+      "difficulty": "medium",
+      "category": "architecture",
+      "query": "how does evidence gating work",
+      "goal_type": "CodebaseOverview",
+      "tools": ["discovery", "read AGENTS.md"],
+      "evidence_class": ["Discovery", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["classification as CodebaseQuery instead of CodebaseOverview"]
+    },
+    {
+      "id": "arch-004",
+      "difficulty": "medium",
+      "category": "architecture",
+      "query": "tell me how the build system works",
+      "goal_type": "CodebaseOverview",
+      "tools": ["discovery", "read CMakeLists.txt"],
+      "evidence_class": ["Discovery", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["CodebaseOverview not triggered", "discovery not called"]
+    },
+    {
+      "id": "arch-005",
+      "difficulty": "hard",
+      "category": "architecture",
+      "query": "what is this repository",
+      "goal_type": "CodebaseOverview",
+      "tools": ["discovery", "read README.md"],
+      "evidence_class": ["Discovery", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["CodebaseOverview not triggered", "synthesis: generic answer"]
+    },
+    {
+      "id": "git-001",
+      "difficulty": "easy",
+      "category": "git-history",
+      "query": "what is the last commit",
+      "goal_type": "CommitHistory",
+      "tools": ["git log"],
+      "evidence_class": ["GitLog"],
+      "outcome": "Success",
+      "failure_modes": ["classification as CodebaseQuery instead of CommitHistory", "tool retry loop"]
+    },
+    {
+      "id": "git-002",
+      "difficulty": "easy",
+      "category": "git-history",
+      "query": "show me recent work on telemetry",
+      "goal_type": "CommitHistory",
+      "tools": ["git log"],
+      "evidence_class": ["GitLog"],
+      "outcome": "Success",
+      "failure_modes": ["classification fails", "git:log not called"]
+    },
+    {
+      "id": "git-003",
+      "difficulty": "medium",
+      "category": "git-history",
+      "query": "which commit added Opik support",
+      "goal_type": "CommitHistory",
+      "tools": ["git log"],
+      "evidence_class": ["GitLog"],
+      "outcome": "Success",
+      "failure_modes": ["classification fails", "synthesis: filters commit list poorly"]
+    },
+    {
+      "id": "git-004",
+      "difficulty": "medium",
+      "category": "git-history",
+      "query": "can you check the last commit",
+      "goal_type": "CommitHistory",
+      "tools": ["git log"],
+      "evidence_class": ["GitLog"],
+      "outcome": "Success",
+      "failure_modes": ["classification misses 'check' variant", "tool retry loop"]
+    },
+    {
+      "id": "git-005",
+      "difficulty": "hard",
+      "category": "git-history",
+      "query": "tell me the last comit",
+      "goal_type": "CommitHistory",
+      "tools": ["git log"],
+      "evidence_class": ["GitLog"],
+      "outcome": "Success",
+      "failure_modes": ["typo 'comit' not matched", "classification as CodebaseQuery", "grep instead of git"]
+    },
+    {
+      "id": "cfg-001",
+      "difficulty": "medium",
+      "category": "config",
+      "query": "where is the model catalog",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep model catalog"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches", "ranking: model_catalog.h vs model_catalog.cpp"]
+    },
+    {
+      "id": "cfg-002",
+      "difficulty": "medium",
+      "category": "config",
+      "query": "find the startup model selection",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep startup", "read startup.cpp"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["grep too broad", "ranking failure on file selection", "phrase 'startup model selection' not in code"]
+    },
+    {
+      "id": "cfg-003",
+      "difficulty": "hard",
+      "category": "config",
+      "query": "how are provider credentials configured",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep provider"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["grep too broad", "synthesis: answer from model priors", "phrase 'provider credentials configured' not in code"]
+    },
+    {
+      "id": "ref-001",
+      "difficulty": "easy",
+      "category": "refactoring",
+      "query": "find where session state is modified",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep session_state"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep too broad", "ranking: too many matches"]
+    },
+    {
+      "id": "ref-002",
+      "difficulty": "hard",
+      "category": "refactoring",
+      "query": "find all places that set last_outcome",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep last_outcome"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "Success",
+      "failure_modes": ["grep no matches", "keyword extraction loses 'last_outcome'"]
+    },
+    {
+      "id": "rec-001",
+      "difficulty": "medium",
+      "category": "recovery",
+      "query": "where is xqkz_2024_service_impl implemented",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep xqkz_2024_service_impl"],
+      "evidence_class": ["FileSearch"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["hallucination: model answers from knowledge instead of evidence", "gate fails to stop"]
+    },
+    {
+      "id": "rec-002",
+      "difficulty": "medium",
+      "category": "recovery",
+      "query": "find xqkz_2024_quantum_entanglement module",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep xqkz_2024_quantum_entanglement"],
+      "evidence_class": ["FileSearch"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["hallucination", "model suggests generic quantum algorithms"]
+    },
+    {
+      "id": "rec-003",
+      "difficulty": "medium",
+      "category": "recovery",
+      "query": "where is xqkz_2024_kubernetes_deployment",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep xqkz_2024_kubernetes_deployment"],
+      "evidence_class": ["FileSearch"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["hallucination", "model answers from general knowledge"]
+    },
+    {
+      "id": "rec-004",
+      "difficulty": "hard",
+      "category": "recovery",
+      "query": "search for xqkz_2024_nonexistent_class in this codebase",
+      "goal_type": "CodebaseQuery",
+      "tools": ["grep xqkz_2024_nonexistent_class"],
+      "evidence_class": ["FileSearch", "FileContent"],
+      "outcome": "InsufficientEvidence",
+      "failure_modes": ["model claims matches that don't exist", "grep returns false positive"]
+    },
+    {
+      "id": "rec-005",
+      "difficulty": "hard",
+      "category": "recovery",
+      "query": "why did CI fail",
+      "goal_type": "CICheck",
+      "tools": ["gh run list"],
+      "evidence_class": ["CIWorkflow"],
+      "outcome": "Success",
+      "failure_modes": ["gh tool not called", "classification as GeneralChat"]
+    }
+  ]
+}
