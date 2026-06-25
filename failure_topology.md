@@ -171,23 +171,30 @@ Divergences between the synthetic and production traces highlight why optimizing
 
 ---
 
-## 6. Feature Prioritization & Roadmap
+## 6. Feature Prioritization & Roadmap (Approved Directives)
 
-Roadmap priority follows the Priority Product ($Freq \times Sev \times Rec$). Feature implementations remain **blocked** under the active implementation freeze.
+Based on the segmented telemetry showing the **User Rejection Gap**, the implementation freeze has been partially lifted under strict boundaries.
 
-### 6.1 Priority 1: Directory-Aware Find / scan
-* **Target Failure Class:** Retrieval & Ranking (Combined Priority: **11.76**)
-* **Rationale:** This directly attacks the dominant Retrieval and Ranking failures. Giving the agent a directory structure tool (such as `tree` or a constrained `find`) allows it to locate files using structural hierarchy rather than relying solely on raw text searching, which easily gets overwhelmed by common terms.
+### 6.1 Priority 1: Routing Improvements (Completed)
+* **Status:** Built and Verified.
+* **Target Failure Class:** Routing & Telemetry Distortion.
+* **Solutions Integrated:**
+  * **Typo Normalization Layer:** Intercepts inputs prior to classification to correct common typos (e.g. `comit` $\rightarrow$ `commit`, `snipper` $\rightarrow$ `snippet`, `codbease` $\rightarrow$ `codebase`).
+  * **Command-Prefix Handling:** Gracefully handles slash commands (e.g., `/`, `/llm`) and maps them cleanly.
+  * **Telemetry Isolation:** Automatically cleanses/resets the telemetry outcome metrics on every new user query, preventing previous session outcomes (like `UserRejected`) from carrying over to subsequent meta-commands.
+  * **Session Meta-Query grounding:** Injected active model configuration (ID, name, and provider) into the agent's prompt context, allowing the AI to correctly answer session meta-queries (e.g. `"what provider am I using"`).
 
-### 6.2 Priority 2: Git History & Status UI Representation
-* **Target Failure Class:** Routing & Retrieval (Combined Priority: **12.54**, offset by lower git severity in interactive loop)
-* **Rationale:** Resolves user attempts to query git status (`"show me the current git status"` / `"what is the last comit"`). 
-* **Design Boundary:** Constrained strictly to visualizing `git:log`, `git:status`, and `git:show` outputs. No background watchers or mutating git tools.
+### 6.2 Priority 2: Directory-Aware Find / Scan (Approved - Up Next)
+* **Status:** **Approved to Build.**
+* **Target Failure Class:** Retrieval & Ranking (Priority: **11.76**).
+* **Scope:** A directory structure utility (`tree` / `find`) mapping to a constrained, safe subset of directory scan actions inside the repository root. This will allow the agent to locate files using hierarchy instead of raw text searching.
 
-### 6.3 Priority 3: Tool History Streaming
-* **Target Failure Class:** Gate & Synthesis (Combined Priority: **0.68**)
-* **Rationale:** Displays empirical `ToolResult` and `tool_history` to the user in real-time, helping developers catch loops or empty grep checks early.
+### 6.3 Blocked Features (Freeze Maintained)
+Do NOT implement:
+* Repair Loop / Autonomous code modification.
+* Natural Language $\rightarrow$ Command Translation (Shell Translator) - **Postponed Longest**.
+* Git History/Status UI dashboards.
+* New framework abstractions.
 
-### 6.4 Priority 4: Natural Language $\rightarrow$ Command Translation (Shell Translator)
-* **Target Failure Class:** Routing (Priority: **2.04**)
-* **Rationale:** **Postponed Longest.** While it maps to routing failures, it introduces significant risk. The agent must never generate free-form or arbitrary shell commands. Natural language requests must map strictly to known, safe C++ CLI flags or tool execution goals rather than generic shell execution.
+### 6.4 Key Success Metric
+* **Target:** Reduce the production-only `user_rejected` rate from **42.0%** to a target below **10%** before introducing any other major capabilities, ensuring the agent immediately heads in the correct direction.
