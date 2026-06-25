@@ -689,7 +689,7 @@ std::string CiInvestigationService::synthesize_root_cause(long long run_id) {
         + context +
         "\nRoot cause analysis:\n";
 
-    std::string analysis = ai.chat(prompt, "");
+    std::string analysis = ai.chat(prompt, "", "You are a CI failure analyst. Review the GitHub Actions workflow run and identify the root cause.");
     return context + "\n--- AI Root-Cause Analysis ---\n" + analysis + "\n";
   } catch (std::exception &e) {
     return extract_ci_failure(run_id) +

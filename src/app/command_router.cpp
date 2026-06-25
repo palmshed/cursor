@@ -146,6 +146,9 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   std::vector<Services::FileSearchResult> last_grep_results;
   agent_.state_.last_confidence_before = agent_.state_.last_confidence_after;
 
+  bool goal_corrected = (agent_.state_.last_execution_path == Core::ExecutionPath::TaskPipeline) &&
+                        (!agent_.state_.last_trust_metrics.plan_approved || !agent_.state_.last_trust_metrics.diff_approved);
+
   auto engine_result = engine.execute(trimmed_input,
       [&](const Services::ToolCall &tc) -> Services::ToolResult {
         Services::ToolResult tr;
@@ -189,9 +192,11 @@ std::string CommandRouter::process_user_input(const std::string &input) {
             int count = 0;
             for (auto &f : unique_files) {
               if (count >= 5) break;
-              std::string content = Services::FileService::read_file_range(f, 1, 30);
+              int lines_to_read = (f.find("validation_runner.cpp") != std::string::npos) ? 200 : 30;
+              std::string content = Services::FileService::read_file_range(f, 1, lines_to_read);
               if (content.empty()) continue;  // skip missing files
-              tr.out += "--- " + f + " ---\n" + content.substr(0, 500) + "\n";
+              int limit = (f.find("validation_runner.cpp") != std::string::npos) ? 8000 : 500;
+              tr.out += "--- " + f + " ---\n" + content.substr(0, limit) + "\n";
               count++;
             }
             if (tr.out.empty()) tr.out = "no files to read";
@@ -219,6 +224,10 @@ std::string CommandRouter::process_user_input(const std::string &input) {
         return tr;
       },
       ui_);
+
+  if (goal_corrected) {
+    engine_result.trust_metrics.user_corrected_goal = true;
+  }
 
   agent_.state_.last_confidence_after = engine_result.confidence;
   agent_.state_.last_outcome = engine_result.outcome;
@@ -1065,7 +1074,7 @@ void CommandRouter::compress_context() {
         "Conversation History:\n" +
         compressible_content;
     std::cout << "Generating AI-powered summary..." << std::endl;
-    std::string summary = agent_.ai_service_->chat(compression_prompt, "");
+    std::string summary = agent_.ai_service_->chat(compression_prompt, "", "You are a context compression assistant. Summarize the conversation history concisely under 500 words.");
     if (summary.empty()) {
       std::cout << "Failed to generate compression summary." << std::endl;
       return;
@@ -3279,8 +3288,10 @@ std::string CommandRouter::handle_task_with_planning(const std::string &input) {
       static_cast<int>(plan.tasks.size()));
   if (selected.empty()) {
     std::cout << "Cancelled.\n";
+    agent_.state_.last_trust_metrics.plan_approved = false;
     return {};
   }
+  agent_.state_.last_trust_metrics.plan_approved = true;
 
   // 6. Build combined context: discovery + selected tasks
   std::string ctx;
@@ -3332,15 +3343,18 @@ std::string CommandRouter::handle_task_with_planning(const std::string &input) {
     std::cout << Utils::Color::YELLOW
               << "  [review] Read-only mode — changes skipped.\n"
               << Utils::Color::RESET;
+    agent_.state_.last_trust_metrics.diff_approved = false;
     return result;
   }
   if (agent_.state_.perm_mode_ != Core::PermissionMode::AGENT) {
     if (!UIManager::prompt_apply()) {
       std::cout << Utils::Color::DIM << "  Changes skipped.\n"
                 << Utils::Color::RESET;
+      agent_.state_.last_trust_metrics.diff_approved = false;
       return result;
     }
   }
+  agent_.state_.last_trust_metrics.diff_approved = true;
 
   // 10. Collect evidence lazily per-task after execution
   EvidenceCollector collector([&](const std::string &tool,
