@@ -186,8 +186,9 @@ int main(int, char **) {
         if (tc.tool == "find") {
           std::string term = tc.args;
           auto impl_pos = term.find(" --impl");
-          if (impl_pos != std::string::npos) term = term.substr(0, impl_pos);
-          auto candidates = Services::directory_aware_find(term, false);
+          bool impl_query = (impl_pos != std::string::npos);
+          if (impl_query) term = term.substr(0, impl_pos);
+          auto candidates = Services::directory_aware_find(term, impl_query);
           if (candidates.empty()) { tr.out = "no matches"; return tr; }
           last_find = candidates[0].path;
           for (auto &c : candidates)

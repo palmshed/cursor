@@ -12,7 +12,11 @@ if(GIT_FOUND)
     ERROR_QUIET
   )
   if(GIT_TAG)
-    string(REGEX REPLACE "^v" "" PROJECT_VERSION ${GIT_TAG})
+    string(REGEX REPLACE "^v" "" GIT_TAG_NO_V ${GIT_TAG})
+    string(REGEX MATCH "^[0-9]+(\\.[0-9]+)*" MATCHED_VERSION "${GIT_TAG_NO_V}")
+    if(MATCHED_VERSION)
+      set(PROJECT_VERSION ${MATCHED_VERSION})
+    endif()
   endif()
 endif()
 
