@@ -1,0 +1,8 @@
+{
+  "prompt": "where is SessionState used",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true,
+    "tools_used": ["references", "read"]
+  }
+}

@@ -196,6 +196,21 @@ bool is_implementation_query(const std::string &goal) {
          lower.find("defined") != std::string::npos ||
          lower.find("where is") != std::string::npos;
 }
+
+bool is_reference_query(const std::string &goal) {
+  std::string lower = goal;
+  for (auto &c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return lower.find("referenced") != std::string::npos ||
+         lower.find("reference") != std::string::npos ||
+         lower.find("references") != std::string::npos ||
+         lower.find("calls") != std::string::npos ||
+         lower.find("call") != std::string::npos ||
+         lower.find("called") != std::string::npos ||
+         lower.find("uses") != std::string::npos ||
+         lower.find("using") != std::string::npos ||
+         lower.find("used") != std::string::npos ||
+         lower.find("use") != std::string::npos;
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -308,8 +323,8 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
   }
 
   // Call-site, usage, definition queries strongly suggest codebase query even if they mention CI/external command keywords
-  if (contains_any(goal, {"call", "called", "used", "using", "implement", "implemented",
-                           "define", "defined", "reference", "referenced",
+  if (contains_any(goal, {"call", "calls", "called", "use", "uses", "used", "using", "implement", "implemented",
+                           "define", "defined", "reference", "references", "referenced",
                            "where is", "where do we", "where are"})) {
     if (contains_any(goal, {"tell me about", "overview", "describe", "what is this"}) &&
         contains_any(goal, {"codebase", "project", "repo", "repository", "application"})) {
@@ -549,6 +564,23 @@ ToolCall ExecutionEngine::select_next_tool(
         return {};
       }
 
+      // 0. Reference Search (before find lookup)
+      if (is_reference_query(goal)) {
+        if (!evidence.has_fact_containing("references:done")) {
+          std::string term = extract_best_term(goal);
+          if (!term.empty()) {
+            return {"references", term};
+          }
+          evidence.add_fact("references:done");
+          evidence.add_fact("references:noresults");
+        }
+        if (evidence.has_fact_containing("references:results") &&
+            !evidence.has_fact_containing("read")) {
+          return {"read", ""};
+        }
+        return {};
+      }
+
       // 0. Directory-aware find lookup (before grep fallback)
       if (!evidence.has_fact_containing("find:done")) {
         std::string term = extract_best_term(goal);
@@ -755,6 +787,11 @@ ToolCall ExecutionEngine::select_next_tool_llm(
 bool ExecutionEngine::check_completion(const std::string &goal,
                                         GoalType type,
                                         EvidenceStore &evidence) {
+  // If it's a reference query and we found no results, we don't need any more evidence.
+  if (is_reference_query(goal) && evidence.has_fact_containing("references:noresults")) {
+    return true;
+  }
+
   // Evidence class gate: all required evidence classes must be present
   auto required = required_evidence(goal, type);
   if (!required.empty() &&
@@ -783,6 +820,15 @@ bool ExecutionEngine::check_completion(const std::string &goal,
       auto need = detect_evidence_need(goal);
       if (need == EvidenceNeed::CommitHistory)
         return evidence.has_fact_containing("git:results");
+
+      // Reference search completion
+      if (is_reference_query(goal)) {
+        bool refs_ok = evidence.has_fact_containing("references:results") &&
+                       evidence.has_fact_containing("read");
+        bool refs_noresults = evidence.has_fact_containing("references:noresults");
+        return refs_ok || refs_noresults;
+      }
+
       // Complete when find+read resolved, or grep+read resolved
       bool find_ok = evidence.has_fact_containing("find:results") &&
                      evidence.has_fact_containing("read");
@@ -1040,6 +1086,14 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       if (has_results) {
         result.recovery_metrics.read_success++;
       }
+    } else if (tc.tool == "references") {
+      has_results = !tr.out.empty() && tr.out != "no matches";
+      if (has_results) {
+        result.retrieval_metrics.reference_tool_hits++;
+      } else {
+        evidence.add_fact("references:noresults");
+      }
+      evidence.add_fact("references:done");
     } else if (tc.tool == "find") {
       has_results = !tr.out.empty() && tr.out != "no matches";
       result.recovery_metrics.find_attempts++;
@@ -1101,6 +1155,8 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     if (has_results) {
       if (tc.tool == "grep")
         evidence.mark_evidence_class(EvidenceClass::FileSearch);
+      else if (tc.tool == "references")
+        evidence.mark_evidence_class(EvidenceClass::FileSearch);
       else if (tc.tool == "read")
         evidence.mark_evidence_class(EvidenceClass::FileContent);
       else if (tc.tool == "discovery")
@@ -1134,6 +1190,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       cr = ConfidenceService::after_search(tc.args, hits);
     } else if (tc.tool == "read") {
       cr = ConfidenceService::after_read(1, true);
+    } else if (tc.tool == "references") {
+      bool ok = tr.out != "no matches" && !tr.out.empty();
+      cr.score = ok ? 0.8 : 0.3;
+      cr.reason = ok ? "references matched callers" : "references found no callers";
     } else if (tc.tool == "find") {
       bool ok = tr.out != "no matches" && !tr.out.empty();
       cr.score = ok ? 0.8 : 0.3;
@@ -1218,6 +1278,24 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   // Final confidence
   ConfidenceResult final_confidence = ConfidenceService::combine(confidence_history);
   summary += "Confidence: " + final_confidence.reason + "\n";
+
+  // Compute caller_resolution_rate
+  if (is_reference_query(goal)) {
+    bool ran_grep = false;
+    bool ran_references = false;
+    for (const auto &tr : result.tool_history) {
+      if (tr.tool == "grep") {
+        ran_grep = true;
+      }
+      if (tr.tool == "references") {
+        ran_references = true;
+      }
+    }
+    bool resolved = check_completion(goal, type, evidence);
+    result.retrieval_metrics.caller_resolution_rate = (resolved && ran_references && !ran_grep) ? 1.0 : 0.0;
+  } else {
+    result.retrieval_metrics.caller_resolution_rate = 0.0;
+  }
 
   result.success = check_completion(goal, type, evidence);
   if (type == ArchitectureReview) {

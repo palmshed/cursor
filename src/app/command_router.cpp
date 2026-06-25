@@ -208,6 +208,18 @@ std::string CommandRouter::process_user_input(const std::string &input) {
               tr.out += c.path + "\n";
             }
           }
+        } else if (tc.tool == "references") {
+          auto refs = Services::SymbolService::find_references(".", tc.args);
+          if (refs.empty()) {
+            tr.out = "no matches";
+            last_find_results.clear();
+          } else {
+            last_find_results.clear();
+            for (auto &r : refs) {
+              last_find_results.push_back(r.file);
+            }
+            tr.out = Services::SymbolService::format_references(refs);
+          }
         } else if (tc.tool == "read") {
           std::vector<std::string> unique_files;
           std::set<std::string> seen;
