@@ -3,6 +3,6 @@
   "prompt": "where is replay implemented",
   "expect": {
     "outcome": "success",
-    "tools_used": ["grep", "read"]
+    "tools_used": ["find", "read"]
   }
 }

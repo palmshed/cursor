@@ -1032,6 +1032,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         result.recovery_metrics.grep_success++;
       } else {
         result.recovery_metrics.grep_zero_hit++;
+        evidence.add_fact("grep:noresults");
       }
     } else if (tc.tool == "read") {
       has_results = !tr.out.empty() && tr.out != "no files to read";
@@ -1235,7 +1236,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       result.evidence.has_fact_containing("read:results") ||
       result.evidence.has_fact_containing("git:results") ||
       result.evidence.has_fact_containing("build") ||
-      result.evidence.has_fact_containing("test");
+      result.evidence.has_fact_containing("test") ||
+      result.evidence.has_fact_containing("find:noresults") ||
+      result.evidence.has_fact_containing("grep:noresults");
   result.recovery_metrics.verification_found =
       result.evidence.has_fact_containing("build") ||
       result.evidence.has_fact_containing("test");

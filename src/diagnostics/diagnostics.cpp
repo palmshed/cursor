@@ -321,6 +321,7 @@ QueryResult run_query(const std::string &prompt) {
 
   std::vector<Core::TraceEvent> trace;
   std::vector<Services::FileSearchResult> grep_results;
+  std::string last_find;
 
   auto res = engine.execute(
       prompt,
@@ -364,11 +365,21 @@ QueryResult run_query(const std::string &prompt) {
         if (tc.tool == "find") {
           std::string term = tc.args;
           auto impl_pos = term.find(" --impl");
-          if (impl_pos != std::string::npos) term = term.substr(0, impl_pos);
-          auto candidates = Services::directory_aware_find(term, false);
+          bool impl_query = (impl_pos != std::string::npos);
+          if (impl_query) term = term.substr(0, impl_pos);
+          auto candidates = Services::directory_aware_find(term, impl_query);
           if (candidates.empty()) { tr.out = "no matches"; return tr; }
+          last_find = candidates[0].path;
+          for (auto &c : candidates) {
+            tr.out += "CANDIDATE: " + c.path + " " + std::to_string(c.score) + " " + c.reason + "\n";
+            ev.files.push_back(c.path);
+          }
+          tr.out += "SELECTED: " + candidates[0].path + "\n";
+          tr.out += "REASON: " + candidates[0].reason + "\n";
+          tr.out += "FILES:\n";
           for (auto &c : candidates)
             tr.out += c.path + "\n";
+          trace.push_back(ev);
           return tr;
         }
 
@@ -385,6 +396,8 @@ QueryResult run_query(const std::string &prompt) {
                 unique_files.push_back(fname);
               }
             }
+          } else if (!last_find.empty()) {
+            unique_files.push_back(last_find);
           } else {
             if (grep_results.empty()) {
               trace.push_back(ev);
@@ -958,6 +971,23 @@ std::vector<std::string> extract_files_examined(
         size_t colon = line.find(':');
         if (colon != std::string::npos) {
           files.insert(line.substr(0, colon));
+        }
+      }
+    } else if (f.starts_with("[read ") || f.starts_with("[read]")) {
+      size_t pos = f.find(']');
+      if (pos == std::string::npos) continue;
+      std::string content = f.substr(pos + 2);
+      std::istringstream lines(content);
+      std::string line;
+      while (std::getline(lines, line)) {
+        size_t start = line.find_first_not_of(" \t");
+        if (start == std::string::npos) continue;
+        std::string trimmed = line.substr(start);
+        if (trimmed.starts_with("--- ") && trimmed.ends_with(" ---")) {
+          std::string path = trimmed.substr(4, trimmed.size() - 8);
+          if (!path.empty()) {
+            files.insert(path);
+          }
         }
       }
     }
