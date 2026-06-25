@@ -1,7 +1,6 @@
 #include "diagnostics/diagnostics.h"
 
 #include "agent.h"
-#include "agent_mode.h"
 #include "app/command_router.h"
 #include "core/trace_event.h"
 #include "services/ai_service.h"

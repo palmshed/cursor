@@ -39,7 +39,7 @@ std::string AIService::get_url() const {
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-nlohmann::json AIService::build_system_prompt(const std::string& context) const {
+std::string AIService::build_system_prompt(const std::string& context) const {
   const std::string body =
       "You answer questions from repository evidence.\n\n"
       "Repository investigation has already been performed. "
@@ -58,8 +58,11 @@ nlohmann::json AIService::build_system_prompt(const std::string& context) const 
 // ── Payload construction ──────────────────────────────────────────────────────
 
 nlohmann::json AIService::create_payload(const std::string& user_input,
-                                         const std::string& context) const {
-  const std::string system_prompt = build_system_prompt(context);
+                                         const std::string& context,
+                                         const std::string& system_prompt_override) const {
+  const std::string system_prompt = system_prompt_override.empty() ?
+                                    build_system_prompt(context) :
+                                    system_prompt_override;
 
   // Cerebras uses streaming SSE
   if (provider_.response_fmt == Core::ResponseFormat::SSEStream) {
@@ -155,13 +158,14 @@ std::string AIService::parse_response(const std::string& body) const {
 // ── Public chat interface ─────────────────────────────────────────────────────
 
 std::string AIService::chat(const std::string& user_input,
-                            const std::string& context) {
+                            const std::string& context,
+                            const std::string& system_prompt_override) {
   if (!is_available()) {
     return "Error: AI service is not available. Please check your API key and "
            "internet connection.";
   }
 
-  const auto payload  = create_payload(user_input, context);
+  const auto payload  = create_payload(user_input, context, system_prompt_override);
   const auto url      = get_url();
 
   try {

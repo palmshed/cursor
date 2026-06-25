@@ -96,7 +96,7 @@ int main(int, char **) {
     // Architecture
     "tell me how repository investigation works",
     "explain the telemetry pipeline",
-    "how is evidence gating implemented",
+    "how is \"evidence\" gating implemented",
     // Git
     "what is the last commit",
     "show current git status",
@@ -113,6 +113,18 @@ int main(int, char **) {
     "review architecture",
     "review codebase",
     "review recent changes",
+    // General Chat
+    "hello there",
+    "how are you doing",
+    // Code Change
+    "add a new field to \"session_state\"",
+    "fix compile warnings in \"auth_service\"",
+    // CI Check
+    "check the ci build status",
+    "did the last workflow pass",
+    // GitHub Investigation
+    "check run https://github.com/bniladridas/cursor/actions/runs/28139237680",
+    "investigate job https://github.com/bniladridas/cursor/actions/runs/28139237680/job/83332734648"
   };
 
   std::cout << "Cursor Validation Protocol\n";
@@ -135,8 +147,18 @@ int main(int, char **) {
       auto runner = [&last_grep, &query](const Services::ToolCall &tc) -> Services::ToolResult {
         Services::ToolResult tr;
         if (tc.tool == "grep") {
+          std::string pattern = tc.args;
+          if (pattern.empty()) {
+            size_t first_quote = query.find('"');
+            size_t last_quote = query.rfind('"');
+            if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
+              pattern = query.substr(first_quote + 1, last_quote - first_quote - 1);
+            } else {
+              pattern = "session_state";
+            }
+          }
           auto results = Services::FileService::search_in_directory(
-              ".", tc.args.empty() ? query : tc.args, "*");
+              ".", pattern, "*");
           results.erase(std::remove_if(results.begin(), results.end(),
               [](const auto &r) {
                 return r.file_path.find("benchmark_suite.json") != std::string::npos

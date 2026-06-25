@@ -11,9 +11,10 @@ private:
   Core::ProviderConfig provider_;
   std::string        api_key_;
 
-  nlohmann::json build_system_prompt(const std::string& context) const;
+  std::string    build_system_prompt(const std::string& context) const;
   nlohmann::json create_payload(const std::string& user_input,
-                                const std::string& context) const;
+                                const std::string& context,
+                                const std::string& system_prompt_override) const;
   std::string    parse_sse_stream(const std::string& response) const;
   std::string    parse_response(const std::string& body) const;
   std::string    get_url() const;
@@ -26,7 +27,8 @@ public:
   void override_api_model(const std::string& name);
 
   bool        is_available() const;
-  std::string chat(const std::string& user_input, const std::string& context);
+  std::string chat(const std::string& user_input, const std::string& context,
+                   const std::string& system_prompt_override = "");
 
   // Read-only accessors used by diagnostics / session logging.
   const Core::ModelConfig&    model()    const { return model_; }
