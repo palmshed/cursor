@@ -43,6 +43,46 @@ if(APPLE)
     set(CMAKE_FIND_USE_PKG_CONFIG OFF)
 endif()
 
+# Macro to sanitize imported targets on macOS by removing non-existent
+# include directories. Stale/dead paths (e.g. referencing non-existent
+# Xcode SDK versions) returned by system pkg-config can trigger CMake
+# errors when dependencies are configured.
+macro(sanitize_target_includes _target)
+    if(APPLE AND TARGET ${_target})
+        # Sanitize INTERFACE_INCLUDE_DIRECTORIES
+        get_target_property(_incs ${_target} INTERFACE_INCLUDE_DIRECTORIES)
+        if(_incs)
+            set(_valid_incs "")
+            foreach(_dir ${_incs})
+                if(EXISTS "${_dir}")
+                    list(APPEND _valid_incs "${_dir}")
+                else()
+                    message(STATUS "Sanitizer: Removing non-existent path '${_dir}' from target ${_target} (INTERFACE_INCLUDE_DIRECTORIES)")
+                endif()
+            endforeach()
+            set_property(TARGET ${_target} PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${_valid_incs}")
+            unset(_valid_incs)
+        endif()
+        unset(_incs)
+
+        # Sanitize INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+        get_target_property(_sys_incs ${_target} INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+        if(_sys_incs)
+            set(_valid_sys_incs "")
+            foreach(_dir ${_sys_incs})
+                if(EXISTS "${_dir}")
+                    list(APPEND _valid_sys_incs "${_dir}")
+                else()
+                    message(STATUS "Sanitizer: Removing non-existent path '${_dir}' from target ${_target} (INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)")
+                endif()
+            endforeach()
+            set_property(TARGET ${_target} PROPERTY INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_valid_sys_incs}")
+            unset(_valid_sys_incs)
+        endif()
+        unset(_sys_incs)
+    endif()
+endmacro()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -94,7 +134,15 @@ if(APPLE)
             message(STATUS "Found zlib using pkg-config: ${ZLIB_LINK_LIBRARIES}")
             set(ZLIB_TARGET PkgConfig::ZLIB)
             set(zlib_is_found TRUE)
+            sanitize_target_includes(PkgConfig::ZLIB)
         endif()
+    endif()
+
+    # Also find ZLIB via standard find_package to create/configure ZLIB::ZLIB target
+    # which is expected by dependencies like curl/cpr when they call find_package(ZLIB).
+    find_package(ZLIB QUIET)
+    if(TARGET ZLIB::ZLIB)
+        sanitize_target_includes(ZLIB::ZLIB)
     endif()
 elseif(WIN32)
     # On Windows, first try to find zlib via vcpkg
@@ -143,22 +191,9 @@ endif()
 # Find libcurl
 find_package(CURL REQUIRED)
 
-# Sanitize CURL include directories on macOS — the system CURL found via
-# pkg-config in the Xcode SDK may reference paths that don't exist on
-# the runner, causing CMake 3.31+ to error when CPR builds from source.
-if(APPLE AND TARGET CURL::libcurl)
-    get_target_property(_curl_incs CURL::libcurl INTERFACE_INCLUDE_DIRECTORIES)
-    if(_curl_incs)
-        set(_valid_curl_incs "")
-        foreach(_dir ${_curl_incs})
-            if(EXISTS "${_dir}")
-                list(APPEND _valid_curl_incs "${_dir}")
-            endif()
-        endforeach()
-        set_property(TARGET CURL::libcurl PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${_valid_curl_incs})
-        unset(_valid_curl_incs)
-    endif()
-    unset(_curl_incs)
+# Sanitize CURL target's include directories on macOS
+if(APPLE)
+    sanitize_target_includes(CURL::libcurl)
 endif()
 
 # Find OpenSSL, fallback to FetchContent
