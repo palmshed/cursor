@@ -779,14 +779,24 @@ void UIManager::show_execution_summary(const ExecutionSummaryData &data) {
 // ---------------------------------------------------------------------------
 
 std::string UIManager::section_for_tool(const std::string &tool) {
-  if (tool == "grep")      return "Searching codebase";
-  if (tool == "read")      return "Reading files";
-  if (tool == "git")       return "Investigating git history";
-  if (tool == "discovery") return "Analyzing project structure";
-  if (tool == "gh")        return "Fetching CI data";
-  if (tool == "cmake")     return "Building";
-  if (tool == "ctest")     return "Running tests";
-  return "Executing";
+  if (tool == "find")      return "Locating files...";
+  if (tool == "grep")      return "Checking symbols...";
+  if (tool == "read")      return "Reading implementation...";
+  if (tool == "git")       return "Checking git history...";
+  if (tool == "discovery") return "Analyzing project structure...";
+  if (tool == "gh")        return "Fetching CI data...";
+  if (tool == "cmake")     return "Building...";
+  if (tool == "ctest")     return "Running tests...";
+  return "Working...";
+}
+
+void UIManager::show_progress_section(const std::string &section) {
+  if (is_verbose()) return;
+  if (section != current_section_) {
+    if (!current_section_.empty()) std::cout << "\n";
+    std::cout << section << "\n\n";
+    current_section_ = section;
+  }
 }
 
 void UIManager::show_tool_invocation(const std::string &tool,
@@ -811,12 +821,7 @@ void UIManager::show_tool_invocation(const std::string &tool,
   }
 
   // Normal mode: investigation timeline with section headers
-  std::string section = section_for_tool(tool);
-  if (section != current_section_) {
-    if (!current_section_.empty()) std::cout << "\n";
-    std::cout << section << "\n\n";
-    current_section_ = section;
-  }
+  show_progress_section(section_for_tool(tool));
 
   std::cout << "\xe2\x86\x92 " << tool;
   if (!args.empty()) std::cout << " " << args;
@@ -845,7 +850,7 @@ void UIManager::show_tool_output(const std::string &output) {
 
   // Normal mode: brief result summary
   if (output.empty() || output == "no matches" || output == "no files to read") {
-    std::cout << "  no results\n";
+    std::cout << "  \xe2\x86\x92 no results\n";
     return;
   }
 
@@ -854,18 +859,57 @@ void UIManager::show_tool_output(const std::string &output) {
     std::istringstream stream(output);
     std::string line;
     while (std::getline(stream, line))
-      if (!line.empty()) lines++;
-    std::cout << "  " << lines << " match" << (lines == 1 ? "" : "es") << "\n";
+      if (!line.empty() && line.find("CANDIDATE:") == std::string::npos &&
+          line.find("SELECTED:") == std::string::npos &&
+          line.find("REASON:") == std::string::npos &&
+          line.find("FILES:") == std::string::npos)
+        lines++;
+    std::cout << "  \xe2\x9c\x93 " << lines << " match" << (lines == 1 ? "" : "es") << " found\n";
+  } else if (last_tool_ == "find") {
+    int count = 0;
+    std::string first;
+    std::istringstream stream(output);
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (line.compare(0, 10, "CANDIDATE:") == 0)
+        count++;
+      if (first.empty() && line.compare(0, 9, "SELECTED:") == 0)
+        first = line.substr(9);
+    }
+    if (!first.empty() && first[0] == ' ') first = first.substr(1);
+    std::cout << "  \xe2\x9c\x93 " << count << " candidate" << (count == 1 ? "" : "s") << " (" << first << ")\n";
   } else if (last_tool_ == "read") {
     std::istringstream stream(output);
     std::string line;
     int count = 0;
+    std::string last_file;
     while (std::getline(stream, line)) {
-      if (line.find("--- ") == 0 && line.rfind(" ---") != std::string::npos)
+      if (line.find("--- ") == 0 && line.rfind(" ---") != std::string::npos) {
         count++;
+        size_t start = line.find("--- ") + 4;
+        size_t end = line.rfind(" ---");
+        if (end != std::string::npos && end > start)
+          last_file = line.substr(start, end - start);
+      }
     }
     if (count > 0)
-      std::cout << "  \xe2\x86\x92 " << count << " file" << (count == 1 ? "" : "s") << "\n";
+      std::cout << "  \xe2\x9c\x93 " << last_file << "\n";
+    else
+      std::cout << "  \xe2\x9c\x93 " << count << " file" << (count == 1 ? "" : "s") << "\n";
+  } else if (last_tool_ == "git") {
+    std::istringstream stream(output);
+    std::string line;
+    int count = 0;
+    while (std::getline(stream, line))
+      if (!line.empty()) count++;
+    std::cout << "  \xe2\x9c\x93 " << count << " commit" << (count == 1 ? "" : "s") << " found\n";
+  } else if (last_tool_ == "gh") {
+    std::istringstream stream(output);
+    std::string line;
+    int count = 0;
+    while (std::getline(stream, line))
+      if (!line.empty()) count++;
+    std::cout << "  \xe2\x9c\x93 " << count << " line" << (count == 1 ? "" : "s") << "\n";
   } else {
     int lines = 0;
     std::string first;
@@ -878,9 +922,9 @@ void UIManager::show_tool_output(const std::string &output) {
       }
     }
     if (lines == 1)
-      std::cout << "  " << first.substr(0, 80) << "\n";
+      std::cout << "  \xe2\x9c\x93 " << first.substr(0, 80) << "\n";
     else if (lines > 1)
-      std::cout << "  " << lines << " lines\n";
+      std::cout << "  \xe2\x9c\x93 " << lines << " lines\n";
   }
 }
 
