@@ -10,6 +10,7 @@
 #include "services/execution_engine.h"
 #include "services/codebase_service.h"
 #include "services/discovery_service.h"
+#include "services/find_service.h"
 #include "services/planning_service.h"
 #include "services/command_service.h"
 #include "services/context_service.h"
@@ -174,7 +175,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
                      ": " + r.line_content + "\n";
           }
         } else if (tc.tool == "find") {
-          // Directory-aware filename lookup with deterministic ranking.
+          // Directory-aware filename and symbol lookup with deterministic ranking.
           // Args format: "<term> [--impl]"
           std::string term = tc.args;
           bool impl_query = false;
@@ -184,112 +185,27 @@ std::string CommandRouter::process_user_input(const std::string &input) {
             term = term.substr(0, impl_pos);
           }
 
-          if (term.empty()) {
+          auto candidates = Services::directory_aware_find(term, impl_query);
+
+          if (candidates.empty()) {
             tr.out = "no matches";
+            last_find_results.clear();
           } else {
-            // Collect all source files from the workspace
-            std::string term_lower = term;
-            for (auto &c : term_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-
-            struct Candidate {
-              std::string path;
-              std::string stem;
-              int score{0};
-              std::string reason;
-            };
-            std::vector<Candidate> candidates;
-
-            // Walk the source tree
-            auto start = std::filesystem::current_path();
-            for (auto &entry : std::filesystem::recursive_directory_iterator(start, std::filesystem::directory_options::skip_permission_denied)) {
-              if (!entry.is_regular_file()) continue;
-              auto path = entry.path();
-              std::string ext = path.extension().string();
-              // Only consider source, header, config, and build files
-              if (ext != ".cpp" && ext != ".h" && ext != ".hpp" && ext != ".c" &&
-                  ext != ".py" && ext != ".js" && ext != ".json" && ext != ".yml" &&
-                  ext != ".yaml" && ext != ".cmake" && ext != ".txt" && ext != ".md" &&
-                  path.filename() == "CMakeLists.txt")
-                continue;
-              // Skip hidden directories and _deps
-              auto rel = std::filesystem::relative(path, start);
-              std::string rel_str = rel.string();
-              if (rel_str.find("/.") != std::string::npos ||
-                  rel_str.find("build/_deps") != std::string::npos ||
-                  rel_str.find("node_modules") != std::string::npos)
-                continue;
-
-              std::string stem = rel.stem().string();
-              std::string stem_lower = stem;
-              for (auto &c : stem_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-
-              int score = 0;
-              std::string reason;
-
-              // Exact filename match (stem equals the search term)
-              if (stem_lower == term_lower) {
-                score += 20;
-                reason = "exact filename match";
-              }
-              // Partial filename match (term is substring of stem)
-              else if (stem_lower.find(term_lower) != std::string::npos) {
-                score += 10;
-                reason = "partial filename match";
-              }
-              // Check if term words appear in the path (e.g., "binary" matches "bin/")
-              else {
-                std::string path_lower = rel_str;
-                for (auto &c : path_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-                if (path_lower.find(term_lower) != std::string::npos) {
-                  score += 5;
-                  reason = "directory path match";
-                }
-              }
-
-              if (score == 0) continue;
-
-              // Implementation query boost: prefer .cpp files
-              if (impl_query && ext == ".cpp") {
-                score += 8;
-                if (reason.find("exact") != std::string::npos)
-                  reason = "exact filename match + implementation file";
-                else if (reason.find("partial") != std::string::npos)
-                  reason = "partial filename match + implementation file";
-                else
-                  reason += " + implementation file";
-              }
-
-              candidates.push_back({rel_str, stem, score, reason});
+            // Populate last_find_results for the read tool (top 5)
+            last_find_results.clear();
+            for (int i = 0; i < 5 && i < (int)candidates.size(); i++) {
+              last_find_results.push_back(candidates[i].path);
             }
 
-            if (candidates.empty()) {
-              tr.out = "no matches";
-              last_find_results.clear();
-            } else {
-              // Sort by score descending, then alphabetically for ties
-              std::sort(candidates.begin(), candidates.end(),
-                  [](const Candidate &a, const Candidate &b) {
-                    if (a.score != b.score) return a.score > b.score;
-                    return a.path < b.path;
-                  });
-
-              // Populate last_find_results for the read tool
-              last_find_results.clear();
-              for (int i = 0; i < 5 && i < (int)candidates.size(); i++) {
-                last_find_results.push_back(candidates[i].path);
-              }
-
-              // Build output: candidate metadata lines + file list
-              for (auto &c : candidates) {
-                tr.out += "CANDIDATE: " + c.path + " " + std::to_string(c.score) + " " + c.reason + "\n";
-              }
-              tr.out += "SELECTED: " + candidates[0].path + "\n";
-              tr.out += "REASON: " + candidates[0].reason + "\n";
-              // Also emit plain file paths for the read tool
-              tr.out += "FILES:\n";
-              for (auto &c : candidates) {
-                tr.out += c.path + "\n";
-              }
+            // Build output: candidate metadata lines + file list
+            for (auto &c : candidates) {
+              tr.out += "CANDIDATE: " + c.path + " " + std::to_string(c.score) + " " + c.reason + "\n";
+            }
+            tr.out += "SELECTED: " + candidates[0].path + "\n";
+            tr.out += "REASON: " + candidates[0].reason + "\n";
+            tr.out += "FILES:\n";
+            for (auto &c : candidates) {
+              tr.out += c.path + "\n";
             }
           }
         } else if (tc.tool == "read") {
@@ -431,6 +347,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       goal_type == static_cast<int>(Services::ExecutionEngine::GitHubInvestigation);
   bool has_useful_evidence =
       engine_result.evidence.has_fact_containing("grep:results") ||
+      engine_result.evidence.has_fact_containing("find:results") ||
       engine_result.evidence.has_fact_containing("gh:results");
   if (is_investigation_goal && !has_useful_evidence) {
     // Advisory only: do not block AI (already gated by outcome above).
@@ -583,6 +500,82 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       }
       std::cout << std::flush;
     }
+  }
+
+  // Show preparing answer stage
+  ui_.show_progress_section("Preparing answer...");
+
+  // Direct answer from evidence for CodebaseQuery with success outcome
+  if (engine_result.outcome == Core::Outcome::Success &&
+      engine_result.goal_type == static_cast<int>(Services::ExecutionEngine::CodebaseQuery) &&
+      !engine_result.evidence.facts.empty()) {
+
+    // Build a direct answer from evidence facts
+    std::string answer;
+    std::set<std::string> mentioned_files;
+    for (auto &f : engine_result.evidence.facts) {
+      if (f.find(":results") != std::string::npos)
+        continue;
+      if (f.find(":done") != std::string::npos)
+        continue;
+      if (f.find(":noresults") != std::string::npos)
+        continue;
+
+      if (f.starts_with("[find ")) {
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string content = f.substr(pos + 2);
+          if (content.find("CANDIDATE:") != std::string::npos) {
+            std::istringstream ss(content);
+            std::string line;
+            while (std::getline(ss, line)) {
+              if (line.compare(0, 9, "SELECTED:") == 0) {
+                std::string path = line.substr(9);
+                if (!path.empty() && path[0] == ' ') path = path.substr(1);
+                mentioned_files.insert(path);
+              }
+            }
+          }
+        }
+      } else if (f.starts_with("[grep ")) {
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string content = f.substr(pos + 2);
+          std::istringstream lines(content);
+          std::string line;
+          while (std::getline(lines, line)) {
+            size_t colon = line.find(':');
+            if (colon != std::string::npos) {
+              mentioned_files.insert(line.substr(0, colon));
+            }
+          }
+        }
+      } else if (f.starts_with("[read ")) {
+        size_t pos = f.find(']');
+        if (pos != std::string::npos) {
+          std::string after = f.substr(pos + 2);
+          size_t dash = after.find("--- ");
+          if (dash != std::string::npos) {
+            size_t name_start = dash + 4;
+            size_t name_end = after.find('\n', name_start);
+            if (name_end != std::string::npos) {
+              std::string name = after.substr(name_start, name_end - name_start);
+              if (!name.empty())
+                mentioned_files.insert(name);
+            }
+          }
+        }
+      }
+    }
+
+    if (!mentioned_files.empty()) {
+      answer = "Found relevant files:\n";
+      for (auto &fn : mentioned_files) {
+        answer += "  \xe2\x80\xa2 " + fn + "\n";
+      }
+      std::cout << answer << std::flush;
+    }
+    return answer;
   }
 
   // Route to AI chat with evidence context

@@ -832,8 +832,8 @@ static void append_finding(std::ostringstream &r, int &n,
                             const std::string &evidence,
                             const std::string &recommendation) {
   n++;
-  r << "\nFinding #" << n << "\n" << title << "\n\n";
-  r << "Risk:\n" << risk << "\n\n";
+  r << "\n## " << title << "\n\n";
+  r << "Risk: " << risk << "\n\n";
   r << "Evidence:\n" << evidence << "\n\n";
   r << "Recommendation:\n" << recommendation << "\n\n";
 }
@@ -842,8 +842,7 @@ std::string ExecutionEngine::build_review_report(
     const std::vector<ToolResult> &tool_history) const {
   std::ostringstream r;
 
-  r << "Architecture Review\n";
-  r << std::string(50, '=') << "\n";
+  r << "Architecture Review Report (read-only)\n";
 
   // Context section
   for (auto &tr : tool_history) {
@@ -1077,9 +1076,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         result.retrieval_metrics.selected_candidate = winner_path;
         result.retrieval_metrics.selection_reason = winner_reason;
         // Classify the hit type based on reason
-        if (winner_reason.find("exact") != std::string::npos) {
+        if (winner_reason.find("filename") != std::string::npos) {
           result.retrieval_metrics.filename_hits++;
-        } else if (winner_reason.find("partial") != std::string::npos) {
+        } else if (winner_reason.find("symbol") != std::string::npos) {
           result.retrieval_metrics.symbol_hits++;
         } else if (winner_reason.find("directory") != std::string::npos) {
           result.retrieval_metrics.directory_hits++;
@@ -1162,6 +1161,33 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     }
   }
 
+  // Show evidence collection progress
+  {
+    if (!result.tool_history.empty()) {
+      std::string prev_section;
+      if (!result.tool_history.empty()) {
+        auto &last = result.tool_history.back();
+        prev_section = ui.section_for_tool(last.tool);
+      }
+      std::string evidence_section = "Collecting evidence...";
+      if (prev_section != evidence_section) {
+        ui.show_progress_section(evidence_section);
+      }
+    }
+    int tool_count = static_cast<int>(result.tool_history.size());
+    int grep_ok = 0, read_ok = 0, find_ok = 0;
+    for (auto &tr : result.tool_history) {
+      if (tr.tool == "grep" && tr.success() && !tr.out.empty() && tr.out != "no matches") grep_ok++;
+      if (tr.tool == "read" && tr.success() && !tr.out.empty() && tr.out != "no files to read") read_ok++;
+      if (tr.tool == "find" && tr.success() && !tr.out.empty() && tr.out != "no matches") find_ok++;
+    }
+    std::cout << "  \xe2\x9c\x93 " << tool_count << " tool result" << (tool_count == 1 ? "" : "s");
+    if (grep_ok > 0) std::cout << ", " << grep_ok << " grep";
+    if (find_ok > 0) std::cout << ", " << find_ok << " find";
+    if (read_ok > 0) std::cout << ", " << read_ok << " read";
+    std::cout << "\n";
+  }
+
   // Build summary
   std::string summary;
   summary += "Goal type: " + goal_type_name(type) + "\n";
@@ -1205,6 +1231,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   result.recovery_metrics.attempts = iteration_count;
   result.recovery_metrics.evidence_found =
       result.evidence.has_fact_containing("grep:results") ||
+      result.evidence.has_fact_containing("find:results") ||
       result.evidence.has_fact_containing("read:results") ||
       result.evidence.has_fact_containing("git:results") ||
       result.evidence.has_fact_containing("build") ||
