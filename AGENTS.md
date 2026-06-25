@@ -356,6 +356,17 @@ Preserve all existing telemetry schemas and modules:
 
 If the implementation cannot demonstrate a measurable reduction in topology failures, stop and review traces before further work.
 
+## Implementation Handoff Guardrails
+1. **Tight Scope Control:** Keep implementation strictly limited to the `ExecutionEngine`, search layer, ranking layer, and retrieval telemetry. Do NOT touch `AIService`, goal routing, `SessionState`, `Replay`, or model selection mechanisms.
+2. **Dedicated Retrieval Report:** Upon shipping, compile a dedicated report named `directory_aware_find_report.md` capturing:
+   - Before/after metrics.
+   - Top failing queries.
+   - Queries fixed.
+   - Queries still failing.
+3. **Protect Benchmark Honesty:** Real developer production traces, synthetic benchmark traces, and unit-test execution traces must remain permanently separated. Never merge or contaminate them again.
+4. **Immediate Stop Upon Shipping:** Immediately after implementing and validating, generate the updated topology and stop. Do not chain directly into another feature without explicit, data-driven approval from the new topology.
+
+
 ---
 
 # Guiding Question
