@@ -40,7 +40,8 @@ public:
                  const Core::RecoveryMetrics &recovery = Core::RecoveryMetrics{},
                  const Core::TrustMetrics &trust = Core::TrustMetrics{},
                  double confidence_before = 0.0,
-                 double confidence_after = 0.0);
+                 double confidence_after = 0.0,
+                 const Core::RetrievalMetrics &retrieval = Core::RetrievalMetrics{});
   std::vector<ReplaySessionInfo> list_sessions() const;
   std::vector<ReplayEvent> load_session(const std::string &id) const;
   const std::string &session_id() const { return session_id_; }

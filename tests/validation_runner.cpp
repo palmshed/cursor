@@ -7,6 +7,8 @@
 #include "core/metrics.h"
 
 #include <chrono>
+#include <cctype>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <fstream>
@@ -177,6 +179,38 @@ int main(int, char **) {
             last_grep = out.str();
             tr.out = last_grep;
           }
+          return tr;
+        }
+        if (tc.tool == "find") {
+          // Simplified find for validation runner
+          std::string term = tc.args;
+          auto impl_pos = term.find(" --impl");
+          if (impl_pos != std::string::npos) term = term.substr(0, impl_pos);
+          if (term.empty()) { tr.out = "no matches"; return tr; }
+          std::string term_lower = term;
+          for (auto &c : term_lower) c = (char)tolower((unsigned char)c);
+          std::vector<std::string> found;
+          auto start = std::filesystem::current_path();
+          for (auto &entry : std::filesystem::recursive_directory_iterator(start, std::filesystem::directory_options::skip_permission_denied)) {
+            if (!entry.is_regular_file()) continue;
+            auto rel = std::filesystem::relative(entry.path(), start);
+            std::string rel_str = rel.string();
+            if (rel_str.find("/.") != std::string::npos || rel_str.find("build/_deps") != std::string::npos) continue;
+            std::string stem = rel.stem().string();
+            for (auto &c : stem) c = (char)tolower((unsigned char)c);
+            std::string ext = entry.path().extension().string();
+            if (ext != ".cpp" && ext != ".h" && ext != ".hpp" && ext != ".c" &&
+                ext != ".py" && ext != ".js" && ext != ".json" && ext != ".md" &&
+                entry.path().filename() != "CMakeLists.txt") continue;
+            if (stem == term_lower) {
+              found.insert(found.begin(), rel_str);
+            } else if (stem.find(term_lower) != std::string::npos) {
+              found.push_back(rel_str);
+            }
+          }
+          if (found.empty()) { tr.out = "no matches"; return tr; }
+          for (auto &f : found)
+            tr.out += f + "\n";
           return tr;
         }
         if (tc.tool == "read") {

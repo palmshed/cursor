@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 namespace Core {
 
@@ -74,6 +75,8 @@ struct RecoveryMetrics {
   int grep_max_hits{0};
   int read_attempts{0};
   int read_success{0};
+  int find_attempts{0};
+  int find_success{0};
 
   bool operator==(const RecoveryMetrics &o) const {
     return attempts == o.attempts &&
@@ -87,7 +90,9 @@ struct RecoveryMetrics {
            grep_total_hits == o.grep_total_hits &&
            grep_max_hits == o.grep_max_hits &&
            read_attempts == o.read_attempts &&
-           read_success == o.read_success;
+           read_success == o.read_success &&
+           find_attempts == o.find_attempts &&
+           find_success == o.find_success;
   }
 
   bool operator!=(const RecoveryMetrics &o) const { return !(*this == o); }
@@ -107,6 +112,24 @@ struct TrustMetrics {
   }
 
   bool operator!=(const TrustMetrics &o) const { return !(*this == o); }
+};
+
+struct RetrievalMetrics {
+  int filename_hits{0};
+  int symbol_hits{0};
+  int directory_hits{0};
+  int grep_hits{0};
+  std::vector<std::string> trace_candidates;
+  std::string selected_candidate;
+  std::string selection_reason;
+
+  bool operator==(const RetrievalMetrics &o) const {
+    return filename_hits == o.filename_hits &&
+           symbol_hits == o.symbol_hits &&
+           directory_hits == o.directory_hits &&
+           grep_hits == o.grep_hits;
+  }
+  bool operator!=(const RetrievalMetrics &o) const { return !(*this == o); }
 };
 
 } // namespace Core

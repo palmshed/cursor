@@ -56,6 +56,7 @@ struct ExecutionResult {
   Core::Outcome outcome{Core::Outcome::InsufficientEvidence};
   Core::RecoveryMetrics recovery_metrics;
   Core::TrustMetrics trust_metrics;
+  Core::RetrievalMetrics retrieval_metrics;
 };
 
 class ExecutionEngine {
@@ -75,7 +76,7 @@ public:
 
   // Completion check — public so callers can inspect
   bool goal_is_achieved(const std::string &goal,
-                        const EvidenceStore &evidence);
+                        EvidenceStore &evidence);
 
   static std::string goal_type_name(GoalType t);
 
@@ -86,13 +87,13 @@ private:
   GoalType classify_goal(const std::string &goal);
   GoalType classify_goal_llm(const std::string &goal);
   ToolCall select_next_tool(const std::string &goal, GoalType type,
-                            const EvidenceStore &evidence,
+                            EvidenceStore &evidence,
                             const std::vector<ToolResult> &tool_history = {});
   ToolCall select_next_tool_llm(const std::string &goal, GoalType type,
                                 const EvidenceStore &evidence,
                                 const std::vector<ToolResult> &tool_history = {});
   bool check_completion(const std::string &goal, GoalType type,
-                        const EvidenceStore &evidence);
+                        EvidenceStore &evidence);
   static EvidenceNeed detect_evidence_need(const std::string &goal);
   static std::vector<EvidenceClass> required_evidence(const std::string &goal, GoalType type);
   std::string build_review_report(const std::vector<ToolResult> &tool_history) const;
