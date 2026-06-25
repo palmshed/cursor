@@ -75,7 +75,17 @@ CommandRouter::CommandRouter(Agent &agent, UIManager &ui,
 
 std::string CommandRouter::process_user_input(const std::string &input) {
   agent_.state_.command_count_++;
-  std::string trimmed_input = trim_copy(input);
+
+  // Clean telemetry state for the current command to prevent carryover of previous failures/rejections
+  agent_.state_.last_outcome = Core::Outcome::Success;
+  agent_.state_.last_confidence_before = 0.0;
+  agent_.state_.last_confidence_after = 0.0;
+  agent_.state_.last_execution_path = Core::ExecutionPath::Unknown;
+  agent_.state_.last_recovery_metrics = Core::RecoveryMetrics{};
+  agent_.state_.last_trust_metrics = Core::TrustMetrics{};
+
+  std::string normalized_input = normalize_query_intent(input);
+  std::string trimmed_input = trim_copy(normalized_input);
   ui_.show_parsed_input(input, trimmed_input);
 
   if (agent_.shell_mode_ && !trimmed_input.starts_with("!")) {
@@ -1215,9 +1225,24 @@ void CommandRouter::set_param(const std::string &param_string) {
 std::string CommandRouter::build_agent_context() const {
   std::ostringstream context;
 
-  // Repository context (always included)
+  // Active model and provider to help AI answer meta-queries about itself
   auto &s = agent_.state_;
-  context << "Repository Context:\n";
+  context << "Active Model Configuration:\n";
+  context << "  model ID: " << s.active_model.id << "\n";
+  context << "  model name: " << s.active_model.display_name << "\n";
+  context << "  provider: ";
+  switch (s.active_model.provider) {
+    case Core::Provider::Ollama: context << "Ollama (local/offline)\n"; break;
+    case Core::Provider::OpenRouter: context << "OpenRouter\n"; break;
+    case Core::Provider::OpenAI: context << "OpenAI\n"; break;
+    case Core::Provider::Groq: context << "Groq\n"; break;
+    case Core::Provider::Together: context << "Together\n"; break;
+    case Core::Provider::Fireworks: context << "Fireworks\n"; break;
+    case Core::Provider::Cerebras: context << "Cerebras\n"; break;
+    case Core::Provider::DeepSeek: context << "DeepSeek\n"; break;
+    default: context << "unknown\n"; break;
+  }
+  context << "\nRepository Context:\n";
   context << "  cwd: " << s.cwd_ << "\n";
   if (!s.repo_root_.empty())
     context << "  repo root: " << s.repo_root_ << "\n";
@@ -1291,6 +1316,58 @@ bool CommandRouter::is_git_status_query(const std::string &input) {
     }
   }
   return false;
+}
+
+std::string CommandRouter::normalize_query_intent(const std::string &input) {
+  std::string normalized = trim_copy(input);
+  if (normalized.empty()) return normalized;
+
+  // 1. Lowercase mapping for quick word replacement
+  std::string lower = normalized;
+  for (char &c : lower) {
+    c = std::tolower(static_cast<unsigned char>(c));
+  }
+
+  // 2. Exact command prefix normalization
+  if (normalized == "/") {
+    return "/";
+  }
+
+  // 3. Typo substitution map
+  struct Replacement {
+    std::string target;
+    std::string replacement;
+  };
+  std::vector<Replacement> replacements = {
+    {"comit", "commit"},
+    {"comits", "commits"},
+    {"snipper", "snippet"},
+    {"codbease", "codebase"},
+    {"defintion", "definition"},
+    {"implmentation", "implementation"},
+    {"stratgy", "strategy"},
+    {"telemetery", "telemetry"},
+    {"auditing", "audit"},
+    {"runing", "running"},
+  };
+
+  for (const auto &rep : replacements) {
+    size_t pos = 0;
+    while ((pos = lower.find(rep.target, pos)) != std::string::npos) {
+      // Ensure it is a whole word or boundary
+      bool start_boundary = (pos == 0 || !std::isalnum(lower[pos - 1]));
+      bool end_boundary = (pos + rep.target.size() == lower.size() || !std::isalnum(lower[pos + rep.target.size()]));
+      if (start_boundary && end_boundary) {
+        normalized.replace(pos, rep.target.size(), rep.replacement);
+        lower.replace(pos, rep.target.size(), rep.replacement);
+        pos += rep.replacement.size();
+      } else {
+        pos += rep.target.size();
+      }
+    }
+  }
+
+  return normalized;
 }
 
 std::optional<std::string> CommandRouter::map_nl_to_direct_command(

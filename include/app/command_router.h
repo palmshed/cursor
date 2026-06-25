@@ -39,6 +39,7 @@ public:
   void remove_task(const std::string &args);
   void set_param(const std::string &param_string);
   std::string build_agent_context() const;
+  static std::string normalize_query_intent(const std::string &input);
   static bool is_direct_command_input(const std::string &input);
   static bool is_git_status_query(const std::string &input);
   static bool is_codebase_query(const std::string &input);
