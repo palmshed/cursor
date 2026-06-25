@@ -33,6 +33,16 @@ configure_file(include/utils/version.h.in include/version.h @ONLY)
 # Include FetchContent for downloading dependencies
 include(FetchContent)
 
+# Disable CMake's built-in pkg-config integration on macOS to avoid stale
+# Xcode SDK paths from CMake 3.31+'s native pkg-config support. These paths
+# don't exist on CI runners but are returned for system libraries (zlib,
+# curl, etc.), causing "Imported target includes non-existent path" errors
+# when FetchContent builds (CPR, curl) find and use the same targets.
+# The FindPkgConfig module (find_package + pkg_check_modules) still works.
+if(APPLE)
+    set(CMAKE_FIND_USE_PKG_CONFIG OFF)
+endif()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
