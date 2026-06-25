@@ -581,6 +581,7 @@ set(SERVICE_SOURCES
     src/services/confidence_service.cpp
     src/services/dashboard_service.cpp
     src/services/dependency_service.cpp
+    src/services/find_service.cpp
     src/services/symbol_service.cpp
 )
 
