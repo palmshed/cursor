@@ -1,6 +1,7 @@
 #include "services/execution_engine.h"
 #include "services/file_service.h"
 #include "services/find_service.h"
+#include "services/symbol_service.h"
 #include "services/discovery_service.h"
 #include "services/command_service.h"
 #include "ui/ui_manager.h"
@@ -86,6 +87,13 @@ int main(int argc, char **argv) {
           tr.out += "FILES:\n";
           for (auto &c : candidates)
             tr.out += c.path + "\n";
+          return tr;
+        }
+        if (tc.tool == "references") {
+          auto refs = Services::SymbolService::find_references(".", tc.args);
+          if (refs.empty()) { tr.out = "no matches"; return tr; }
+          last_find = refs[0].file;
+          tr.out = Services::SymbolService::format_references(refs);
           return tr;
         }
         if (tc.tool == "grep") {

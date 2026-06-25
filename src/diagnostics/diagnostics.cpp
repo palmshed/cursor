@@ -9,6 +9,7 @@
 #include "services/execution_engine.h"
 #include "services/file_service.h"
 #include "services/find_service.h"
+#include "services/symbol_service.h"
 #include "services/web_service.h"
 #include "ui/ui_manager.h"
 #include "utils/config.h"
@@ -380,6 +381,18 @@ QueryResult run_query(const std::string &prompt) {
           for (auto &c : candidates)
             tr.out += c.path + "\n";
           trace.push_back(ev);
+          return tr;
+        }
+
+        if (tc.tool == "references") {
+          auto refs = Services::SymbolService::find_references(".", tc.args);
+          if (refs.empty()) { tr.out = "no matches"; return tr; }
+          last_find = refs[0].file;
+          for (auto &r : refs) {
+            ev.files.push_back(r.file);
+          }
+          trace.push_back(ev);
+          tr.out = Services::SymbolService::format_references(refs);
           return tr;
         }
 

@@ -138,6 +138,8 @@ void ReplayService::log_input(
   ret_json["symbol_hits"] = retrieval.symbol_hits;
   ret_json["directory_hits"] = retrieval.directory_hits;
   ret_json["grep_hits"] = retrieval.grep_hits;
+  ret_json["reference_tool_hits"] = retrieval.reference_tool_hits;
+  ret_json["caller_resolution_rate"] = retrieval.caller_resolution_rate;
   ret_json["selected_candidate"] = retrieval.selected_candidate;
   ret_json["selection_reason"] = retrieval.selection_reason;
   json trace = json::array();

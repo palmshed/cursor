@@ -119,6 +119,8 @@ struct RetrievalMetrics {
   int symbol_hits{0};
   int directory_hits{0};
   int grep_hits{0};
+  int reference_tool_hits{0};
+  double caller_resolution_rate{0.0};
   std::vector<std::string> trace_candidates;
   std::string selected_candidate;
   std::string selection_reason;
@@ -127,7 +129,9 @@ struct RetrievalMetrics {
     return filename_hits == o.filename_hits &&
            symbol_hits == o.symbol_hits &&
            directory_hits == o.directory_hits &&
-           grep_hits == o.grep_hits;
+           grep_hits == o.grep_hits &&
+           reference_tool_hits == o.reference_tool_hits &&
+           caller_resolution_rate == o.caller_resolution_rate;
   }
   bool operator!=(const RetrievalMetrics &o) const { return !(*this == o); }
 };

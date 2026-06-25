@@ -1,0 +1,8 @@
+{
+  "prompt": "who calls ReplayService",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true,
+    "tools_used": ["references", "read"]
+  }
+}
