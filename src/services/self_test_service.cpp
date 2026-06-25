@@ -149,7 +149,7 @@ ScenarioResult SelfTestService::test_git_workflow() {
   // Check status (clean) via direct command
   std::string status = Services::CommandService::execute(
       "git -C " + dir + " status --porcelain 2>&1");
-  r.passed = status.empty() || status.find("Exit code:") != std::string::npos == false;
+  r.passed = status.empty() || status.find("Exit code:") == std::string::npos;
   r.details = r.passed ? "clean repo" : "unexpected dirty: " + status;
   std::filesystem::remove_all(dir);
   return r;
