@@ -335,7 +335,7 @@ Preserve all existing telemetry schemas and modules:
 * `tool_history`
 * `Replay` telemetry schema
 * `validation_runner`
-* `failure_topology.md` generation logic
+* `docs/telemetry/failure_topology.md` generation logic
 * Permanent production vs. synthetic trace separation (excluding unit tests and benchmarks by default).
 
 ## Design Constraints
@@ -358,7 +358,7 @@ If the implementation cannot demonstrate a measurable reduction in topology fail
 
 ## Implementation Handoff Guardrails
 1. **Tight Scope Control:** Keep implementation strictly limited to the `ExecutionEngine`, search layer, ranking layer, and retrieval telemetry. Do NOT touch `AIService`, goal routing, `SessionState`, `Replay`, or model selection mechanisms.
-2. **Dedicated Retrieval Report:** Upon shipping, compile a dedicated report named `directory_aware_find_report.md` capturing:
+2. **Dedicated Retrieval Report:** Upon shipping, compile a dedicated report named `docs/telemetry/directory_aware_find_report.md` capturing:
    - Before/after metrics.
    - Top failing queries.
    - Queries fixed.
