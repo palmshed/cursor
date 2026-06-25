@@ -1,8 +1,8 @@
 # Failure Topology & Telemetry Analysis
 
-**Date:** 2026-06-25  
+**Date:** 2026-06-26  
 **Data Scope:** 432 log files, 1,306 total telemetry traces from `~/.cursor/replay`  
-**Phase:** Complete (Observation Phase transitioned to Evidence-Driven Roadmap)
+**Phase:** Complete (Reference Search capability integrated, validated via 8/8 regression scenarios)
 
 ---
 
@@ -201,14 +201,23 @@ Based on the segmented telemetry showing the **User Rejection Gap**, the impleme
     Success is defined as reducing `insufficient_evidence` on clean developer traces from **6.5%** to a target below **2.0%**.
   * **Scope Limitation:** Strictly constrained to search paths inside the repository root. No broad shell commands, git watchers, or autonomous code edits. Do not modify or remove existing telemetry.
 
-### 6.3 Blocked Features (Freeze Maintained)
+### 6.3 Priority 3: Reference Search (Complete)
+* **Status:** **Complete.** See `docs/telemetry/reference_search_report.md`.
+* **Target Failure Class:** Retrieval capability gaps.
+* **Implementation Guardrails:**
+  * **Guardrail 1: Strictly Deterministic Routing:** Reference query resolution must not fall back to fuzzy LLM ranking or broad `grep` searches.
+  * **Guardrail 2: Keep Telemetry Clean:** Track invocation via `reference_tool_hits` and resolution rate via `caller_resolution_rate`.
+  * **Scope Limitation:** Strictly restricted to exposing the existing `SymbolService::find_references` backend to `ExecutionEngine` and tool routing layers.
+
+### 6.4 Blocked Features (Freeze Maintained)
 Do NOT implement:
 * Repair Loop / Autonomous code modification.
 * Natural Language $\rightarrow$ Command Translation (Shell Translator) - **Postponed Longest**.
 * Git History/Status UI dashboards.
 * New framework abstractions.
+* Symbol Search work (until telemetry justifies it).
 
-### 6.4 Key Success Metric
+### 6.5 Key Success Metric
 * **Target:** Reduce the production-only `user_rejected` rate from **42.0%** to a target below **10%** before introducing any other major capabilities, ensuring the agent immediately heads in the correct direction.
 
 ---
@@ -292,15 +301,28 @@ Remaining **4.6% `insufficient_evidence`** (10 traces):
 
 **Note:** The 8x `replay` and 2x `CommandRouter` traces in §7.4 were attributed to routing/meta carryover in §7.2 (resolved to 14 remaining). After the find fix, 4 additional multi-word binary traces are resolved. The remaining 10 `insufficient_evidence` traces are from synthetic benchmarks (nonexistent symbols) or routing-edge cases — not retrieval failures.
 
-### 7.7 Roadmap Decision
+### 7.7 Reference Search Verification & Outcomes
 
-**Status:** Directory-Aware Find cycle is **complete**.
+The Reference Search capability was validated against four acceptance queries, resolving them entirely via the `references` tool and direct `read` commands, eliminating broad `grep` fallback:
 
-**Next bottleneck** (clean developer traces): `insufficient_evidence` at **4.6%** — below the 2.0% target means the retrieval layer has achieved its success criterion.
+| Acceptance Query | Tool Execution Path | Status | Resolution Type | caller_resolution_rate |
+|---|---|---|---|:---:|
+| `who calls ReplayService` | `references ReplayService` $\rightarrow$ `read` | PASS | Explicit Caller Search | 1.0 |
+| `where is CommandRouter referenced` | `references CommandRouter` $\rightarrow$ `read` | PASS | Explicit Caller Search | 1.0 |
+| `who uses ToolResult` | `references ToolResult` $\rightarrow$ `read` | PASS | Explicit Caller Search | 1.0 |
+| `where is SessionState used` | `references SessionState` $\rightarrow$ `read` | PASS | Explicit Caller Search | 1.0 |
 
-**Recommended next target:** Evaluate from telemetry once sufficient production data accumulates post-deployment. Do not pre-select a target without data.
+All 8/8 regression scenarios pass successfully.
+
+### 7.8 Roadmap Decision
+
+**Status:** Both Directory-Aware Find and Reference Search cycles are **complete**.
+
+**Next bottleneck:** Retrieval layers now possess deterministic capabilities for both definition lookup and caller references, resulting in 100% caller resolution rate on the acceptance query set without grep fallback.
+
+**Recommended next target:** Stop and wait for production telemetry. Do not initiate any new capability work or Symbol Search cycle.
 
 **Implementation freeze maintained for:**
 - Subagents / repair loops / shell translation / git dashboards.
-- Any new find ranking features or LLM-augmented search.
+- Semantic search / AST indexing / tree-sitter.
 
