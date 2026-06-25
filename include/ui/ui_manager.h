@@ -136,6 +136,12 @@ public:
   };
   void show_change_preview(const ChangePreviewData &preview);
 
+  // Progress section for timeline stages
+  void show_progress_section(const std::string &section);
+
+  // Tool section name lookup (public for execution engine timeline)
+  std::string section_for_tool(const std::string &tool);
+
   // Spinner
   void spinner(const std::string &message, int duration_ms);
   void spinner(std::atomic<bool> &done);
@@ -150,7 +156,6 @@ private:
   std::string current_section_;
 
   bool is_verbose() const;
-  std::string section_for_tool(const std::string &tool);
   static int get_terminal_width();
 
   static std::string replace_inline_markdown(const std::string &line);
