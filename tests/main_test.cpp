@@ -212,6 +212,30 @@ TEST(AgentTest, FormattedFilePreviewHandlesErrors) {
   EXPECT_NE(output.find("Error:"), std::string::npos);
 }
 
+TEST(AgentTest, QueryIntentNormalizationAndTelemetryIsolation) {
+  Core::Agent agent;
+  Core::UIManager ui(agent);
+  Core::CommandRouter router(agent, ui);
+
+  // 1. Test Query Normalization
+  EXPECT_EQ(Core::CommandRouter::normalize_query_intent("what is the last comit"), "what is the last commit");
+  EXPECT_EQ(Core::CommandRouter::normalize_query_intent("tell me about the snipper realated code"), "tell me about the snippet realated code");
+  EXPECT_EQ(Core::CommandRouter::normalize_query_intent("yeah tell me about the ui in from this codbease"), "yeah tell me about the ui in from this codebase");
+  EXPECT_EQ(Core::CommandRouter::normalize_query_intent("  /  "), "/");
+
+  // 2. Test Telemetry Isolation (outcome does not carry over)
+  // Simulate a previous failed/rejected command state
+  agent.state_.last_outcome = Core::Outcome::UserRejected;
+  agent.state_.last_execution_path = Core::ExecutionPath::TaskPipeline;
+
+  // Process a meta command (like "/llm" or "/debug")
+  capture_stdout([&] { router.process_user_input("/debug"); });
+
+  // Telemetry outcome should have been reset to Success and execution path set to MetaCommand
+  EXPECT_EQ(agent.state_.last_outcome, Core::Outcome::Success);
+  EXPECT_EQ(agent.state_.last_execution_path, Core::ExecutionPath::MetaCommand);
+}
+
 // ---------------------------------------------------------------------------
 // Instrumentation Audit Tests
 // ---------------------------------------------------------------------------
