@@ -187,7 +187,17 @@ Based on the segmented telemetry showing the **User Rejection Gap**, the impleme
 ### 6.2 Priority 2: Directory-Aware Find / Scan (Approved - Up Next)
 * **Status:** **Approved to Build.**
 * **Target Failure Class:** Retrieval & Ranking (Priority: **11.76**).
-* **Scope:** A directory structure utility (`tree` / `find`) mapping to a constrained, safe subset of directory scan actions inside the repository root. This will allow the agent to locate files using hierarchy instead of raw text searching.
+* **Implementation Directives:**
+  * **Deterministic Ranking Stack:** Implement as a sequential, deterministic cascade to avoid LLM routing overhead:
+    $$\text{Filename Lookup} \rightarrow \text{Symbol Lookup} \rightarrow \text{Implementation Lookup (boost .cpp over .h)} \rightarrow \text{Grep Fallback}$$
+  * **Trace Visibility:** Log all search candidates, their ranking scores, the selected file, and the rationale in the trace data:
+    * *Example:* `Query: "where is replay implemented" -> Candidates: [replay_service.cpp (+22), replay_service.h (+14)] -> Selected: replay_service.cpp (Reason: implemented keyword boost)`
+  * **Telemetry Metrics:** Record explicit retrieval metrics for every session:
+    - `filename_hits`
+    - `symbol_hits`
+    - `grep_hits`
+    - `directory_hits`
+  * **Scope Limitation:** Strictly constrained to search paths inside the repository root. No broad shell commands or watcher integration.
 
 ### 6.3 Blocked Features (Freeze Maintained)
 Do NOT implement:
