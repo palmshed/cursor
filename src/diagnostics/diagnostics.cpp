@@ -798,6 +798,20 @@ int run_scenario(const std::string &scenario_path) {
     return 1;
   }
 
+  // Handle suite format: root has a "queries" array of individual scenarios
+  if (j.contains("queries") && j["queries"].is_array()) {
+    auto &queries = j["queries"];
+    for (auto &entry : queries) {
+      std::string entry_id = entry.value("id", "?");
+      if (!entry.contains("prompt") && !entry.contains("command")) {
+        std::cerr << "FAIL " << scenario_path
+                  << " entry '" << entry_id << "'  (missing 'prompt' or 'command')\n";
+        return 1;
+      }
+    }
+    return 0;
+  }
+
   bool is_prompt = j.contains("prompt");
   bool is_command = j.contains("command");
 
