@@ -133,6 +133,24 @@ endif()
 # Find libcurl
 find_package(CURL REQUIRED)
 
+# Sanitize CURL include directories on macOS — the system CURL found via
+# pkg-config in the Xcode SDK may reference paths that don't exist on
+# the runner, causing CMake 3.31+ to error when CPR builds from source.
+if(APPLE AND TARGET CURL::libcurl)
+    get_target_property(_curl_incs CURL::libcurl INTERFACE_INCLUDE_DIRECTORIES)
+    if(_curl_incs)
+        set(_valid_curl_incs "")
+        foreach(_dir ${_curl_incs})
+            if(EXISTS "${_dir}")
+                list(APPEND _valid_curl_incs "${_dir}")
+            endif()
+        endforeach()
+        set_property(TARGET CURL::libcurl PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${_valid_curl_incs})
+        unset(_valid_curl_incs)
+    endif()
+    unset(_curl_incs)
+endif()
+
 # Find OpenSSL, fallback to FetchContent
 set(openssl_is_found FALSE)
 if(APPLE)
