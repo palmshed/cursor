@@ -308,19 +308,53 @@ Avoid new layers unless telemetry justifies them.
 
 ```text
 Architecture Phase: Complete
-Observation Phase: Active
+Observation Phase: Complete (Telemetry Baseline Cleansed & Validated)
+Active Engineering Phase: Directory-Aware Find
 Repair Loop: Deferred
 ```
 
-The next required artifact is:
+---
 
-```text
-failure_topology.md
-```
+# Active Directives: Directory-Aware Find
 
-built from production traces.
+Directory-Aware Find is the **only approved engineering target**.
 
-No new architectural work should be introduced without evidence from that topology.
+## Blocked Work (Freeze Active)
+Do NOT implement or add:
+* New GoalTypes.
+* New agent loops.
+* Autonomous repair loops or code modifications.
+* Natural language -> shell command translation.
+* Git dashboard visualization tools.
+* Review frameworks or code thought streaming.
+* AI-based ranking layers.
+
+## Telemetry Preservation
+Preserve all existing telemetry schemas and modules:
+* `ToolResult`
+* `tool_history`
+* `Replay` telemetry schema
+* `validation_runner`
+* `failure_topology.md` generation logic
+* Permanent production vs. synthetic trace separation (excluding unit tests and benchmarks by default).
+
+## Design Constraints
+1. **Deterministic ranking only:** Cascade sequentially via:
+   $$\text{Filename lookup} \rightarrow \text{Symbol lookup} \rightarrow \text{Implementation lookup (.cpp boost)} \rightarrow \text{Grep fallback}$$
+   No LLM ranking.
+2. **Full trace visibility:** Output search candidates, scores, winner, and reason in the trace JSON.
+3. **Explicit Performance Metrics:** Track:
+   - `filename_hits`
+   - `symbol_hits`
+   - `directory_hits`
+   - `grep_hits`
+4. **Validation:** Re-run the existing failure set:
+   * `"where is replay implemented"`
+   * `"find cursor binary"`
+   * `"where is CommandRouter implemented"`
+5. **Success Criterion:** Reduce production-only `insufficient_evidence` rate below **2.0%**.
+
+If the implementation cannot demonstrate a measurable reduction in topology failures, stop and review traces before further work.
 
 ---
 
@@ -339,3 +373,4 @@ What does not need to be built?
 ```
 
 Capability growth should be justified by telemetry rather than intuition.
+
