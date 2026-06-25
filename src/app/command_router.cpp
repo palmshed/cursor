@@ -1325,7 +1325,8 @@ std::string CommandRouter::normalize_query_intent(const std::string &input) {
   // 1. Lowercase mapping for quick word replacement
   std::string lower = normalized;
   for (char &c : lower) {
-    c = std::tolower(static_cast<unsigned char>(c));
+    unsigned char uc = static_cast<unsigned char>(c);
+    c = static_cast<char>(std::tolower(uc));
   }
 
   // 2. Exact command prefix normalization
