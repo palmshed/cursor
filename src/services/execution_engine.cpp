@@ -59,6 +59,143 @@ namespace {
   };
   return stop_words.count(lower) > 0;
 }
+
+// Extract the best single search term from a natural-language query.
+// Uses phrase scoring, code-shape detection, and stop-word filtering.
+std::string extract_best_term(const std::string &raw_goal) {
+  std::string term = raw_goal;
+
+  // Extract quoted terms if present
+  size_t first_quote = term.find('"');
+  size_t last_quote = term.rfind('"');
+  if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
+    return term.substr(first_quote + 1, last_quote - first_quote - 1);
+  }
+  first_quote = term.find('\'');
+  last_quote = term.rfind('\'');
+  if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
+    return term.substr(first_quote + 1, last_quote - first_quote - 1);
+  }
+
+  std::string lower_term = term;
+  for (auto &c : lower_term) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+  // Remove common prefixes (longest first to handle compounds)
+  for (auto &prefix : {"tell me about ", "find where ", "search for ",
+                       "where is ", "what is ", "what does ",
+                       "how does ", "how is ", "how do we ", "where do we ", "show me ", "locate ",
+                       "find ", "where ", "grep ", "explain ", "tell me how "}) {
+    size_t p = lower_term.find(prefix);
+    if (p == 0) {
+      term = term.substr(p + strlen(prefix));
+      lower_term = lower_term.substr(p + strlen(prefix));
+      break;
+    }
+  }
+
+  // Remove common suffixes
+  for (const char *suffix : {" in this project", " in this codebase",
+                       " in this repo", " in the code",
+                       " in code", " in files", " is defined",
+                       " is implemented", " used", " called", " implemented"}) {
+    size_t p = lower_term.rfind(suffix);
+    if (p != std::string::npos && p + strlen(suffix) == lower_term.size()) {
+      term = term.substr(0, p);
+      lower_term = lower_term.substr(0, p);
+      break;
+    }
+  }
+
+  // Clean punctuation
+  while (!term.empty() && std::ispunct(static_cast<unsigned char>(term.back())))
+    term.pop_back();
+
+  // Tokenize and prefer noun phrases/multi-word terms
+  std::vector<std::string> words = split_into_words(term);
+  std::vector<std::vector<std::string>> phrase_groups;
+  std::vector<std::string> current_group;
+
+  for (const auto &w : words) {
+    if (is_stop_word(w)) {
+      if (!current_group.empty()) {
+        phrase_groups.push_back(current_group);
+        current_group.clear();
+      }
+    } else {
+      current_group.push_back(w);
+    }
+  }
+  if (!current_group.empty()) {
+    phrase_groups.push_back(current_group);
+  }
+
+  // Score each phrase group: prefer code-shaped terms and later positions
+  std::vector<int> group_scores(phrase_groups.size(), 0);
+  for (size_t gi = 0; gi < phrase_groups.size(); gi++) {
+    for (auto &w : phrase_groups[gi]) {
+      if (w.find('_') != std::string::npos) group_scores[gi] += 10;
+      if (w.find("::") != std::string::npos) group_scores[gi] += 8;
+      if (w.size() >= 2 && std::isupper(static_cast<unsigned char>(w[0])) &&
+          std::any_of(w.begin() + 1, w.end(), [](char c) { return std::islower(static_cast<unsigned char>(c)); }))
+        group_scores[gi] += 10;
+      bool has_upper = false, has_lower = false;
+      for (auto c : w) {
+        if (std::isupper(static_cast<unsigned char>(c))) has_upper = true;
+        if (std::islower(static_cast<unsigned char>(c))) has_lower = true;
+      }
+      if (has_upper && has_lower) group_scores[gi] += 6;
+    }
+    group_scores[gi] += static_cast<int>(gi) * 2; // position bonus: prefer later groups
+  }
+
+  if (phrase_groups.empty())
+    return "";
+
+  // Pick the best group
+  size_t best_idx = 0;
+  for (size_t gi = 1; gi < phrase_groups.size(); gi++)
+    if (group_scores[gi] > group_scores[best_idx])
+      best_idx = gi;
+
+  auto &best_group = phrase_groups[best_idx];
+  // If any word in the best group has a strong code-shape score (>=10),
+  // prefer that word alone rather than the full multi-word phrase.
+  std::string code_word;
+  for (auto &w : best_group) {
+    int ws = 0;
+    if (w.find('_') != std::string::npos) ws += 10;
+    if (w.find("::") != std::string::npos) ws += 8;
+    if (w.size() >= 2 && std::isupper(static_cast<unsigned char>(w[0])) &&
+        std::any_of(w.begin() + 1, w.end(), [](char c) { return std::islower(static_cast<unsigned char>(c)); }))
+      ws += 10;
+    if (ws >= 10) {
+      code_word = w;
+      break;
+    }
+  }
+  if (!code_word.empty()) {
+    return code_word;
+  } else if (best_group.size() >= 2) {
+    std::string reconstructed;
+    for (size_t i = 0; i < best_group.size(); ++i) {
+      if (i > 0) reconstructed += "[ _-]?";
+      reconstructed += best_group[i];
+    }
+    return reconstructed;
+  } else {
+    return best_group[0];
+  }
+}
+
+// Determine if a query is asking about implementation/definition location.
+bool is_implementation_query(const std::string &goal) {
+  std::string lower = goal;
+  for (auto &c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return lower.find("implemented") != std::string::npos ||
+         lower.find("implementation") != std::string::npos ||
+         lower.find("defined") != std::string::npos ||
+         lower.find("where is") != std::string::npos;
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -333,7 +470,7 @@ std::vector<EvidenceClass> ExecutionEngine::required_evidence(
 // ---------------------------------------------------------------------------
 
 ToolCall ExecutionEngine::select_next_tool(
-    const std::string &goal, GoalType type, const EvidenceStore &evidence,
+    const std::string &goal, GoalType type, EvidenceStore &evidence,
     const std::vector<ToolResult> &tool_history) {
   if (mode_ == ClassifierMode::LLM && ai_)
     return select_next_tool_llm(goal, type, evidence, tool_history);
@@ -411,140 +548,34 @@ ToolCall ExecutionEngine::select_next_tool(
           return {"git", "log -1 --format=\"%H %s%n%b\""};
         return {};
       }
-      // 1. Search the codebase
+
+      // 0. Directory-aware find lookup (before grep fallback)
+      if (!evidence.has_fact_containing("find:done")) {
+        std::string term = extract_best_term(goal);
+        if (!term.empty()) {
+          bool impl = is_implementation_query(goal);
+          // Signal implementation-vs-header preference via args
+          return {"find", term + (impl ? " --impl" : "")};
+        }
+        // Empty term — skip find, go straight to grep
+        evidence.add_fact("find:done");
+        evidence.add_fact("find:noresults");
+      }
+
+      // 0b. If find returned results, read the top file(s)
+      if (evidence.has_fact_containing("find:results") &&
+          !evidence.has_fact_containing("read")) {
+        return {"read", ""};
+      }
+
+      // 1. Search the codebase (grep fallback — only if find didn't resolve)
       if (!evidence.has_fact_containing("grep") &&
           !evidence.has_fact_containing("search")) {
-        // Extract search term from goal (case-insensitive prefix matching)
-        std::string term = goal;
-        
-        // Extract quoted terms if present
-        size_t first_quote = term.find('"');
-        size_t last_quote = term.rfind('"');
-        if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
-          term = term.substr(first_quote + 1, last_quote - first_quote - 1);
-          return {"grep", term};
-        } else {
-          first_quote = term.find('\'');
-          last_quote = term.rfind('\'');
-          if (first_quote != std::string::npos && last_quote != std::string::npos && last_quote > first_quote) {
-            term = term.substr(first_quote + 1, last_quote - first_quote - 1);
-            return {"grep", term};
-          }
-        }
-
-        std::string lower_term = term;
-        for (auto &c : lower_term) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        
-        // Remove common prefixes (longest first to handle compounds)
-        for (auto &prefix : {"tell me about ", "find where ", "search for ",
-                             "where is ", "what is ", "what does ",
-                             "how does ", "how is ", "how do we ", "where do we ", "show me ", "locate ",
-                             "find ", "where ", "grep ", "explain ", "tell me how "}) {
-          size_t p = lower_term.find(prefix);
-          if (p == 0) {
-            term = term.substr(p + strlen(prefix));
-            lower_term = lower_term.substr(p + strlen(prefix));
-            break;
-          }
-        }
-        
-        // Remove common suffixes
-        for (const char *suffix : {" in this project", " in this codebase",
-                             " in this repo", " in the code",
-                             " in code", " in files", " is defined",
-                             " is implemented", " used", " called", " implemented"}) {
-          size_t p = lower_term.rfind(suffix);
-          if (p != std::string::npos && p + strlen(suffix) == lower_term.size()) {
-            term = term.substr(0, p);
-            lower_term = lower_term.substr(0, p);
-            break;
-          }
-        }
-
-        // Clean punctuation
-        while (!term.empty() && std::ispunct(static_cast<unsigned char>(term.back())))
-          term.pop_back();
-
-        // Tokenize and prefer noun phrases/multi-word terms
-        std::vector<std::string> words = split_into_words(term);
-        std::vector<std::vector<std::string>> phrase_groups;
-        std::vector<std::string> current_group;
-
-        for (const auto &w : words) {
-          if (is_stop_word(w)) {
-            if (!current_group.empty()) {
-              phrase_groups.push_back(current_group);
-              current_group.clear();
-            }
-          } else {
-            current_group.push_back(w);
-          }
-        }
-        if (!current_group.empty()) {
-          phrase_groups.push_back(current_group);
-        }
-
-        // Score each phrase group: prefer code-shaped terms and later positions
-        std::vector<int> group_scores(phrase_groups.size(), 0);
-        for (size_t gi = 0; gi < phrase_groups.size(); gi++) {
-          for (auto &w : phrase_groups[gi]) {
-            if (w.find('_') != std::string::npos) group_scores[gi] += 10;
-            if (w.find("::") != std::string::npos) group_scores[gi] += 8;
-            if (w.size() >= 2 && std::isupper(static_cast<unsigned char>(w[0])) &&
-                std::any_of(w.begin() + 1, w.end(), [](char c) { return std::islower(static_cast<unsigned char>(c)); }))
-              group_scores[gi] += 10;
-            bool has_upper = false, has_lower = false;
-            for (auto c : w) {
-              if (std::isupper(static_cast<unsigned char>(c))) has_upper = true;
-              if (std::islower(static_cast<unsigned char>(c))) has_lower = true;
-            }
-            if (has_upper && has_lower) group_scores[gi] += 6;
-          }
-          group_scores[gi] += static_cast<int>(gi) * 2; // position bonus: prefer later groups
-        }
-
-        // Pick the best group (highest score; ties go to later position via the position bonus already added)
-        size_t best_idx = 0;
-        for (size_t gi = 1; gi < phrase_groups.size(); gi++)
-          if (group_scores[gi] > group_scores[best_idx])
-            best_idx = gi;
-
-        if (!phrase_groups.empty()) {
-          auto &best_group = phrase_groups[best_idx];
-          // If any word in the best group has a strong code-shape score (≥10),
-          // prefer that word alone rather than the full multi-word phrase.
-          // This avoids phrases like "set last_outcome" when "last_outcome" is the real target.
-          std::string code_word;
-          for (auto &w : best_group) {
-            int ws = 0;
-            if (w.find('_') != std::string::npos) ws += 10;
-            if (w.find("::") != std::string::npos) ws += 8;
-            if (w.size() >= 2 && std::isupper(static_cast<unsigned char>(w[0])) &&
-                std::any_of(w.begin() + 1, w.end(), [](char c) { return std::islower(static_cast<unsigned char>(c)); }))
-              ws += 10;
-            if (ws >= 10) {
-              code_word = w;
-              break;
-            }
-          }
-          if (!code_word.empty()) {
-            term = code_word;
-          } else if (best_group.size() >= 2) {
-            std::string reconstructed;
-            for (size_t i = 0; i < best_group.size(); ++i) {
-              if (i > 0) reconstructed += "[ _-]?";
-              reconstructed += best_group[i];
-            }
-            term = reconstructed;
-          } else {
-            term = best_group[0];
-          }
-        }
-
+        std::string term = extract_best_term(goal);
         return {"grep", term};
       }
 
-       // 2. Read files found by grep
+      // 2. Read files found by grep
       if (evidence.has_fact_containing("grep") &&
           !evidence.has_fact_containing("read")) {
         return {"read", ""};
@@ -723,7 +754,7 @@ ToolCall ExecutionEngine::select_next_tool_llm(
 
 bool ExecutionEngine::check_completion(const std::string &goal,
                                         GoalType type,
-                                        const EvidenceStore &evidence) {
+                                        EvidenceStore &evidence) {
   // Evidence class gate: all required evidence classes must be present
   auto required = required_evidence(goal, type);
   if (!required.empty() &&
@@ -752,8 +783,16 @@ bool ExecutionEngine::check_completion(const std::string &goal,
       auto need = detect_evidence_need(goal);
       if (need == EvidenceNeed::CommitHistory)
         return evidence.has_fact_containing("git:results");
-      return evidence.has_fact_containing("grep:results") &&
-             evidence.has_fact_containing("read:results");
+      // Complete when find+read resolved, or grep+read resolved
+      bool find_ok = evidence.has_fact_containing("find:results") &&
+                     evidence.has_fact_containing("read");
+      bool grep_ok = evidence.has_fact_containing("grep:results") &&
+                     evidence.has_fact_containing("read");
+      bool find_tried_and_fell_through =
+          evidence.has_fact_containing("find:noresults") &&
+          evidence.has_fact_containing("grep:results") &&
+          evidence.has_fact_containing("read");
+      return find_ok || grep_ok || find_tried_and_fell_through;
     }
 
     case CodeChange:
@@ -775,7 +814,7 @@ bool ExecutionEngine::check_completion(const std::string &goal,
 }
 
 bool ExecutionEngine::goal_is_achieved(const std::string &goal,
-                                        const EvidenceStore &evidence) {
+                                        EvidenceStore &evidence) {
   return check_completion(goal, classify_goal(goal), evidence);
 }
 
@@ -1001,6 +1040,57 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       if (has_results) {
         result.recovery_metrics.read_success++;
       }
+    } else if (tc.tool == "find") {
+      has_results = !tr.out.empty() && tr.out != "no matches";
+      result.recovery_metrics.find_attempts++;
+      if (has_results) {
+        result.recovery_metrics.find_success++;
+        // Parse retrieval metrics from find tool output
+        std::string winner_path;
+        std::string winner_reason;
+        std::vector<std::string> candidates;
+        std::istringstream ss(tr.out);
+        std::string line;
+        while (std::getline(ss, line)) {
+          if (line.compare(0, 10, "CANDIDATE:") == 0) {
+            // "CANDIDATE: path score reason"
+            auto rest = line.substr(10);
+            // trim leading space
+            if (!rest.empty() && rest[0] == ' ') rest = rest.substr(1);
+            auto first_space = rest.find(' ');
+            auto second_space = rest.find(' ', first_space + 1);
+            if (first_space != std::string::npos && second_space != std::string::npos) {
+              std::string path = rest.substr(0, first_space);
+              candidates.push_back(path);
+            }
+          } else if (line.compare(0, 9, "SELECTED:") == 0) {
+            auto rest = line.substr(9);
+            if (!rest.empty() && rest[0] == ' ') rest = rest.substr(1);
+            winner_path = rest;
+          } else if (line.compare(0, 7, "REASON:") == 0) {
+            auto rest = line.substr(7);
+            if (!rest.empty() && rest[0] == ' ') rest = rest.substr(1);
+            winner_reason = rest;
+          }
+        }
+        result.retrieval_metrics.trace_candidates = candidates;
+        result.retrieval_metrics.selected_candidate = winner_path;
+        result.retrieval_metrics.selection_reason = winner_reason;
+        // Classify the hit type based on reason
+        if (winner_reason.find("exact") != std::string::npos) {
+          result.retrieval_metrics.filename_hits++;
+        } else if (winner_reason.find("partial") != std::string::npos) {
+          result.retrieval_metrics.symbol_hits++;
+        } else if (winner_reason.find("directory") != std::string::npos) {
+          result.retrieval_metrics.directory_hits++;
+        } else {
+          result.retrieval_metrics.grep_hits++;
+        }
+      } else {
+        result.retrieval_metrics.grep_hits++;
+        evidence.add_fact("find:noresults");
+      }
+      evidence.add_fact("find:done");
     } else {
       has_results = !tr.out.empty();
     }
@@ -1025,6 +1115,8 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         evidence.mark_evidence_class(EvidenceClass::CIWorkflow);
       else if (tc.tool == "git")
         evidence.mark_evidence_class(EvidenceClass::GitLog);
+      else if (tc.tool == "find")
+        evidence.mark_evidence_class(EvidenceClass::FileSearch);
     }
 
     // Evaluate confidence after each tool run
@@ -1042,6 +1134,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       cr = ConfidenceService::after_search(tc.args, hits);
     } else if (tc.tool == "read") {
       cr = ConfidenceService::after_read(1, true);
+    } else if (tc.tool == "find") {
+      bool ok = tr.out != "no matches" && !tr.out.empty();
+      cr.score = ok ? 0.8 : 0.3;
+      cr.reason = ok ? "find matched files" : "find found nothing";
     } else if (tc.tool == "cmake") {
       bool ok = tr.out.find("error") == std::string::npos;
       cr = ConfidenceService::after_build(ok, ok ? "" : tr.out.substr(0, 200));

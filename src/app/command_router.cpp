@@ -154,6 +154,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
           ? Services::ClassifierMode::LLM
           : Services::ClassifierMode::Deterministic);
   std::vector<Services::FileSearchResult> last_grep_results;
+  std::vector<std::string> last_find_results;
   agent_.state_.last_confidence_before = agent_.state_.last_confidence_after;
 
   bool goal_corrected = (agent_.state_.last_execution_path == Core::ExecutionPath::TaskPipeline) &&
@@ -171,6 +172,125 @@ std::string CommandRouter::process_user_input(const std::string &input) {
             for (auto &r : last_grep_results)
               tr.out += r.file_path + ":" + std::to_string(r.line_number) +
                      ": " + r.line_content + "\n";
+          }
+        } else if (tc.tool == "find") {
+          // Directory-aware filename lookup with deterministic ranking.
+          // Args format: "<term> [--impl]"
+          std::string term = tc.args;
+          bool impl_query = false;
+          auto impl_pos = term.find(" --impl");
+          if (impl_pos != std::string::npos) {
+            impl_query = true;
+            term = term.substr(0, impl_pos);
+          }
+
+          if (term.empty()) {
+            tr.out = "no matches";
+          } else {
+            // Collect all source files from the workspace
+            std::string term_lower = term;
+            for (auto &c : term_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+            struct Candidate {
+              std::string path;
+              std::string stem;
+              int score{0};
+              std::string reason;
+            };
+            std::vector<Candidate> candidates;
+
+            // Walk the source tree
+            auto start = std::filesystem::current_path();
+            for (auto &entry : std::filesystem::recursive_directory_iterator(start, std::filesystem::directory_options::skip_permission_denied)) {
+              if (!entry.is_regular_file()) continue;
+              auto path = entry.path();
+              std::string ext = path.extension().string();
+              // Only consider source, header, config, and build files
+              if (ext != ".cpp" && ext != ".h" && ext != ".hpp" && ext != ".c" &&
+                  ext != ".py" && ext != ".js" && ext != ".json" && ext != ".yml" &&
+                  ext != ".yaml" && ext != ".cmake" && ext != ".txt" && ext != ".md" &&
+                  path.filename() == "CMakeLists.txt")
+                continue;
+              // Skip hidden directories and _deps
+              auto rel = std::filesystem::relative(path, start);
+              std::string rel_str = rel.string();
+              if (rel_str.find("/.") != std::string::npos ||
+                  rel_str.find("build/_deps") != std::string::npos ||
+                  rel_str.find("node_modules") != std::string::npos)
+                continue;
+
+              std::string stem = rel.stem().string();
+              std::string stem_lower = stem;
+              for (auto &c : stem_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+              int score = 0;
+              std::string reason;
+
+              // Exact filename match (stem equals the search term)
+              if (stem_lower == term_lower) {
+                score += 20;
+                reason = "exact filename match";
+              }
+              // Partial filename match (term is substring of stem)
+              else if (stem_lower.find(term_lower) != std::string::npos) {
+                score += 10;
+                reason = "partial filename match";
+              }
+              // Check if term words appear in the path (e.g., "binary" matches "bin/")
+              else {
+                std::string path_lower = rel_str;
+                for (auto &c : path_lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if (path_lower.find(term_lower) != std::string::npos) {
+                  score += 5;
+                  reason = "directory path match";
+                }
+              }
+
+              if (score == 0) continue;
+
+              // Implementation query boost: prefer .cpp files
+              if (impl_query && ext == ".cpp") {
+                score += 8;
+                if (reason.find("exact") != std::string::npos)
+                  reason = "exact filename match + implementation file";
+                else if (reason.find("partial") != std::string::npos)
+                  reason = "partial filename match + implementation file";
+                else
+                  reason += " + implementation file";
+              }
+
+              candidates.push_back({rel_str, stem, score, reason});
+            }
+
+            if (candidates.empty()) {
+              tr.out = "no matches";
+              last_find_results.clear();
+            } else {
+              // Sort by score descending, then alphabetically for ties
+              std::sort(candidates.begin(), candidates.end(),
+                  [](const Candidate &a, const Candidate &b) {
+                    if (a.score != b.score) return a.score > b.score;
+                    return a.path < b.path;
+                  });
+
+              // Populate last_find_results for the read tool
+              last_find_results.clear();
+              for (int i = 0; i < 5 && i < (int)candidates.size(); i++) {
+                last_find_results.push_back(candidates[i].path);
+              }
+
+              // Build output: candidate metadata lines + file list
+              for (auto &c : candidates) {
+                tr.out += "CANDIDATE: " + c.path + " " + std::to_string(c.score) + " " + c.reason + "\n";
+              }
+              tr.out += "SELECTED: " + candidates[0].path + "\n";
+              tr.out += "REASON: " + candidates[0].reason + "\n";
+              // Also emit plain file paths for the read tool
+              tr.out += "FILES:\n";
+              for (auto &c : candidates) {
+                tr.out += c.path + "\n";
+              }
+            }
           }
         } else if (tc.tool == "read") {
           std::vector<std::string> unique_files;
@@ -194,6 +314,9 @@ std::string CommandRouter::process_user_input(const std::string &input) {
                 unique_files.push_back(r.file_path);
               }
             }
+          } else if (!last_find_results.empty()) {
+            // Read files from last find results (directory-aware lookup)
+            unique_files = last_find_results;
           }
 
           if (unique_files.empty()) {

@@ -96,8 +96,10 @@ void ReplayService::log_input(
     const Core::SessionState &state_after, const std::string &input,
     Core::Outcome outcome, Core::ExecutionPath exec_path,
     const Core::RecoveryMetrics &recovery,
-    const Core::TrustMetrics &trust, double confidence_before,
-    double confidence_after) {
+    const Core::TrustMetrics &trust,
+    double confidence_before,
+    double confidence_after,
+    const Core::RetrievalMetrics &retrieval) {
   json entry;
   entry["ts"] = now_epoch();
   entry["step"] = ++step_;
@@ -120,6 +122,8 @@ void ReplayService::log_input(
   rec_json["grep_max_hits"] = recovery.grep_max_hits;
   rec_json["read_attempts"] = recovery.read_attempts;
   rec_json["read_success"] = recovery.read_success;
+  rec_json["find_attempts"] = recovery.find_attempts;
+  rec_json["find_success"] = recovery.find_success;
   entry["recovery_metrics"] = rec_json;
 
   json tru_json;
@@ -128,6 +132,19 @@ void ReplayService::log_input(
   tru_json["user_corrected_goal"] = trust.user_corrected_goal;
   tru_json["reverted"] = trust.reverted;
   entry["trust_metrics"] = tru_json;
+
+  json ret_json;
+  ret_json["filename_hits"] = retrieval.filename_hits;
+  ret_json["symbol_hits"] = retrieval.symbol_hits;
+  ret_json["directory_hits"] = retrieval.directory_hits;
+  ret_json["grep_hits"] = retrieval.grep_hits;
+  ret_json["selected_candidate"] = retrieval.selected_candidate;
+  ret_json["selection_reason"] = retrieval.selection_reason;
+  json trace = json::array();
+  for (auto &c : retrieval.trace_candidates)
+    trace.push_back(c);
+  ret_json["trace_candidates"] = trace;
+  entry["retrieval_metrics"] = ret_json;
 
   entry["confidence_before"] = confidence_before;
   entry["confidence_after"] = confidence_after;
