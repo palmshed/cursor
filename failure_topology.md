@@ -187,17 +187,19 @@ Based on the segmented telemetry showing the **User Rejection Gap**, the impleme
 ### 6.2 Priority 2: Directory-Aware Find / Scan (Approved - Up Next)
 * **Status:** **Approved to Build.**
 * **Target Failure Class:** Retrieval & Ranking (Priority: **11.76**).
-* **Implementation Directives:**
-  * **Deterministic Ranking Stack:** Implement as a sequential, deterministic cascade to avoid LLM routing overhead:
+* **Implementation Guardrails:**
+  * **Guardrail 1: No Hidden AI Ranking:** The ranking stack must remain entirely deterministic and explainable from code:
     $$\text{Filename Lookup} \rightarrow \text{Symbol Lookup} \rightarrow \text{Implementation Lookup (boost .cpp over .h)} \rightarrow \text{Grep Fallback}$$
-  * **Trace Visibility:** Log all search candidates, their ranking scores, the selected file, and the rationale in the trace data:
-    * *Example:* `Query: "where is replay implemented" -> Candidates: [replay_service.cpp (+22), replay_service.h (+14)] -> Selected: replay_service.cpp (Reason: implemented keyword boost)`
-  * **Telemetry Metrics:** Record explicit retrieval metrics for every session:
+    No LLM may decide rankings; every ranking decision must be deterministic.
+  * **Guardrail 2: Every Retrieval Path Must Emit Evidence:** Log all search candidates, candidate scores, selected winner, and selection reason in the trace JSON:
+    * *Example:* `Query: "where is replay implemented" -> Candidates: [replay_service.cpp (score=22), replay_service.h (score=14)] -> Selected: replay_service.cpp (Reason: implementation file boost)`
+  * **Guardrail 3: Prove Improvement (Metrics-Driven):** Collect explicit before/after metrics on the remaining production failures (`where is replay implemented`, `find cursor binary`, `where is CommandRouter implemented`) to measure:
     - `filename_hits`
     - `symbol_hits`
     - `grep_hits`
     - `directory_hits`
-  * **Scope Limitation:** Strictly constrained to search paths inside the repository root. No broad shell commands or watcher integration.
+    Success is defined as reducing `insufficient_evidence` on clean developer traces from **6.5%** to a target below **2.0%**.
+  * **Scope Limitation:** Strictly constrained to search paths inside the repository root. No broad shell commands, git watchers, or autonomous code edits. Do not modify or remove existing telemetry.
 
 ### 6.3 Blocked Features (Freeze Maintained)
 Do NOT implement:
