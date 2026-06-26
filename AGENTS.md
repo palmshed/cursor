@@ -34,25 +34,29 @@ Ownership should remain simple and explicit.
 
 # Runtime Flow
 
+The system is an **investigation engine**, not an AI agent wrapper.
+Intelligence is concentrated in the Planner; everything else is deterministic infrastructure.
+
 ```text
 User Query
     ↓
-ExecutionEngine
+Intent Classification
     ↓
-ToolResult
+Planner
     ↓
-tool_history
+Investigation
+    ├── Retrieval  (find, symbols, references, grep, read)
+    ├── Evidence   (ranking, tool_history, EvidenceStore)
+    ├── Confidence (gate evaluation)
+    └── Completion (is the goal achieved?)
     ↓
-EvidenceStore
-    ↓
-Completion Gate
-    ↓
-AIService
+AIService (synthesis — uses evidence only, does not investigate)
     ↓
 Answer
 ```
 
 Investigation and synthesis are separate responsibilities.
+The Planner is the only intelligence layer.
 
 ---
 
