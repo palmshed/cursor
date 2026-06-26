@@ -309,62 +309,82 @@ Avoid new layers unless telemetry justifies them.
 ```text
 Architecture Phase: Complete
 Observation Phase: Complete (Telemetry Baseline Cleansed & Validated)
-Active Engineering Phase: Directory-Aware Find
+Active Engineering Phase: Code Search Excellence
 Repair Loop: Deferred
 ```
 
 ---
 
-# Active Directives: Directory-Aware Find
+# Active Directives: Code Search Excellence
 
-Directory-Aware Find is the **only approved engineering target**.
+Code Search Excellence is the **only approved engineering target**.
 
 ## Blocked Work (Freeze Active)
 Do NOT implement or add:
-* New GoalTypes.
-* New agent loops.
-* Autonomous repair loops or code modifications.
+* Code modification or editing capabilities to the agent (Autonomous editing freeze remains active).
+* Subagents or multi-agent planners.
+* Autonomous repair loops.
 * Natural language -> shell command translation.
 * Git dashboard visualization tools.
-* Review frameworks or code thought streaming.
-* AI-based ranking layers.
+* AI-based ranking layers (deterministic ranking only).
 
-## Telemetry Preservation
+## Telemetry & Validation Preservation
 Preserve all existing telemetry schemas and modules:
 * `ToolResult`
 * `tool_history`
 * `Replay` telemetry schema
 * `validation_runner`
 * `docs/telemetry/failure_topology.md` generation logic
-* Permanent production vs. synthetic trace separation (excluding unit tests and benchmarks by default).
 
-## Design Constraints
-1. **Deterministic ranking only:** Cascade sequentially via:
-   $$\text{Filename lookup} \rightarrow \text{Symbol lookup} \rightarrow \text{Implementation lookup (.cpp boost)} \rightarrow \text{Grep fallback}$$
-   No LLM ranking.
-2. **Full trace visibility:** Output search candidates, scores, winner, and reason in the trace JSON.
-3. **Explicit Performance Metrics:** Track:
-   - `filename_hits`
-   - `symbol_hits`
-   - `directory_hits`
-   - `grep_hits`
-4. **Validation:** Re-run the existing failure set:
-   * `"where is replay implemented"`
-   * `"find cursor binary"`
-   * `"where is CommandRouter implemented"`
-5. **Success Criterion:** Reduce production-only `insufficient_evidence` rate below **2.0%**.
+## Core Priorities & Design Constraints
 
-If the implementation cannot demonstrate a measurable reduction in topology failures, stop and review traces before further work.
+### Priority 1: Search Pipeline
+Implement/enforce a deterministic search pipeline that cascades sequentially. The agent must never jump directly to broad `grep` if a higher-confidence stage succeeds:
+1. Intent classification
+2. Filename lookup
+3. Symbol lookup
+4. Reference lookup
+5. Directory-aware ranking
+6. Read selected files
+7. Synthesize answer from evidence
 
-## Implementation Handoff Guardrails
-1. **Tight Scope Control:** Keep implementation strictly limited to the `ExecutionEngine`, search layer, ranking layer, and retrieval telemetry. Do NOT touch `AIService`, goal routing, `SessionState`, `Replay`, or model selection mechanisms.
-2. **Dedicated Retrieval Report:** Upon shipping, compile a dedicated report named `docs/telemetry/directory_aware_find_report.md` capturing:
-   - Before/after metrics.
-   - Top failing queries.
-   - Queries fixed.
-   - Queries still failing.
-3. **Protect Benchmark Honesty:** Real developer production traces, synthetic benchmark traces, and unit-test execution traces must remain permanently separated. Never merge or contaminate them again.
-4. **Immediate Stop Upon Shipping:** Immediately after implementing and validating, generate the updated topology and stop. Do not chain directly into another feature without explicit, data-driven approval from the new topology.
+### Priority 2: Evidence-First Navigation
+Every response must ground itself explicitly in collected evidence:
+* List which files were examined and why they were selected.
+* Detail which symbols and references matched.
+* Explicitly state if the repository evidence gathered is weak or insufficient.
+
+### Priority 3: UX Clarity
+Avoid silent transitions. The user must always see clear, incremental progress updates on current operations:
+* *e.g.* `Locating files...` $\rightarrow$ `✓ 4 candidates`
+* *e.g.* `Finding references...` $\rightarrow$ `✓ 9 call sites`
+* *e.g.* `Reading implementation...` $\rightarrow$ `✓ replay_service.cpp`
+* *e.g.* `Preparing answer...`
+
+### Priority 4: Search Quality Metrics
+Track and optimize the following metrics:
+* `filename_hit_rate`
+* `symbol_hit_rate`
+* `reference_hit_rate`
+* `grep_fallback_rate`
+* `average_files_read`
+* `average_search_latency`
+
+### Priority 5: Architectural Queries
+The system must be validated against complex architectural queries:
+* `"How is model wiring done?"`
+* `"Where does replay begin?"`
+* `"What owns this service?"`
+* `"Which layer depends on this component?"`
+* `"Where is this configured?"`
+
+## Success Criteria
+* Measurable reduction in `grep_fallback_rate` across architectural queries.
+* Higher first-pass answer quality and clarity.
+* Lower `average_files_read` count per query.
+* Zero regression in existing validation runs or benchmark suites.
+* Stop immediately upon completing implementation and generate an updated telemetry report.
+
 
 
 ---
