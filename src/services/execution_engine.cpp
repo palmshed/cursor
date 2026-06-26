@@ -318,9 +318,9 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     return ArchitectureReview;
 
   // Architecture / conceptual questions suggesting CodebaseOverview
-  if (contains_any(goal, {"architecture", "design", "how it works", "how does it work"}) ||
+  if (contains_any(goal, {"architecture", "design", "designed", "how it works", "how does it work"}) ||
       contains_any(goal, {"explain the", "how does the", "how does a", "tell me how the"}) ||
-      (contains_any(goal, {"how", "explain", "tell me"}) && contains_any(goal, {"work", "works", "pipeline", "architecture", "design", "system", "flow"}))) {
+      (contains_any(goal, {"how", "explain", "tell me"}) && contains_any(goal, {"work", "works", "pipeline", "architecture", "design", "designed", "system", "flow"}))) {
     return CodebaseOverview;
   }
 
