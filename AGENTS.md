@@ -339,27 +339,32 @@ Preserve all existing telemetry schemas and modules:
 ## Core Priorities & Design Constraints
 
 ### Priority 1: Search Pipeline
-Implement/enforce a deterministic search pipeline that cascades sequentially. The agent must never jump directly to broad `grep` if a higher-confidence stage succeeds:
+Implement/enforce a deterministic search pipeline that cascades sequentially. The pipeline must explicitly separate **Retrieval** (gathering evidence) from **Synthesis** (explaining evidence) to prevent the LLM from inventing facts when evidence is weak. The agent must never jump directly to broad `grep` if a higher-confidence stage succeeds:
 1. Intent classification
 2. Filename lookup
 3. Symbol lookup
 4. Reference lookup
 5. Directory-aware ranking
-6. Read selected files
-7. Synthesize answer from evidence
+6. Read selected files (Retrieval phase complete)
+7. Synthesize answer from retrieved evidence only (Synthesis phase)
 
 ### Priority 2: Evidence-First Navigation
 Every response must ground itself explicitly in collected evidence:
 * List which files were examined and why they were selected.
 * Detail which symbols and references matched.
-* Explicitly state if the repository evidence gathered is weak or insufficient.
+* Explicitly state if the repository evidence gathered is weak or insufficient (preventing hallucinations).
 
-### Priority 3: UX Clarity
+### Priority 3: UX Clarity & Measurability
 Avoid silent transitions. The user must always see clear, incremental progress updates on current operations:
 * *e.g.* `Locating files...` $\rightarrow$ `✓ 4 candidates`
 * *e.g.* `Finding references...` $\rightarrow$ `✓ 9 call sites`
 * *e.g.* `Reading implementation...` $\rightarrow$ `✓ replay_service.cpp`
 * *e.g.* `Preparing answer...`
+
+We must measure UX quality via:
+* **Time until first visible progress:** Latency before the first progress token/section is emitted to the user.
+* **Time until first useful result:** Latency before the first successful file or reference search result is retrieved.
+* **Total investigation time:** End-to-end execution duration of the search and synthesis pipeline.
 
 ### Priority 4: Search Quality Metrics
 Track and optimize the following metrics:
@@ -370,20 +375,35 @@ Track and optimize the following metrics:
 * `average_files_read`
 * `average_search_latency`
 
-### Priority 5: Architectural Queries
-The system must be validated against complex architectural queries:
-* `"How is model wiring done?"`
-* `"Where does replay begin?"`
-* `"What owns this service?"`
-* `"Which layer depends on this component?"`
-* `"Where is this configured?"`
+### Priority 5: Architectural Queries Benchmark Set
+The system must be validated against a broad set of senior-level architectural questions:
+* **Implemented Queries:**
+  * `"How is model wiring done?"`
+  * `"Where does replay begin?"`
+  * `"What owns this service?"`
+  * `"Which layer depends on this component?"`
+  * `"Where is this configured?"`
+* **Relational & Flow Queries:**
+  * `"Who owns X?"`
+  * `"Where is X configured?"`
+  * `"How does X flow to Y?"`
+  * `"What depends on X?"`
+  * `"What initializes X?"`
 
-## Success Criteria
-* Measurable reduction in `grep_fallback_rate` across architectural queries.
-* Higher first-pass answer quality and clarity.
-* Lower `average_files_read` count per query.
-* Zero regression in existing validation runs or benchmark suites.
-* Stop immediately upon completing implementation and generate an updated telemetry report.
+---
+
+## Subagents Promotion Rule
+The subagents freeze remains fully active. Subagents will only be considered if telemetry shows that a single deterministic planner cannot meet search quality targets across representative architectural queries.
+
+---
+
+## Success Criteria (Explicit Acceptance Criteria)
+* **Grep Fallback Rate:** Decreases by at least **25%** across the architectural benchmark query set.
+* **Retrieval Efficiency:** A measurable decrease in `average_files_read` per query without reducing correctness.
+* **Benchmark Target:** Architectural queries achieve a **90%** first-pass success rate (evidence-backed, accurate answers).
+* **Regressions:** Zero regression in existing validation runs or benchmark suites.
+* **Telemetry Reporting:** Stop immediately upon completing implementation and generate an updated telemetry report.
+
 
 
 
