@@ -540,7 +540,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   }
 
   // Show preparing answer stage
-  ui_.show_progress_section("Preparing answer...");
+  ui_.show_progress_section("\xe2\x96\xb6 Ready to explain");
 
   // Direct answer from evidence for CodebaseQuery with success outcome
   if (engine_result.outcome == Core::Outcome::Success &&

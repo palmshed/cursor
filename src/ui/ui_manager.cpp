@@ -822,10 +822,6 @@ void UIManager::show_tool_invocation(const std::string &tool,
 
   // Normal mode: investigation timeline with section headers
   show_progress_section(section_for_tool(tool));
-
-  std::cout << "\xe2\x86\x92 " << tool;
-  if (!args.empty()) std::cout << " " << args;
-  std::cout << "\n";
 }
 
 void UIManager::show_tool_output(const std::string &output) {
@@ -864,52 +860,24 @@ void UIManager::show_tool_output(const std::string &output) {
           line.find("REASON:") == std::string::npos &&
           line.find("FILES:") == std::string::npos)
         lines++;
-    std::cout << "  \xe2\x9c\x93 " << lines << " match" << (lines == 1 ? "" : "es") << " found\n";
+    std::cout << "  \xe2\x9c\x93 Symbols checked";
+    if (lines > 0) std::cout << " (" << lines << " match" << (lines == 1 ? "" : "es") << ")";
+    std::cout << "\n";
   } else if (last_tool_ == "find") {
-    int count = 0;
-    std::string first;
-    std::istringstream stream(output);
-    std::string line;
-    while (std::getline(stream, line)) {
-      if (line.compare(0, 10, "CANDIDATE:") == 0)
-        count++;
-      if (first.empty() && line.compare(0, 9, "SELECTED:") == 0)
-        first = line.substr(9);
-    }
-    if (!first.empty() && first[0] == ' ') first = first.substr(1);
-    std::cout << "  \xe2\x9c\x93 " << count << " candidate" << (count == 1 ? "" : "s") << " (" << first << ")\n";
+    std::cout << "  \xe2\x9c\x93 Files located\n";
   } else if (last_tool_ == "read") {
-    std::istringstream stream(output);
-    std::string line;
-    int count = 0;
-    std::string last_file;
-    while (std::getline(stream, line)) {
-      if (line.find("--- ") == 0 && line.rfind(" ---") != std::string::npos) {
-        count++;
-        size_t start = line.find("--- ") + 4;
-        size_t end = line.rfind(" ---");
-        if (end != std::string::npos && end > start)
-          last_file = line.substr(start, end - start);
-      }
-    }
-    if (count > 0)
-      std::cout << "  \xe2\x9c\x93 " << last_file << "\n";
-    else
-      std::cout << "  \xe2\x9c\x93 " << count << " file" << (count == 1 ? "" : "s") << "\n";
+    std::cout << "  \xe2\x9c\x93 Read\n";
   } else if (last_tool_ == "git") {
+    int count = 0;
     std::istringstream stream(output);
     std::string line;
-    int count = 0;
     while (std::getline(stream, line))
       if (!line.empty()) count++;
-    std::cout << "  \xe2\x9c\x93 " << count << " commit" << (count == 1 ? "" : "s") << " found\n";
+    std::cout << "  \xe2\x9c\x93 History checked";
+    if (count > 0) std::cout << " (" << count << " commit" << (count == 1 ? "" : "s") << ")";
+    std::cout << "\n";
   } else if (last_tool_ == "gh") {
-    std::istringstream stream(output);
-    std::string line;
-    int count = 0;
-    while (std::getline(stream, line))
-      if (!line.empty()) count++;
-    std::cout << "  \xe2\x9c\x93 " << count << " line" << (count == 1 ? "" : "s") << "\n";
+    std::cout << "  \xe2\x9c\x93 Data retrieved\n";
   } else {
     int lines = 0;
     std::string first;

@@ -1255,23 +1255,13 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         auto &last = result.tool_history.back();
         prev_section = ui.section_for_tool(last.tool);
       }
-      std::string evidence_section = "Collecting evidence...";
+      std::string evidence_section = "Reviewing evidence...";
       if (prev_section != evidence_section) {
         ui.show_progress_section(evidence_section);
       }
     }
     int tool_count = static_cast<int>(result.tool_history.size());
-    int grep_ok = 0, read_ok = 0, find_ok = 0;
-    for (auto &tr : result.tool_history) {
-      if (tr.tool == "grep" && tr.success() && !tr.out.empty() && tr.out != "no matches") grep_ok++;
-      if (tr.tool == "read" && tr.success() && !tr.out.empty() && tr.out != "no files to read") read_ok++;
-      if (tr.tool == "find" && tr.success() && !tr.out.empty() && tr.out != "no matches") find_ok++;
-    }
-    std::cout << "  \xe2\x9c\x93 " << tool_count << " tool result" << (tool_count == 1 ? "" : "s");
-    if (grep_ok > 0) std::cout << ", " << grep_ok << " grep";
-    if (find_ok > 0) std::cout << ", " << find_ok << " find";
-    if (read_ok > 0) std::cout << ", " << read_ok << " read";
-    std::cout << "\n";
+    std::cout << "  \xe2\x9c\x93 Evidence reviewed\n";
   }
 
   // Build summary
