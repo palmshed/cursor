@@ -411,8 +411,26 @@ The system must be validated against a broad set of senior-level architectural q
 
 ---
 
+## Maturity Model
+
+Planner capability progresses through levels. Each level must be validated by telemetry before the next begins.
+
+| Level | Name | Success Metric | Status |
+|---|---|---|---|
+| 1 | **Retrieval** — find, grep, read, symbols, references | Can it reliably find the right evidence? | ✅ |
+| 2 | **Investigation** — planner recovery, confidence gating, multi-read | Does it know when it doesn't know enough? | ▶ Next |
+| 3 | **Investigation Plans** — visible multi-step plans | Can it explain why it is reading each file? | — |
+| 4 | **Plan Revision** — planner edits its own investigation mid-flight | Can it recover from wrong evidence? | — |
+| 5 | **Independent Tasks** — natural decomposition into parallel work | Queries that benefit from subagents common in production | — |
+| 6 | **Domain Specialists** — per-domain subagents with deep expertise | Subagent specialization measurably improves quality | — |
+
+---
+
 ## Subagents Promotion Rule
-The subagents freeze remains fully active. Subagents will only be considered if telemetry shows that a single deterministic planner cannot meet search quality targets across representative architectural queries.
+The subagents freeze remains fully active. Subagents will only be considered when:
+1. Planner consistently achieves Level 4+ (Plan Revision) quality targets
+2. Telemetry shows queries requiring naturally independent work (configuration, runtime, tests, performance) are common in production
+3. A single planner cannot meet search quality targets across representative architectural queries
 
 ---
 
