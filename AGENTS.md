@@ -332,15 +332,22 @@ If these five questions cannot be answered with empirical telemetry evidence, th
 ```text
 Architecture Phase: Complete
 Observation Phase: Complete (Telemetry Baseline Cleansed & Validated)
-Active Engineering Phase: Code Search Excellence
+Active Engineering Phase: Code Search Excellence — Complete
+Maturity Level 1 (Retrieval): Achieved — deterministic, measurable, gated
+Maturity Level 2 (Investigation): Next — planner must know when it has enough evidence
 Repair Loop: Deferred
 ```
 
 ---
 
-# Active Directives: Code Search Excellence
+# Active Directives: Planner Investigation (Level 2)
 
-Code Search Excellence is the **only approved engineering target**.
+The planner must know when it has enough evidence, when it doesn't,
+and how to recover before answering.
+
+## Core Principle
+
+> **The planner owns the investigation. Tools only gather evidence.**
 
 ## Blocked Work (Freeze Active)
 Do NOT implement or add:
@@ -350,6 +357,7 @@ Do NOT implement or add:
 * Natural language -> shell command translation.
 * Git dashboard visualization tools.
 * AI-based ranking layers (deterministic ranking only).
+* Plan visualization or investigation plan displays.
 
 ## Telemetry & Validation Preservation
 Preserve all existing telemetry schemas and modules:
@@ -358,60 +366,47 @@ Preserve all existing telemetry schemas and modules:
 * `Replay` telemetry schema
 * `validation_runner`
 * `docs/telemetry/failure_topology.md` generation logic
+* `architecture_query_failure_report.md` — Level 1 closure evidence
 
 ## Core Priorities & Design Constraints
 
-### Priority 1: Search Pipeline
-Implement/enforce a deterministic search pipeline that cascades sequentially. The pipeline must explicitly separate **Retrieval** (gathering evidence) from **Synthesis** (explaining evidence) to prevent the LLM from inventing facts when evidence is weak. The agent must never jump directly to broad `grep` if a higher-confidence stage succeeds:
-1. Intent classification
-2. Filename lookup
-3. Symbol lookup
-4. Reference lookup
-5. Directory-aware ranking
-6. Read selected files (Retrieval phase complete)
-7. Synthesize answer from retrieved evidence only (Synthesis phase)
+### Priority 1: Planner Recovery
+The planner must be able to revise an investigation mid-flight instead
+of stopping at the first successful read. If confidence is moderate
+after reading, the planner should continue gathering evidence rather
+than declaring success.
 
-### Priority 2: Evidence-First Navigation
-Every response must ground itself explicitly in collected evidence:
-* List which files were examined and why they were selected.
-* Detail which symbols and references matched.
-* Explicitly state if the repository evidence gathered is weak or insufficient (preventing hallucinations).
+### Priority 2: Investigation State
+The planner must maintain structured awareness during investigation:
+* What files have already been examined?
+* What evidence was found?
+* What evidence is still missing?
+* Which hypotheses or tool paths have failed?
 
-### Priority 3: UX Clarity & Measurability
-Avoid silent transitions. The user must always see clear, incremental progress updates on current operations:
-* *e.g.* `Locating files...` $\rightarrow$ `✓ 4 candidates`
-* *e.g.* `Finding references...` $\rightarrow$ `✓ 9 call sites`
-* *e.g.* `Reading implementation...` $\rightarrow$ `✓ replay_service.cpp`
-* *e.g.* `Preparing answer...`
+This replaces the current pattern of checking for `find:results` /
+`read` existence with a richer model of investigation progress.
 
-We must measure UX quality via:
-* **Time until first visible progress:** Latency before the first progress token/section is emitted to the user.
-* **Time until first useful result:** Latency before the first successful file or reference search result is retrieved.
-* **Total investigation time:** End-to-end execution duration of the search and synthesis pipeline.
+### Priority 3: Completion Gating
+Completion must answer "is the question answered?" not "did a tool
+succeed?" A successful `read` should not automatically terminate the
+investigation. The gate must consider:
+* Question type (lookup vs explanation vs architecture)
+* Confidence level after each evidence collection step
+* Whether key evidence classes are still missing
 
-### Priority 4: Search Quality Metrics
-Track and optimize the following metrics:
-* `filename_hit_rate`
-* `symbol_hit_rate`
-* `reference_hit_rate`
-* `grep_fallback_rate`
-* `average_files_read`
-* `average_search_latency`
+### Priority 4: Confidence as Control Signal
+Confidence must drive the planner, not just report final quality:
+* High → synthesize and answer
+* Medium → continue investigation (read more, use references)
+* Low → report insufficient evidence or ask for clarification
 
-### Priority 5: Architectural Queries Benchmark Set
-The system must be validated against a broad set of senior-level architectural questions:
-* **Implemented Queries:**
-  * `"How is model wiring done?"`
-  * `"Where does replay begin?"`
-  * `"What owns this service?"`
-  * `"Which layer depends on this component?"`
-  * `"Where is this configured?"`
-* **Relational & Flow Queries:**
-  * `"Who owns X?"`
-  * `"Where is X configured?"`
-  * `"How does X flow to Y?"`
-  * `"What depends on X?"`
-  * `"What initializes X?"`
+### Priority 5: Planner Telemetry
+Track new planner-level metrics alongside existing retrieval metrics:
+* `recovery_rate` — how often the planner revises its investigation
+* `average_revisions` — mean revisions per investigation
+* `files_reread` — files examined more than once
+* `premature_stop_rate` — investigations that stopped but had missing evidence classes
+* `final_confidence_vs_success` — correlation between confidence and user-facing success
 
 ---
 
