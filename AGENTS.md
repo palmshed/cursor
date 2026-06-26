@@ -283,11 +283,9 @@ Interpretation:
 # Design Principles
 
 ## Evidence Before Opinion
-
 Repository evidence takes priority over model assumptions.
 
 ## Separation of Concerns
-
 * app → orchestration
 * ui → rendering
 * core → state and domain models
@@ -295,12 +293,33 @@ Repository evidence takes priority over model assumptions.
 * utils → helpers
 
 ## Data-Driven Configuration
-
 Models and providers belong in catalogs, not enum chains.
 
 ## Minimal Abstraction Drift
-
 Avoid new layers unless telemetry justifies them.
+
+## Senior Software Engineer Agent Definition
+A senior software engineer agent is defined by its disciplined *behavior* and communication, rather than complex autonomous *capabilities*. The agent must:
+* Find the right code quickly.
+* Read only what is necessary.
+* Explain why it chose those files.
+* State uncertainty when evidence is weak.
+* Never hide its investigation.
+* Avoid unnecessary tool calls.
+* Produce deterministic answers whenever possible.
+
+*(Note: Capabilities like autonomous editing, repair loops, subagents, and planning complexity are secondary to these behavioral traits that build trust.)*
+
+## The "Reality Check" Gate
+Every new capability or proposed feature must answer these five questions **before implementation begins**:
+1. **Which production traces fail today because this capability is missing?**
+2. **How will we measure success?**
+3. **What existing capability is insufficient?**
+4. **What telemetry metric should improve?**
+5. **When do we stop?**
+
+If these five questions cannot be answered with empirical telemetry evidence, the feature proposal waits.
+
 
 ---
 
