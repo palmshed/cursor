@@ -1,463 +1,348 @@
-# AGENTS Architecture Guide
+# Cursor Engineering Guide
 
-This document describes the current architecture as it exists today.
+This document defines the operational rules for every engineering cycle.
 
-It is not runtime help and does not document CLI commands.
+It is intentionally concise.
+
+Long-form discussions belong under `docs/`.
+
+---
+
+# Mission
+
+Build a deterministic investigation engine that helps developers understand a codebase with evidence before opinion.
+
+The planner is responsible for deciding what knowledge is still missing.
+
+The AI is responsible for explaining verified evidence.
 
 ---
 
 # Core Principle
 
-**Evidence drives decisions.**
+> Evidence before opinion.
 
-The system should prefer repository evidence over assumptions.
+Every answer must be grounded in repository evidence.
 
-Investigation happens before synthesis.
-
-Capabilities are expanded only when telemetry demonstrates a recurring failure pattern.
+Never compensate for missing evidence with speculation.
 
 ---
 
-# System Structure
+# Planner Invariant
 
-```text
-app/       runtime orchestration
-ui/        rendering
-core/      state, model catalog, metrics
-services/  execution, replay, AI, infrastructure
-utils/     shared helpers
+Before every investigation step, the planner must determine:
+
+* What is already known?
+* What is still unknown?
+* What evidence is required next?
+
+The next tool is selected because it is expected to reduce uncertainty.
+
+---
+
+# Runtime Architecture
+
 ```
+User Question
 
-Ownership should remain simple and explicit.
+↓
 
----
-
-# Runtime Flow
-
-The system is an **investigation engine**, not an AI agent wrapper.
-Intelligence is concentrated in the Planner; everything else is deterministic infrastructure.
-
-```text
-User Query
-    ↓
-Intent Classification
-    ↓
 Planner
-    ↓
-Investigation
-    ├── Retrieval  (find, symbols, references, grep, read)
-    ├── Evidence   (ranking, tool_history, EvidenceStore)
-    ├── Confidence (gate evaluation)
-    └── Completion (is the goal achieved?)
-    ↓
-AIService (synthesis — uses evidence only, does not investigate)
-    ↓
-Answer
-```
 
-Investigation and synthesis are separate responsibilities.
-The Planner is the only intelligence layer.
+↓
 
----
+Investigation State
 
-# Agent
+↓
 
-The `Agent` class is a runtime coordinator.
+Tool Selection
 
-Responsibilities:
+↓
 
-* initialize runtime components
-* own SessionState
-* connect Engine, Replay, Router, and UI
-* coordinate lifecycle
+Repository Evidence
 
-The Agent is not a decision layer.
+↓
 
----
+Planner
 
-# SessionState
+↓
 
-SessionState is a runtime snapshot.
+Enough evidence?
 
-Examples:
+No
+↓
 
-* active_model
-* execution state
-* outcome data
-* recovery metrics
-* trust metrics
+Continue investigation
 
-Rules:
+Yes
+↓
 
-* data only
-* no business logic
-* no provider-specific behavior
+AI synthesis
 
----
+↓
 
-# ExecutionEngine
-
-The ExecutionEngine is the primary decision layer.
-
-Responsibilities:
-
-* goal classification
-* repository investigation
-* tool orchestration
-* evidence collection
-* confidence evaluation
-* completion decisions
-* outcome generation
-
-Outputs:
-
-* Outcome
-* RecoveryMetrics
-* TrustMetrics
-* confidence values
-* tool history
-
-The ExecutionEngine owns investigation.
-
----
-
-# AIService
-
-AIService is a synthesis layer.
-
-Responsibilities:
-
-* receive repository evidence
-* answer from evidence
-* explain findings
-
-AIService does not:
-
-* investigate repositories
-* execute tools
-* emit commands
-* perform orchestration
-
-Its role is synthesis only.
-
----
-
-# ToolResult
-
-Every tool execution produces a structured result.
-
-```cpp
-struct ToolResult {
-    std::string tool;
-    std::string args;
-    std::string stdout;
-    std::string stderr;
-    int exit_code;
-
-    bool success() const;
-};
-```
-
-ToolResult is the canonical observation unit.
-
----
-
-# Tool History
-
-Investigations accumulate an ordered history of observations.
-
-```text
-ToolResult
-    ↓
-tool_history
-    ↓
-EvidenceStore
-    ↓
-Replay
-```
-
-Tool history exists to support:
-
-* trace analysis
-* validation
-* telemetry
-* future repair-loop design
-
----
-
-# Replay
-
-Replay is the evidence layer.
-
-Responsibilities:
-
-* append-only event storage
-* outcome recording
-* confidence tracking
-* trust metrics
-* recovery metrics
-* schema versioning
-
-Replay is the authoritative telemetry source.
-
-Metrics should be replay-derived whenever possible.
-
----
-
-# Model Catalog
-
-ModelCatalog is the single source of truth for:
-
-* providers
-* models
-* capabilities
-* categories
-* pricing tiers
-* display metadata
-
-Provider behavior is data-driven.
-
-New providers and models should be added through catalog entries rather than enums and switch chains.
-
----
-
-# Architecture Review
-
-ArchitectureReview is a read-only investigation mode.
-
-Responsibilities:
-
-* detect dead code
-* identify duplication
-* inspect state ownership
-* inspect telemetry usage
-* review validation coverage
-
-ArchitectureReview does not modify files.
-
----
-
-# Validation
-
-Current validation layers:
-
-## Benchmark Suite
-
-Synthetic capability validation.
-
-## Validation Runner
-
-End-to-end investigation validation.
-
-Tracked metrics include:
-
-* goal type
-* iterations
-* tools executed
-* files read
-* duration
-* duplicate tools
-* failed tools
-* outcome
-* failure class
-* recoverable flag
-
----
-
-# Outcome Model
-
-```cpp
-enum class Outcome {
-    Success,
-    Failure,
-    InsufficientEvidence,
-    UserRejected
-};
-```
-
-Interpretation:
-
-* Success → capability validated
-* Failure → capability insufficient
-* InsufficientEvidence → investigation stopped correctly
-* UserRejected → goal understanding failure
-
----
-
-# Design Principles
-
-## Evidence Before Opinion
-Repository evidence takes priority over model assumptions.
-
-## Separation of Concerns
-* app → orchestration
-* ui → rendering
-* core → state and domain models
-* services → capabilities
-* utils → helpers
-
-## Data-Driven Configuration
-Models and providers belong in catalogs, not enum chains.
-
-## Minimal Abstraction Drift
-Avoid new layers unless telemetry justifies them.
-
-## Senior Software Engineer Agent Definition
-A senior software engineer agent is defined by its disciplined *behavior* and communication, rather than complex autonomous *capabilities*. The agent must:
-* Find the right code quickly.
-* Read only what is necessary.
-* Explain why it chose those files.
-* State uncertainty when evidence is weak.
-* Never hide its investigation.
-* Avoid unnecessary tool calls.
-* Produce deterministic answers whenever possible.
-
-*(Note: Capabilities like autonomous editing, repair loops, subagents, and planning complexity are secondary to these behavioral traits that build trust.)*
-
-## The "Reality Check" Gate
-Every new capability or proposed feature must answer these five questions **before implementation begins**:
-1. **Which production traces fail today because this capability is missing?**
-2. **How will we measure success?**
-3. **What existing capability is insufficient?**
-4. **What telemetry metric should improve?**
-5. **When do we stop?**
-
-If these five questions cannot be answered with empirical telemetry evidence, the feature proposal waits.
-
-
----
-
-# Current Phase
-
-```text
-Architecture Phase: Complete
-Observation Phase: Complete (Telemetry Baseline Cleansed & Validated)
-Active Engineering Phase: Code Search Excellence — Complete
-Maturity Level 1 (Retrieval): Achieved — deterministic, measurable, gated
-Maturity Level 2 (Investigation): Next — planner must know when it has enough evidence
-Repair Loop: Deferred
+User
 ```
 
 ---
 
-# Active Directives: Planner Investigation (Level 2)
+# Investigation State
 
-The planner must know when it has enough evidence, when it doesn't,
-and how to recover before answering.
+The planner continuously maintains:
 
-## Core Principle
+* Known facts
+* Unknown facts
+* Active hypotheses
+* Rejected hypotheses
+* Evidence collected
+* Evidence still required
+* Current confidence
 
-> **The planner owns the investigation. Tools only gather evidence.**
-
-## Blocked Work (Freeze Active)
-Do NOT implement or add:
-* Code modification or editing capabilities to the agent (Autonomous editing freeze remains active).
-* Subagents or multi-agent planners.
-* Autonomous repair loops.
-* Natural language -> shell command translation.
-* Git dashboard visualization tools.
-* AI-based ranking layers (deterministic ranking only).
-* Plan visualization or investigation plan displays.
-
-## Telemetry & Validation Preservation
-Preserve all existing telemetry schemas and modules:
-* `ToolResult`
-* `tool_history`
-* `Replay` telemetry schema
-* `validation_runner`
-* `docs/telemetry/failure_topology.md` generation logic
-* `architecture_query_failure_report.md` — Level 1 closure evidence
-
-## Core Priorities & Design Constraints
-
-### Priority 1: Planner Recovery
-The planner must be able to revise an investigation mid-flight instead
-of stopping at the first successful read. If confidence is moderate
-after reading, the planner should continue gathering evidence rather
-than declaring success.
-
-### Priority 2: Investigation State
-The planner must maintain structured awareness during investigation:
-* What files have already been examined?
-* What evidence was found?
-* What evidence is still missing?
-* Which hypotheses or tool paths have failed?
-
-This replaces the current pattern of checking for `find:results` /
-`read` existence with a richer model of investigation progress.
-
-### Priority 3: Completion Gating
-Completion must answer "is the question answered?" not "did a tool
-succeed?" A successful `read` should not automatically terminate the
-investigation. The gate must consider:
-* Question type (lookup vs explanation vs architecture)
-* Confidence level after each evidence collection step
-* Whether key evidence classes are still missing
-
-### Priority 4: Confidence as Control Signal
-Confidence must drive the planner, not just report final quality:
-* High → synthesize and answer
-* Medium → continue investigation (read more, use references)
-* Low → report insufficient evidence or ask for clarification
-
-### Priority 5: Planner Telemetry
-Track new planner-level metrics alongside existing retrieval metrics:
-* `recovery_rate` — how often the planner revises its investigation
-* `average_revisions` — mean revisions per investigation
-* `files_reread` — files examined more than once
-* `premature_stop_rate` — investigations that stopped but had missing evidence classes
-* `final_confidence_vs_success` — correlation between confidence and user-facing success
+The investigation state is authoritative.
 
 ---
 
-## Maturity Model
+# Intelligence Ownership
 
-Planner capability progresses through levels. Each level must be validated by telemetry before the next begins.
+Planner
 
-| Level | Name | Success Metric | Status |
-|---|---|---|---|
-| 1 | **Retrieval** — find, grep, read, symbols, references | Can it reliably find the right evidence? | ✅ |
-| 2 | **Investigation** — planner recovery, confidence gating, multi-read | Does it know when it doesn't know enough? | ▶ Next |
-| 3 | **Investigation Plans** — visible multi-step plans | Can it explain why it is reading each file? | — |
-| 4 | **Plan Revision** — planner edits its own investigation mid-flight | Can it recover from wrong evidence? | — |
-| 5 | **Independent Tasks** — natural decomposition into parallel work | Queries that benefit from subagents common in production | — |
-| 6 | **Domain Specialists** — per-domain subagents with deep expertise | Subagent specialization measurably improves quality | — |
+* Investigation strategy
+* Tool selection
+* Recovery
+* Confidence
+* Completion
 
----
+Tools
 
-## Subagents Promotion Rule
-The subagents freeze remains fully active. Subagents will only be considered when:
-1. Planner consistently achieves Level 4+ (Plan Revision) quality targets
-2. Telemetry shows queries requiring naturally independent work (configuration, runtime, tests, performance) are common in production
-3. A single planner cannot meet search quality targets across representative architectural queries
+* Produce deterministic evidence
+
+AI
+
+* Explain verified evidence
+* Never invent missing facts
 
 ---
 
-## Success Criteria (Explicit Acceptance Criteria)
-* **Grep Fallback Rate:** Decreases by at least **25%** across the architectural benchmark query set.
-* **Retrieval Efficiency:** A measurable decrease in `average_files_read` per query without reducing correctness.
-* **Benchmark Target:** Architectural queries achieve a **90%** first-pass success rate (evidence-backed, accurate answers).
-* **Regressions:** Zero regression in existing validation runs or benchmark suites.
-* **Telemetry Reporting:** Stop immediately upon completing implementation and generate an updated telemetry report.
+# Retrieval Pipeline
 
+Always prefer deterministic retrieval.
 
+```
+Intent
 
+↓
 
----
+Filename lookup
 
-# Guiding Question
+↓
 
-The architecture exists to answer:
+Symbol lookup
 
-```text
-What repeatedly fails?
+↓
+
+Reference lookup
+
+↓
+
+Directory-aware ranking
+
+↓
+
+Read
+
+↓
+
+Synthesis
 ```
 
-and equally important:
+Broad grep is the last resort.
 
-```text
-What does not need to be built?
-```
+---
 
-Capability growth should be justified by telemetry rather than intuition.
+# Completion Rule
 
+Do not answer because tools finished.
+
+Answer only when the planner concludes that sufficient evidence has been collected.
+
+If evidence remains insufficient:
+
+State what is still unknown.
+
+---
+
+# Recovery Rule
+
+If confidence is low:
+
+Investigate again.
+
+Recovery is preferred over early completion.
+
+---
+
+# Transparency
+
+Expose investigation progress.
+
+Example:
+
+* Classifying intent
+* Searching filenames
+* Ranking candidates
+* Reading implementation
+* Collecting evidence
+* Synthesizing answer
+
+Never hide investigation steps.
+
+---
+
+# Current Engineering Phase
+
+Level 2
+
+Planner Investigation
+
+Mission:
+
+Teach the planner to investigate before answering.
+
+Primary objective:
+
+Improve planner behaviour rather than adding capabilities.
+
+---
+
+# Success Criteria
+
+Search Quality
+
+* ≥95% architecture query success
+* ≤4 files read on average
+* Grep fallback ≤20%
+
+Planner Quality
+
+* Planner Recovery Rate
+* Premature Stop Rate
+* Investigation Revision Count
+* Evidence Completeness
+* Confidence Calibration
+
+---
+
+# Reality Check Gate
+
+Every proposed capability must answer:
+
+* Which production failures require this?
+* Which telemetry supports it?
+* Which metric should improve?
+* Why is the current capability insufficient?
+* What is the stop condition?
+
+No implementation begins without these answers.
+
+---
+
+# Senior Software Engineer Behaviour
+
+The system should:
+
+* Read only necessary files
+* Explain why files were selected
+* Declare uncertainty
+* Avoid unnecessary searches
+* Ground conclusions in evidence
+* Prefer deterministic behaviour
+
+---
+
+# Capability Growth
+
+New capabilities are added only when telemetry demonstrates a real limitation.
+
+Evidence drives architecture.
+
+Not ideas.
+
+---
+
+# Investigation Tasks
+
+The planner may dispatch investigation tasks.
+
+Tasks do not own planning.
+
+Tasks do not own memory.
+
+Tasks return evidence.
+
+The planner remains the single decision-maker.
+
+---
+
+# Subagents
+
+Subagents remain frozen.
+
+Promotion from investigation tasks to subagents requires telemetry demonstrating that planner quality has saturated and independent parallel investigations produce measurable benefit.
+
+Until then:
+
+One planner.
+
+Many deterministic tools.
+
+---
+
+# Documentation
+
+Operational rules:
+
+AGENTS.md
+
+Engineering:
+
+docs/engineering/
+
+Telemetry:
+
+docs/telemetry/
+
+Architecture:
+
+docs/architecture/
+
+Proposals:
+
+docs/proposals/
+
+Release:
+
+docs/release/
+
+---
+
+# Rule
+
+Correctness
+
+↓
+
+Efficiency
+
+↓
+
+Transparency
+
+↓
+
+Communication
+
+↓
+
+Autonomy
+
+Never reverse this order.
