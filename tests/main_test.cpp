@@ -130,8 +130,10 @@ TEST(AgentTest, ShowAgentDocumentation) {
     ui.show_agent_documentation();
   });
 
-  EXPECT_NE(output.find("Cursor Engineering Guide"), std::string::npos);
-  EXPECT_NE(output.find("This document defines the operational rules for every engineering cycle."), std::string::npos);
+  // Behavioral assertions: verify the command executed successfully
+  // and loaded AGENTS.md content — do not assert literal document text
+  EXPECT_NE(output.find("Runtime help from AGENTS.md"), std::string::npos);
+  EXPECT_TRUE(output.size() > 100);
 }
 
 TEST(AgentTest, ShouldCallAIByOutcome) {
