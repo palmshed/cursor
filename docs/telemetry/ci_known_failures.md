@@ -1,8 +1,16 @@
 # Known CI Test Failures
 
 These 8 `cursor-tester` scenarios fail consistently in CI.
-They are **not regressions** — they require infrastructure
-that the CI runner does not provide.
+They are **environment limitations**, not planner/search bugs.
+
+The scenarios are valid E2E integration tests. They fail in CI
+because the runner lacks external infrastructure (Docker, GitHub
+API network access, AI model credentials). Fixing them requires
+provisioning that infrastructure or mocking dependencies, not
+improving the planner or search engine.
+
+The Level 2 planner backlog is distinct from these — tracked in
+`docs/planner/`.
 
 ## CI-dependent (6)
 
