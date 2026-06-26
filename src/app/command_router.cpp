@@ -271,7 +271,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
           if (raw.starts_with("Error:")) { tr.err = raw; tr.exit_code = 1; }
           else { tr.out = raw; }
         } else if (tc.tool == "cmake" || tc.tool == "ctest") {
-          std::string raw = Services::CommandService::execute(tc.args);
+          std::string raw = Services::CommandService::execute(tc.tool + " " + tc.args);
           if (raw.find("Error:") != std::string::npos) { tr.err = raw; tr.exit_code = 1; }
           else { tr.out = raw; }
         } else if (tc.tool == "discovery") {

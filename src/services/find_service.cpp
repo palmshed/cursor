@@ -69,10 +69,15 @@ std::vector<FindCandidate> directory_aware_find(const std::string &term,
     auto rel = std::filesystem::relative(path, start);
     std::string rel_str = rel.string();
 
-    // Skip hidden dirs, build dirs, node_modules
-    if (rel_str.find("/.") != std::string::npos ||
-        rel_str.find("build/_deps") != std::string::npos ||
-        rel_str.find("node_modules") != std::string::npos)
+    // Skip excluded directories (checkpoints, build, node_modules, .git, .cache, tmp, hidden)
+    if (rel_str.find("data/checkpoints/") == 0 ||
+        rel_str.find("build/") == 0 ||
+        rel_str.find(".git/") == 0 ||
+        rel_str.find(".cache/") == 0 ||
+        rel_str.find("tmp/") == 0 ||
+        rel_str.find("/.") != std::string::npos ||
+        rel_str.find("node_modules") != std::string::npos ||
+        rel_str.find("build/_deps") != std::string::npos)
       continue;
 
     std::string stem = rel.stem().string();

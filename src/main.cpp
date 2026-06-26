@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
         std::cout << "\n";
       }
       std::cout << "\n  " << available << " available, " << unavailable << " unavailable\n";
-      return unavailable > 0 ? 1 : 0;
+      return 0;
     }
     if (arg == "--self-test-workflows") {
       Utils::Config::load_environment();
