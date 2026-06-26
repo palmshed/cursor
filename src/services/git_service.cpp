@@ -68,6 +68,28 @@ std::string GitService::get_git_status(const std::string &path) {
   return result.empty() ? "Working directory clean" : result;
 }
 
+std::string GitService::get_git_diff(const std::string &path) {
+  if (!is_git_repository(path)) {
+    return "Error: Not a git repository";
+  }
+
+  std::string command = "cd \"" + path + "\" && git diff";
+
+  FILE *pipe = Utils::Platform::open_process(command, "r");
+  if (!pipe) {
+    return "Error: Failed to execute git diff";
+  }
+
+  std::string result;
+  char buffer[4096];
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    result += buffer;
+  }
+  Utils::Platform::close_process(pipe);
+
+  return result.empty() ? "No changes in working tree" : result;
+}
+
 std::vector<std::string>
 GitService::get_working_tree_changed_files(const std::string &path) {
   std::vector<std::string> files;

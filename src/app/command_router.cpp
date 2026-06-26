@@ -214,6 +214,31 @@ std::string CommandRouter::process_user_input(const std::string &input) {
             tr.out = "no matches";
             last_find_results.clear();
           } else {
+            // Sort so .cpp entries appear before .h entries;
+            // among .cpp files, prefer src/ over tests/.
+            std::stable_sort(refs.begin(), refs.end(),
+              [](const Services::SymbolOccurrence &a,
+                 const Services::SymbolOccurrence &b) {
+                auto ext_pref = [](const std::string &f) {
+                  bool is_src = (f.find("/src/") != std::string::npos ||
+                                 f.find("src/") == 0) &&
+                                f.find("/data/") == std::string::npos &&
+                                f.find("data/") != 0;
+                  bool is_test = (f.find("/tests/") != std::string::npos ||
+                                  f.find("tests/") == 0) &&
+                                 f.find("/data/") == std::string::npos &&
+                                 f.find("data/") != 0;
+                  if (f.size() > 4 && f.substr(f.size() - 4) == ".cpp") {
+                    if (is_src) return 0;
+                    if (is_test) return 1;
+                    return 2;
+                  }
+                  if (f.size() > 2 && f.substr(f.size() - 2) == ".h") return 3;
+                  if (f.size() > 4 && f.substr(f.size() - 4) == ".hpp") return 4;
+                  return 5;
+                };
+                return ext_pref(a.file) < ext_pref(b.file);
+              });
             last_find_results.clear();
             for (auto &r : refs) {
               last_find_results.push_back(r.file);
@@ -808,10 +833,12 @@ void CommandRouter::handle_direct_command(const std::string &input) {
       result = Services::GitService::get_git_status(path);
       auto files = Services::GitService::get_working_tree_changed_files(path);
       ui_.show_git_status_results(files);
+    } else if (params.find("diff") == 0) {
+      result = Services::GitService::get_git_diff(path);
     } else if (params.find("analyze") == 0) {
       result = Services::GitService::analyze_repository(path);
     } else {
-      result = "Usage: git:log, git:status, git:analyze";
+      result = "Usage: git:log, git:status, git:diff, git:analyze";
     }
     agent_.memory_->save_interaction("git:" + params, result);
   } else if (input.starts_with("tree:")) {
@@ -1435,7 +1462,6 @@ bool CommandRouter::is_git_status_query(const std::string &input) {
       "what files changed",
       "what changes",
       "what has changed",
-      "git diff",
       "git status"};
 
   for (const auto &phrase : triggers) {
@@ -1516,13 +1542,13 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
     return std::nullopt;
   };
 
-  // Git-related queries
-  if (is_git_status_query(input) || lower.find("what changed") != std::string::npos) {
-    return std::make_optional(std::string("git:status"));
-  }
+  // Git diff must be checked before git status to avoid misrouting
   if (lower.find("git diff") != std::string::npos ||
       lower.find("show diff") != std::string::npos ||
-      lower.find("diff") != std::string::npos) {
+      lower.find("what diff") != std::string::npos) {
+    return std::make_optional(std::string("git:diff"));
+  }
+  if (is_git_status_query(input) || lower.find("what changed") != std::string::npos) {
     return std::make_optional(std::string("git:status"));
   }
   if (lower.find("git log") != std::string::npos ||

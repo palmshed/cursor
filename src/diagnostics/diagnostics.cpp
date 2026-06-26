@@ -387,6 +387,32 @@ QueryResult run_query(const std::string &prompt) {
         if (tc.tool == "references") {
           auto refs = Services::SymbolService::find_references(".", tc.args);
           if (refs.empty()) { tr.out = "no matches"; return tr; }
+          // Sort so .cpp entries appear before .h entries — headers declare,
+          // source files call/instantiate. For caller queries this picks
+          // the right file for reading. Among .cpp files, prefer src/ over tests/.
+          std::stable_sort(refs.begin(), refs.end(),
+            [](const Services::SymbolOccurrence &a,
+               const Services::SymbolOccurrence &b) {
+              auto ext_pref = [](const std::string &f) {
+                bool is_src = (f.find("/src/") != std::string::npos ||
+                               f.find("src/") == 0) &&
+                              f.find("/data/") == std::string::npos &&
+                              f.find("data/") != 0;
+                bool is_test = (f.find("/tests/") != std::string::npos ||
+                                f.find("tests/") == 0) &&
+                               f.find("/data/") == std::string::npos &&
+                               f.find("data/") != 0;
+                if (f.size() > 4 && f.substr(f.size() - 4) == ".cpp") {
+                  if (is_src) return 0;
+                  if (is_test) return 1;
+                  return 2;
+                }
+                if (f.size() > 2 && f.substr(f.size() - 2) == ".h") return 3;
+                if (f.size() > 4 && f.substr(f.size() - 4) == ".hpp") return 4;
+                return 5;
+              };
+              return ext_pref(a.file) < ext_pref(b.file);
+            });
           last_find = refs[0].file;
           for (auto &r : refs) {
             ev.files.push_back(r.file);

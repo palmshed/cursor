@@ -225,7 +225,18 @@ std::vector<FindCandidate> directory_aware_find(const std::string &term,
         reason += " + implementation file";
     }
 
-    if (score == 0)
+    // --- Fixture path penalty ---
+    // For non-implementation queries (struct/class lookups), penalize
+    // fixture, data, and documentation directories to prefer source headers.
+    if (!impl_query &&
+        (rel_str.find("scenarios/") == 0 ||
+         rel_str.find("data/") == 0 ||
+         rel_str.find("docs/") == 0)) {
+      score -= 15;
+      reason += " + fixture penalty";
+    }
+
+    if (score <= 0)
       continue;
 
     candidates.push_back({rel_str, stem, score, reason});

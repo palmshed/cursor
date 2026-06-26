@@ -160,7 +160,6 @@ std::string extract_best_term(const std::string &raw_goal) {
   auto &best_group = phrase_groups[best_idx];
   // If any word in the best group has a strong code-shape score (>=10),
   // prefer that word alone rather than the full multi-word phrase.
-  std::string code_word;
   for (auto &w : best_group) {
     int ws = 0;
     if (w.find('_') != std::string::npos) ws += 10;
@@ -168,23 +167,13 @@ std::string extract_best_term(const std::string &raw_goal) {
     if (w.size() >= 2 && std::isupper(static_cast<unsigned char>(w[0])) &&
         std::any_of(w.begin() + 1, w.end(), [](char c) { return std::islower(static_cast<unsigned char>(c)); }))
       ws += 10;
-    if (ws >= 10) {
-      code_word = w;
-      break;
-    }
+    if (ws >= 10)
+      return w;
   }
-  if (!code_word.empty()) {
-    return code_word;
-  } else if (best_group.size() >= 2) {
-    std::string reconstructed;
-    for (size_t i = 0; i < best_group.size(); ++i) {
-      if (i > 0) reconstructed += "[ _-]?";
-      reconstructed += best_group[i];
-    }
-    return reconstructed;
-  } else {
+  // No code-shaped word: return the first noun (most distinctive)
+  if (best_group.size() >= 2)
     return best_group[0];
-  }
+  return best_group[0];
 }
 
 // Determine if a query is asking about implementation/definition location.
@@ -195,6 +184,14 @@ bool is_implementation_query(const std::string &goal) {
          lower.find("implementation") != std::string::npos ||
          lower.find("defined") != std::string::npos ||
          lower.find("where is") != std::string::npos;
+}
+
+bool is_git_diff_query(const std::string &goal) {
+  std::string lower = goal;
+  for (auto &c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return lower.find("git diff") != std::string::npos ||
+         lower.find("show diff") != std::string::npos ||
+         lower.find("what diff") != std::string::npos;
 }
 
 bool is_reference_query(const std::string &goal) {
@@ -209,7 +206,12 @@ bool is_reference_query(const std::string &goal) {
          lower.find("uses") != std::string::npos ||
          lower.find("using") != std::string::npos ||
          lower.find("used") != std::string::npos ||
-         lower.find("use") != std::string::npos;
+         lower.find("use") != std::string::npos ||
+         lower.find("owns") != std::string::npos ||
+         lower.find("ownership") != std::string::npos ||
+         lower.find("depends") != std::string::npos ||
+         lower.find("dependency") != std::string::npos ||
+         lower.find("dependencies") != std::string::npos;
 }
 } // namespace
 
@@ -325,7 +327,9 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
   // Call-site, usage, definition queries strongly suggest codebase query even if they mention CI/external command keywords
   if (contains_any(goal, {"call", "calls", "called", "use", "uses", "used", "using", "implement", "implemented",
                            "define", "defined", "reference", "references", "referenced",
-                           "where is", "where do we", "where are"})) {
+                           "where is", "where do we", "where are",
+                           "what owns", "who owns", "owned by",
+                           "depends on", "dependency", "dependencies"})) {
     if (contains_any(goal, {"tell me about", "overview", "describe", "what is this"}) &&
         contains_any(goal, {"codebase", "project", "repo", "repository", "application"})) {
       return CodebaseOverview;
@@ -513,6 +517,14 @@ ToolCall ExecutionEngine::select_next_tool(
     }
 
     case CommitHistory: {
+      // Handle git status queries separately from git log
+      if (contains_any(goal, {"git status", "status", "what changed",
+                              "changed files", "what files changed",
+                              "working tree", "uncommitted"})) {
+        if (!evidence.has_fact_containing("git status"))
+          return {"git", "status"};
+        return {};
+      }
       if (!evidence.has_fact_containing("git log"))
         return {"git", "log --oneline -10"};
       if (!evidence.has_fact_containing("git log -1"))
@@ -561,6 +573,14 @@ ToolCall ExecutionEngine::select_next_tool(
           return {"git", "log --oneline -10"};
         if (!evidence.has_fact_containing("git show"))
           return {"git", "log -1 --format=\"%H %s%n%b\""};
+        return {};
+      }
+
+      // 0. Git diff (before reference/find — live operation, not file search)
+      if (is_git_diff_query(goal)) {
+        if (!evidence.has_fact_containing("git diff")) {
+          return {"git", "diff"};
+        }
         return {};
       }
 
@@ -787,6 +807,11 @@ ToolCall ExecutionEngine::select_next_tool_llm(
 bool ExecutionEngine::check_completion(const std::string &goal,
                                         GoalType type,
                                         EvidenceStore &evidence) {
+  // If it's a git diff query, complete when git diff result is available.
+  if (is_git_diff_query(goal) && evidence.has_fact_containing("git diff")) {
+    return true;
+  }
+
   // If it's a reference query and we found no results, we don't need any more evidence.
   if (is_reference_query(goal) && evidence.has_fact_containing("references:noresults")) {
     return true;
