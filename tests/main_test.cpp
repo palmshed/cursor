@@ -130,8 +130,8 @@ TEST(AgentTest, ShowAgentDocumentation) {
     ui.show_agent_documentation();
   });
 
-  EXPECT_NE(output.find("AGENTS Architecture Guide"), std::string::npos);
-  EXPECT_NE(output.find("This document describes the current architecture as it exists today."), std::string::npos);
+  EXPECT_NE(output.find("Cursor Engineering Guide"), std::string::npos);
+  EXPECT_NE(output.find("This document defines the operational rules for every engineering cycle."), std::string::npos);
 }
 
 TEST(AgentTest, ShouldCallAIByOutcome) {
