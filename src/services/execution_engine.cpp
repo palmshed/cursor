@@ -1654,13 +1654,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       std::istringstream lines(tr.out);
       std::string line;
       std::string current_file;
-      bool in_content = false;
       while (std::getline(lines, line)) {
         if (line.starts_with("--- ") && line.size() > 5) {
-          // "--- filename ---" → extract the filename
           current_file = line.substr(4, line.size() - 7);
           evidence_summary += "File: " + current_file + "\n";
-          in_content = false;
           continue;
         }
         evidence_summary += "  " + line + "\n";
