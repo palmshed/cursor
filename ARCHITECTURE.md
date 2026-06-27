@@ -1,43 +1,48 @@
 # Architecture
 
-Cursor is a terminal-native investigation engine.
+Cursor is a terminal-native AI coding agent.
 
-Its architecture is centered around a deterministic planner that investigates repositories, gathers evidence, recovers when evidence is insufficient, and only then produces answers.
+The architectural center of the system is a deterministic planner that investigates repositories before answering, generating, reviewing, or modifying code.
 
-The system is intentionally layered so that investigation, synthesis, presentation, and telemetry remain independent.
+Evidence is gathered into an `EvidencePackage` and delegated to the `Formatter` + AI for synthesis.
+
+The system is intentionally layered so that investigation, packaging, synthesis, presentation, and telemetry remain independent.
 
 ---
 
 # High-Level Architecture
 
-```text
+```
 User
  │
  ▼
 Session
  │
  ▼
-ExecutionEngine
+ExecutionEngine (Planner)
  │
  ▼
-Planner
+Evidence Collection (Tools)
  │
  ▼
-Investigation
+EvidencePackage
  │
  ▼
-InvestigationSession
+Completion Gate
  │
- ├── AIService
- ├── Replay
- ├── UI
- ├── JSON Output
- └── /inspect
+ ▼
+Formatter
+ │
+ ▼
+AI Synthesis
+ │
+ ▼
+User
 ```
 
-The planner is the architectural center of the system.
+The planner is the architectural center.
 
-Everything else either supports investigation or consumes its results.
+Everything else either supports evidence collection or consumes its results.
 
 ---
 
@@ -55,32 +60,28 @@ Everything else either supports investigation or consumes its results.
 
 # Runtime Flow
 
-```text
+```
 main.cpp
     │
     ▼
 Session
     │
     ▼
-ExecutionEngine
+ExecutionEngine (Goal → Plan → Collect → Gate → Package → Format → Synthesize)
     │
     ▼
-Planner
-    │
-    ▼
-Investigation
-    │
-    ▼
-Answer
+User
 ```
 
 The Session owns interaction.
 
-The ExecutionEngine owns planning.
+The ExecutionEngine owns planning, evidence collection, completion, and synthesis orchestration.
 
-The Planner owns investigation.
+The planner (within ExecutionEngine) owns investigation strategy.
 
-The AI produces explanations from verified evidence.
+The Formatter prepares evidence for AI consumption.
+
+The AI produces explanations from verified, formatted evidence.
 
 ---
 
@@ -92,11 +93,12 @@ Responsibilities:
 
 * intent classification
 * investigation planning
-* tool selection
+* tool selection and execution
 * recovery decisions
 * confidence evaluation
 * completion decisions
-* answer synthesis
+* evidence packaging
+* synthesis orchestration
 
 It never directly assumes facts.
 
@@ -106,7 +108,7 @@ Facts must be discovered.
 
 # Planner
 
-The planner is responsible for deciding what knowledge is still missing.
+The planner is the subsystem within ExecutionEngine responsible for deciding what knowledge is still missing.
 
 Its responsibilities are:
 
@@ -128,7 +130,7 @@ Its primary responsibility is deciding **what it still needs to know**.
 
 The investigation pipeline is deterministic.
 
-```text
+```
 Goal
  │
  ▼
@@ -138,29 +140,94 @@ Intent Classification
 Investigation Planning
  │
  ▼
-Select Tool
- │
- ▼
-Execute Tool
- │
- ▼
-Collect Evidence
- │
- ▼
-InvestigationSession
+Select Tool → Execute Tool → Collect Evidence
+ │                                           │
+ └──(loop until completion or tool exhaustion)┘
  │
  ▼
 Confidence Evaluation
  │
- ├── Recover
+ ├── Recover (broaden search, alternate path)
  │
  └── Complete
         │
         ▼
-Answer Synthesis
+EvidencePackage
+        │
+        ▼
+Formatter
+        │
+        ▼
+AI Synthesis
+        │
+        ▼
+User
 ```
 
 Each stage has one responsibility.
+
+The recovery loop continues without breaking the primary tool sequence.
+
+---
+
+# EvidencePackage
+
+EvidencePackage is the bridge between investigation and synthesis.
+
+It is constructed by the planner after the completion gate is satisfied.
+
+Contents:
+
+* files examined (with relevant excerpts)
+* symbols found
+* grep matches
+* git/CI output grouped by command
+* confidence scores (per category and overall)
+* mandatory evidence satisfaction status
+
+EvidencePackage is **not** the same as `InvestigationSession`.
+
+`InvestigationSession` records everything the planner did (including recovery attempts, confidence transitions, planner decisions).
+
+`EvidencePackage` contains only what the AI needs to answer: the verified evidence.
+
+The planner constructs `EvidencePackage` from the session at completion time.
+
+---
+
+# Formatter
+
+The Formatter transforms `EvidencePackage` into an AI prompt.
+
+Responsibilities:
+
+* select evidence relevant to the goal type
+* format evidence concisely (no planner metadata)
+* construct a prompt structure suitable for the goal type
+* strip internal bookkeeping (confidence values, recovery details, tool names)
+
+The Formatter is the boundary that prevents planner internals from leaking into answers.
+
+Prompt changes never modify the planner or evidence collection.
+
+---
+
+# Answer Finalization
+
+Answer finalization is the process that keeps raw investigation details out of normal output.
+
+Sequence:
+
+```
+1. Completion Gate satisfied
+2. Planner constructs EvidencePackage from InvestigationSession
+3. Formatter converts EvidencePackage to a clean evidence summary
+4. AI receives evidence summary (not raw tool output)
+5. AI synthesizes natural-language answer
+6. User sees synthesized answer (no tool calls, no confidence, no planner state)
+```
+
+This replaces the earlier design where `summary` was used for both AI synthesis and debug inspection. Now `evidence_summary` serves AI synthesis; `summary` serves planner debug and `/inspect`.
 
 ---
 
@@ -170,37 +237,35 @@ Recovery allows investigations to continue when evidence is insufficient.
 
 Recovery activates when:
 
-* confidence falls below threshold
-* expected evidence is missing
-* only declarations were found
-* investigation terminates prematurely
-* tool exhaustion occurs before sufficient evidence
+* confidence falls below mid-loop threshold (0.2) during a primary tool
+* completion is satisfied but confidence is below post-completion threshold (0.5)
 
 Recovery strategies include:
 
-* broaden search
-* implementation lookup
-* grep escalation
-* discovery search
+* broaden search (grep fallback)
+* implementation lookup (find --impl)
+* discovery analysis
 * alternate evidence path
 
-Recovery attempts are recorded to prevent infinite loops.
+After recovery, the loop continues with the improved evidence state.
+
+Recovery never terminates the investigation prematurely.
+
+Debug view (`/inspect`) exposes recovery attempts and their outcomes.
 
 ---
 
 # InvestigationSession
 
-InvestigationSession is the canonical investigation artifact.
+InvestigationSession is the canonical record of what the planner learned during investigation.
 
-It represents everything the planner learned while answering a question.
+It is the permanent, inspectable investigation artifact.
 
-It replaces ad-hoc evidence reconstruction throughout the system.
-
-Typical contents include:
+Contents:
 
 * investigation goal
 * conclusion
-* confidence
+* confidence (per-category and overall)
 * duration
 * files examined
 * tools executed
@@ -209,28 +274,34 @@ Typical contents include:
 * recovery attempts
 * completion status
 
-InvestigationSession is the shared language between architectural layers.
+InvestigationSession is consumed by:
+
+* **EvidencePackage** — builds evidence for AI (not all session data)
+* **`/inspect`** — displays evidence summary to developers
+* **Replay** — serialized for historical analysis
+* **JSON output** — machine-readable diagnostics
+* **Telemetry** — planner quality metrics
+
+No consumer reconstructs investigation state independently.
 
 ---
 
 # Investigation Consumers
 
-InvestigationSession is consumed by multiple systems.
-
-```text
+```
 ExecutionEngine
         │
         ▼
 InvestigationSession
         │
-        ├── UI
+        ├── EvidencePackage (→ Formatter → AI → User)
+        ├── UI (/inspect)
         ├── Replay
         ├── JSON
-        ├── /inspect
         └── Telemetry
 ```
 
-No consumer reconstructs investigation state independently.
+Each consumer reads the same canonical artifact.
 
 ---
 
@@ -240,16 +311,19 @@ AIService performs synthesis.
 
 It does not investigate repositories.
 
-Its responsibility is to transform planner-approved evidence into human-readable explanations.
+Its responsibility is to transform formatted evidence into human-readable explanations.
 
-```text
+```
 ExecutionEngine
         │
         ▼
-InvestigationSession
+EvidencePackage
         │
         ▼
-AIService
+Formatter
+        │
+        ▼
+AIService (receives evidence summary, not raw session data)
         │
         ▼
 Answer
@@ -277,6 +351,7 @@ The last investigation survives long enough to support:
 * `/inspect`
 * replay
 * structured JSON output
+* reference by next investigation
 
 Runtime state remains provider-independent.
 
@@ -330,6 +405,7 @@ Key metrics include:
 * grep fallback rate
 * planner confidence
 * completion decisions
+* answer quality (human evaluation)
 
 Metrics are derived from InvestigationSession rather than reconstructed afterward.
 
@@ -350,7 +426,7 @@ Typical fields include:
 
 ToolResults feed InvestigationSession.
 
-They are not exposed directly to normal users.
+Evidence summaries for AI strip tool names and execution details, keeping only extracted content (file paths, symbols, matches).
 
 ---
 
@@ -363,11 +439,23 @@ Responsibilities include:
 * conversation rendering
 * investigation progress
 * answer presentation
-* optional investigation inspection
+* optional investigation inspection (`/inspect`)
 
 The UI never performs planning.
 
 It simply presents planner decisions.
+
+Normal output shows only:
+
+```
+Investigating repository…
+
+✓ Ready to explain
+
+[synthesized answer]
+```
+
+Everything else is available through `/inspect`, debug mode, or replay.
 
 ---
 
@@ -391,6 +479,7 @@ Tool execution follows planner decisions.
 
 * Session manages interaction.
 * Planner manages investigation.
+* Formatter prepares evidence.
 * AI manages explanation.
 * UI manages presentation.
 * Replay manages historical evidence.
@@ -405,7 +494,7 @@ Equivalent questions should produce equivalent investigation behavior.
 
 ---
 
-## Recovery Before Failure
+## Recovery Before Premature Answer
 
 The planner should recover when evidence is weak instead of answering prematurely.
 
@@ -416,6 +505,18 @@ The planner should recover when evidence is weak instead of answering prematurel
 InvestigationSession is the canonical representation of investigation.
 
 Every architectural consumer reads the same artifact.
+
+---
+
+## EvidenceContent ≠ SessionContent
+
+`EvidencePackage` contains only verified evidence for synthesis.
+
+`InvestigationSession` contains the full planner record.
+
+Mixing them leaks planner internals into answers.
+
+The `Formatter` is the explicit boundary.
 
 ---
 
@@ -436,14 +537,17 @@ Speculative abstractions are intentionally avoided.
 
 # Current Maturity
 
-**Level 2 — Planner Recovery**
+**Level 2 — Planner Recovery and Answer Finalization**
 
 Current architectural focus:
 
 * planner reasoning
-* investigation quality
+* evidence collection and packaging
 * recovery behavior
 * evidence completeness
 * confidence-driven completion
+* clean answer synthesis (no planner metadata in output)
 
-Future work should strengthen planner intelligence before introducing autonomous investigation units or multi-planner orchestration.
+Level 2 is feature-complete but not yet closed.
+
+Level 3 begins only when Level 2 acceptance criteria are satisfied.

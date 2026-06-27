@@ -10,7 +10,13 @@ Long-form discussions belong under `docs/`.
 
 # Mission
 
-Build a deterministic investigation engine that helps developers understand a codebase with evidence before opinion.
+Cursor is an AI coding agent.
+
+The planner owns investigation.
+
+The AI owns synthesis.
+
+Tools produce deterministic evidence.
 
 The planner is responsible for deciding what knowledge is still missing.
 
@@ -47,79 +53,150 @@ User Question
 
 ↓
 
-Planner
+Goal Understanding
 
 ↓
 
-Investigation State
+Information Requirements
 
 ↓
 
-Tool Selection
+Planning
 
 ↓
 
-Repository Evidence
+Evidence Collection
 
 ↓
 
-Planner
+EvidencePackage
 
 ↓
 
-Enough evidence?
+Completion Gate
 
-No
 ↓
 
-Continue investigation
-
-Yes
-↓
-
-AI synthesis
+AI Synthesis (via Formatter)
 
 ↓
 
 User
 ```
 
----
-
-# Investigation State
-
-The planner continuously maintains:
-
-* Known facts
-* Unknown facts
-* Active hypotheses
-* Rejected hypotheses
-* Evidence collected
-* Evidence still required
-* Current confidence
-
-The investigation state is authoritative.
+Investigation, evidence packaging, and synthesis are intentionally separated.
 
 ---
 
-# Intelligence Ownership
+# Investigation Lifecycle
 
-Planner
+Every investigation produces an `InvestigationSession` — the canonical record of what the planner learned.
 
-* Investigation strategy
-* Tool selection
-* Recovery
-* Confidence
-* Completion
+The session is consumed by:
 
-Tools
+* **AI synthesis** — transformed into a natural-language answer via the `Formatter`
+* **`/inspect`** — displayed as evidence summary
+* **Replay** — serialized for historical analysis
+* **JSON output** — machine-readable diagnostics
+* **Telemetry** — planner quality metrics
 
-* Produce deterministic evidence
+No consumer reconstructs investigation state independently.
 
-AI
+---
 
-* Explain verified evidence
-* Never invent missing facts
+# EvidencePackage
+
+Tools produce `ToolResult` objects.
+
+The planner groups them into an `EvidencePackage` containing:
+
+* files examined
+* symbols found
+* grep matches
+* git/CI output
+* confidence scores
+
+The `Formatter` converts `EvidencePackage` into the AI prompt.
+
+Prompt changes never modify the planner or evidence collection.
+
+---
+
+# Completion Gate
+
+The planner does not answer because tools finished.
+
+It answers only when mandatory evidence requirements are satisfied.
+
+Requirements are declared per goal type:
+
+* `CommitHistory` requires `git log`
+* `GitStatus` requires `git status`
+* `CodebaseQuery` requires `FileSearch` + `FileContent`
+* `ArchitectureReview` requires `FileSearch` + `FileContent` + `Discovery`
+
+If mandatory evidence is missing, the planner continues investigating.
+
+---
+
+# Confidence
+
+Confidence is a health metric, not a gate.
+
+It measures how well evidence matches the expected profile for the goal type.
+
+The confidence model:
+
+* Groups evidence by category (search, read, git, discovery, ci, verification)
+* Takes the strongest score per category
+* Applies category weights
+* Awards a convergence bonus when independent categories agree on the same target
+
+Confidence values are:
+
+* Internal to the planner
+* Never exposed in normal output
+* Visible only through `/inspect`, debug mode, and JSON diagnostics
+
+---
+
+# Recovery
+
+Recovery activates when:
+
+* confidence falls below the mid-loop threshold (0.2) during a primary tool
+* completion is satisfied but confidence is below the post-completion threshold (0.5)
+
+Recovery strategies include:
+
+* broaden search (grep fallback)
+* implementation lookup (find --impl)
+* discovery analysis
+* alternate evidence path
+
+After recovery, the loop continues with the improved evidence state.
+
+Recovery never terminates the investigation prematurely.
+
+---
+
+# Answer Finalization
+
+When completion is satisfied:
+
+1. The planner builds the `EvidencePackage` from tool results
+2. The `Formatter` constructs the AI prompt (evidence only, no planner metadata)
+3. The AI synthesizes a natural-language answer
+4. Investigation details are suppressed in normal output
+
+The user never sees:
+
+* Tool calls or raw tool output
+* Confidence values or calibration breakdown
+* Planner state or recovery decisions
+* "I'll check..." or "Preparing..."
+
+These are available through `/inspect` and debug mode.
 
 ---
 
@@ -159,46 +236,83 @@ Broad grep is the last resort.
 
 ---
 
-# Completion Rule
+# Goal Understanding
 
-Do not answer because tools finished.
+The planner classifies user intent before selecting tools.
 
-Answer only when the planner concludes that sufficient evidence has been collected.
+Classification is not keyword matching — it maps the user's question to an information need.
 
-If evidence remains insufficient:
+Supported goal types:
 
-State what is still unknown.
+* `CommitHistory` — git log, status, diff
+* `CodebaseQuery` — find, grep, read
+* `CodebaseOverview` — discovery, read
+* `ArchitectureReview` — cross-file structural analysis
+* `CICheck` — GitHub Actions investigation
+* `GitHubInvestigation` — CI run diagnostics
+* `CodeChange` — edit with plan+verify
+* `GeneralChat` — conversation only
+* `SessionState` — runtime configuration queries
+
+Each goal type declares mandatory evidence.
+
+The planner must collect all mandatory evidence before completion.
 
 ---
 
-# Recovery Rule
+# Intelligence Ownership
 
-If confidence is low:
+**Planner**
 
-Investigate again.
+* Investigation strategy
+* Tool selection
+* Recovery decisions
+* Confidence evaluation
+* Completion decisions
 
-Recovery is preferred over early completion.
+**Tools**
+
+* Produce deterministic evidence
+* Never make planning decisions
+
+**AI**
+
+* Explain verified evidence
+* Never invent missing facts
+
+**Formatter**
+
+* Transform `EvidencePackage` into AI prompt
+* Control answer structure per goal type
 
 ---
 
 # Transparency
 
-Expose investigation progress.
+Expose investigation progress to the developer, not to the user.
 
-Example:
+Normal output:
 
-* Classifying intent
-* Searching filenames
-* Ranking candidates
-* Reading implementation
-* Collecting evidence
-* Synthesizing answer
+```
+Investigating repository…
 
-Never hide investigation steps.
+✓ Ready to explain
+
+[synthesized answer]
+```
+
+Developer access:
+
+* `/inspect` — evidence summary
+* Debug mode — planner decisions, confidence, recovery
+* Replay — full investigation history
+* JSON output — machine-readable diagnostics
 
 ---
 
 # Current Engineering Phase
+
+**Level 2 — Planner Recovery and Answer Finalization**
 
 Level 2 is feature-complete but not yet closed.
 
@@ -208,19 +322,27 @@ Level 3 must not begin until all Level 2 acceptance criteria have been satisfied
 
 # Success Criteria
 
-Search Quality
+**Search Quality**
 
 * ≥95% architecture query success
 * ≤4 files read on average
 * Grep fallback ≤20%
 
-Planner Quality
+**Planner Quality**
 
 * Planner Recovery Rate
-* Premature Stop Rate
+* Premature Stop Rate (target: 0%)
 * Investigation Revision Count
 * Evidence Completeness
 * Confidence Calibration
+
+**Answer Quality**
+
+* No raw tool calls in answers
+* No confidence values in normal output
+* No planner metadata leaked to users
+* Concise, evidence-grounded answers
+* All goal types terminate with synthesized answers
 
 ---
 
@@ -255,9 +377,7 @@ The system should:
 
 New capabilities are added only when telemetry demonstrates a real limitation.
 
-Evidence drives architecture.
-
-Not ideas.
+Evidence drives architecture. Not ideas.
 
 ---
 
@@ -283,37 +403,23 @@ Promotion from investigation tasks to subagents requires telemetry demonstrating
 
 Until then:
 
-One planner.
-
-Many deterministic tools.
+One planner. Many deterministic tools.
 
 ---
 
-# Documentation
+# Documentation Map
 
-Operational rules:
+| Document | Audience | Content |
+|---|---|---|
+| `AGENTS.md` | Contributors | Engineering rules, invariants, success criteria |
+| `ARCHITECTURE.md` | Engineers | Runtime architecture, component relationships, data flow |
+| `DESIGN.md` | Product | User experience philosophy, interaction model, visibility layers |
 
-AGENTS.md
+`docs/engineering/` — Engineering deep-dives (confidence calibration, planner recovery, acceptance criteria)
 
-Engineering:
+`docs/architecture/` — Architecture decisions (implementation audit, review records)
 
-docs/engineering/
-
-Telemetry:
-
-docs/telemetry/
-
-Architecture:
-
-docs/architecture/
-
-Proposals:
-
-docs/proposals/
-
-Release:
-
-docs/release/
+`docs/telemetry/` — Metrics and measurement (capacity review, human evaluation)
 
 ---
 

@@ -2,11 +2,11 @@
 
 ## Philosophy
 
-Cursor is a terminal-native AI investigation engine.
+Cursor is a terminal-native AI coding agent.
 
-Conversation is the interface.
+Its interface is optimized for conversation while its planner performs evidence-driven investigations behind the scenes.
 
-Investigation is the mechanism that produces trustworthy answers.
+Evidence is collected before synthesis, allowing the agent to explain, edit, and operate on a codebase with deterministic investigation rather than assumption.
 
 The user should experience a fast, quiet, evidence-grounded conversation while the planner performs the necessary investigation behind the scenes.
 
@@ -137,6 +137,8 @@ Authentication is centered around TokenManager...
 
 The investigation disappears once the answer begins.
 
+No tool calls, confidence values, or planner decisions appear in normal output. The `Formatter` strips planner metadata before AI synthesis.
+
 ---
 
 ## Investigation Available
@@ -173,6 +175,7 @@ Typical contents:
 * tools used
 * evidence summary
 * reasoning steps
+* recovery attempts
 
 Inspection explains the investigation.
 
@@ -384,23 +387,64 @@ Developers may inspect execution details separately.
 
 Answer focused.
 
+User sees: synthesized answer.
+
 ## Investigation Available
 
 Inspection optional.
+
+User sees: prompt to press `i` or use `/inspect`.
 
 ## Inspect
 
 Evidence focused.
 
+Evidence summary, files examined, confidence, timing, tools used.
+
 ## Debug
 
 Planner focused.
+
+Recovery decisions, confidence transitions, tool routing, execution paths.
 
 ## Replay
 
 Telemetry focused.
 
+Full investigation history, timing, planner behavior, recovery events.
+
 Each layer reveals additional information without cluttering the previous one.
+
+No layer exposes raw tool output or planner metadata in the normal conversation view.
+
+The boundary between layers is enforced by the `Formatter`, not by convention.
+
+---
+
+# Answer Finalization
+
+The system must never display:
+
+* tool calls (`find()`, `read()`, `grep()`)
+* confidence values or calibration breakdown
+* planner state (mid-loop recovery, completion gates)
+- "I'll check..." or "Preparing..."
+
+These are available through `/inspect` and debug mode.
+
+Normal output is:
+
+```text
+Investigating repository…
+
+✓ Ready to explain
+
+[synthesized answer grounded in evidence]
+```
+
+This is enforced architecturally (not by UI convention).
+
+The planner passes evidence to the `Formatter`, which produces a clean evidence summary. The AI receives only formatted evidence — it has no access to raw session state.
 
 ---
 
@@ -476,8 +520,12 @@ Do not expose:
 * tool routing
 * telemetry
 * confidence values
+* raw tool output
+* evidence_summary (as distinct from answer)
 
-unless explicitly requested.
+unless explicitly requested via `/inspect` or debug mode.
+
+These constraints are enforced by the architecture — the `Formatter` strips all planner metadata before evidence reaches the AI, and the AI receives no access to raw session state.
 
 Normal conversation remains answer-first.
 
@@ -508,6 +556,8 @@ The investigation remains mostly invisible.
 
 The conversation remains the product.
 
-Evidence is always available.
+Evidence is always available through `/inspect`.
 
 The interface stays out of the user's way.
+
+The answer contains no tool names, no confidence values, no planner metadata — only a clean, evidence-grounded explanation.
