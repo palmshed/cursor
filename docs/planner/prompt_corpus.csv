@@ -1,0 +1,188 @@
+# Prompt Corpus for Goal Understanding Audit
+# Format: original_prompt | current_GoalType | expected_GoalType | failure | source
+#
+# Legend:
+#   OK = correctly classified
+#   WRONG = wrong GoalType
+#   LEAK = leaks to GeneralChat (no evidence collected)
+#   AMBIG = ambiguous — depends on context not captured in text
+#
+# ==============================================================
+# Architecture / Design / Overview
+# ==============================================================
+how is this agent designed | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+explain the architecture | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+walk me through the design | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+how does this work | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+tell me how repository investigation works | CodebaseQuery | CodebaseOverview | AMBIG | engine_extraction_test
+explain the authentication system | CodebaseOverview | CodebaseOverview | OK | common query
+tell me about the snipper realated code | CodebaseQuery | CodebaseQuery | OK (after normalization) | main_test
+how does the build system work | CodebaseQuery | CodebaseOverview | AMBIG | engine_extraction_test
+describe the architecture of this codebase | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+review the architecture | ArchitectureReview | ArchitectureReview | OK | classify_goal()
+review codebase | ArchitectureReview | ArchitectureReview | OK | classify_goal()
+audit technical debt | ArchitectureReview | ArchitectureReview | OK | classify_goal()
+tell me about this codebase | CodebaseOverview | CodebaseOverview | OK | self_test_service
+explain this codebase | CodebaseQuery | CodebaseOverview | AMBIG | engine_extraction_test
+what is this repository | CodebaseQuery | CodebaseOverview | AMBIG | engine_extraction_test
+tell me about the ui in from this codebase | CodebaseOverview | CodebaseOverview | OK (after normalization) | main_test
+
+# ==============================================================
+# Git: Commit History
+# ==============================================================
+what is the last commit | CommitHistory | CommitHistory | OK | engine_extraction_test
+can you check the last commit | CommitHistory | CommitHistory | OK | engine_extraction_test
+show me the latest commit | CommitHistory | CommitHistory | OK | engine_extraction_test
+what was the last commit | CommitHistory | CommitHistory | OK | classify_goal()
+show recent commits | CommitHistory | CommitHistory | OK | classify_goal()
+check commit | CommitHistory | CommitHistory | OK | classify_goal()
+git history | CommitHistory | CommitHistory | OK | classify_goal()
+what changed | CommitHistory | CommitHistory | OK | classify_goal()
+show changed files | CommitHistory | CommitHistory | OK | classify_goal()
+check the files changed | CommitHistory | CommitHistory | OK (after fix) | classify_goal()
+check changed files | CommitHistory | CommitHistory | OK | classify_goal()
+modified files | CommitHistory | CommitHistory | OK | classify_goal()
+show modified files | CommitHistory | CommitHistory | OK | classify_goal()
+which files changed | CommitHistory | CommitHistory | OK | classify_goal()
+what files changed | CommitHistory | CommitHistory | OK | classify_goal()
+what changed in the repo | CommitHistory | CommitHistory | OK | main_test
+can you check the files we changed | CommitHistory | CommitHistory | OK | main_test
+check the files we changed | CommitHistory | CommitHistory | OK | classify_goal()
+show me uncommitted changes | GeneralChat | CommitHistory | LEAK | self_test_service
+what files are modified | CodebaseQuery | CommitHistory | WRONG | self_test_service
+did I edit anything | GeneralChat | CommitHistory | LEAK | common query
+git status | CommitHistory | CommitHistory | OK | classify_goal()
+current branch | CommitHistory | CommitHistory | OK | classify_goal()
+what branch am I on | CommitHistory | CommitHistory | OK | classify_goal()
+
+# ==============================================================
+# Git: Diff
+# ==============================================================
+git diff | CommitHistory | CommitHistory | OK | map_nl_to_direct_command
+show diff | CommitHistory | CommitHistory | OK | map_nl_to_direct_command
+what diff | CommitHistory | CommitHistory | OK | map_nl_to_direct_command
+
+# ==============================================================
+# Codebase Queries: Find / Search / Locate
+# ==============================================================
+grep Agent | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+grep CommandRouter | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+grep SessionState usage | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find CommandRouter | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find ExecutionEngine | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find the UIManager declaration | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find the Outcome enum | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find the build target | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find why InsufficientEvidence is triggered | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find Agent responsibilities | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find CI repair pipeline flow | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+search for confidence scoring logic | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+search for benchmark service | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+search benchmark failure #9 | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+where is ReplayService used | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+where is DiscoveryService defined | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+where is SessionState defined | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+where is the dashboard | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+where does decision happen | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+how is evidence gating implemented | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+where do we call gh run view | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+how does auth work in this project | CodebaseQuery | CodebaseQuery | OK | self_test_service
+where is the replay implementation | CodebaseQuery | CodebaseQuery | OK | self_test_service
+how are files saved | CodebaseQuery | CodebaseQuery | OK | self_test_service
+show me the command router | CodebaseQuery | CodebaseQuery | OK | self_test_service
+what files handle authentication | CodebaseQuery | CodebaseQuery | OK | self_test_service
+find where config is loaded | CodebaseQuery | CodebaseQuery | OK | self_test_service
+how does session run work | CodebaseQuery | CodebaseQuery | OK | self_test_service
+read file include/app/command_router.h | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+read file src/main.cpp | CodebaseQuery | CodebaseQuery | OK | main_test
+show memory | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find where auth is implemented in this project | CodebaseQuery | CodebaseQuery | OK | common query
+what components are there | CodebaseQuery | CodebaseOverview | AMBIG | self_test_service
+how does the planner handle recovery | CodebaseQuery | CodebaseOverview | AMBIG | common query
+
+# ==============================================================
+# Codebase Overview (high-level / broad)
+# ==============================================================
+what is this project | CodebaseOverview | CodebaseOverview | OK | common query
+tell me about this project | CodebaseOverview | CodebaseOverview | OK | command_router
+overview of the codebase | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+describe this project | CodebaseOverview | CodebaseOverview | OK | common query
+what is this application | CodebaseOverview | CodebaseOverview | OK | classify_goal()
+
+# ==============================================================
+# Code Change
+# ==============================================================
+add a new CLI command | CodeChange | CodeChange | OK | classify_goal()
+implement file search in the engine | CodeChange | CodeChange | OK | classify_goal()
+refactor the authentication service | CodeChange | CodeChange | OK | classify_goal()
+fix the failing unit test | CodeChange | CodeChange | OK | classify_goal()
+migrate from cmake to bazel | CodeChange | CodeChange | OK | classify_goal()
+update the fmt dependency to 10.1.0 | CodeChange | CodeChange | OK | classify_goal()
+create a new file for config loading | CodeChange | CodeChange | OK | classify_goal()
+
+# ==============================================================
+# CI / GitHub Actions
+# ==============================================================
+why did CI fail | CICheck | CICheck | OK | engine_extraction_test
+which test failed | CICheck | CICheck | OK | engine_extraction_test
+can you check this log https://github.com/owner/repo/actions/runs/12345 | GitHubInvestigation | GitHubInvestigation | OK | engine_extraction_test
+check my CI workflow | CICheck | CICheck | OK | classify_goal()
+what is the status of my github action | CICheck | CICheck | OK | classify_goal()
+gh run list | CICheck | CICheck | OK | classify_goal()
+
+# ==============================================================
+# Session State
+# ==============================================================
+what provider am I using | SessionState | SessionState | OK | classify_goal()
+what model am I on | SessionState | SessionState | OK | classify_goal()
+am i online | SessionState | SessionState | OK | classify_goal()
+which backend is active | SessionState | SessionState | OK | classify_goal()
+what provider is selected | SessionState | SessionState | OK | classify_goal()
+
+# ==============================================================
+# General Chat (should not trigger investigation)
+# ==============================================================
+how are you | GeneralChat | GeneralChat | OK | classify_goal()
+who are you | GeneralChat | GeneralChat | OK | classify_goal()
+what can you do | GeneralChat | GeneralChat | OK | classify_goal()
+how do I install python | GeneralChat | GeneralChat | OK | self_test_service
+explain the concept of AI | GeneralChat | GeneralChat | OK | self_test_service
+how does one write a loop in c++ | GeneralChat | GeneralChat | OK | self_test_service
+what is the difference between X and Y | GeneralChat | GeneralChat | OK | self_test_service
+hello | GeneralChat | GeneralChat | OK | self_test_service
+please help me with a diagram | GeneralChat | GeneralChat | OK | main_test
+
+# ==============================================================
+# Commands (direct execution)
+# ==============================================================
+run make test | CodeChange | CodeChange | OK (routed to cmd: prefix) | main_test
+build the project | CodeChange | CodeChange | OK | main_test
+compile | CodeChange | CodeChange | OK | main_test
+
+# ==============================================================
+# Recovery benchmarks (not prompts — task descriptions)
+# ==============================================================
+# Fix: CI workflow runs nonexistent command | CodeChange | CodeChange | OK | benchmark
+# Add: version command to CLI app | CodeChange | CodeChange | OK | benchmark
+# Refactor: rename calculate -> add | CodeChange | CodeChange | OK | benchmark
+# Add: unit tests for calculator library | CodeChange | CodeChange | OK | benchmark
+# Fix: CMakeLists.txt references missing.cpp | CodeChange | CodeChange | OK | benchmark
+# Update: fmt dependency 9.1.0 -> 10.1.0 | CodeChange | CodeChange | OK | benchmark
+# Find: authentication implementation | CodebaseQuery | CodebaseQuery | OK | benchmark
+# Export: conversation history to JSON | CodebaseQuery | CodebaseQuery | OK | benchmark
+# Fix: off-by-one bug in calculator::add | CodeChange | CodeChange | OK | benchmark
+# Fix: code reads config.ini but file is setup.ini | CodeChange | CodeChange | OK | benchmark
+# Fix: CMakeLists.txt links missing ssl target | CodeChange | CodeChange | OK | benchmark
+# Fix: workflow references nonexistent build directory | CodeChange | CodeChange | OK | benchmark
+# Find: auth code stored in security.h (not auth.h) | CodebaseQuery | CodebaseQuery | OK | benchmark
+
+# ==============================================================
+# Known failures / edge cases
+# ==============================================================
+is this a test | GeneralChat | GeneralChat | OK | edge case
+what are the current changes | CommitHistory | CommitHistory | OK (after catch-all fix) | classify_goal()
+get the latest commit | CommitHistory | CommitHistory | OK (after catch-all fix) | classify_goal()
+check if any files changed | CommitHistory | CommitHistory | OK (after catch-all fix) | classify_goal()
+search for xqkz_2024_nonexistent_class in this codebase | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find xqkz_2024_kubernetes_deployment | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
+find xqkz_2024_quantum_entanglement module | CodebaseQuery | CodebaseQuery | OK | engine_extraction_test
