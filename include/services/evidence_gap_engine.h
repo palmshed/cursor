@@ -32,22 +32,39 @@ struct EvidenceGap {
       return best_quality != QualNone && best_quality < requirement.min_quality;
     }
 
-    // Evidence meets quality but is not independently verified.
-    // Only meaningful when satisfied() is true.
-    bool unverified() const {
-      return satisfied() && !is_independently_verified;
-    }
-
-    // Evidence meets all conditions: quality threshold met and, if required,
-    // independently verified.
+    // Evidence meets quality conditions (quality exists and >= minimum).
+    // This does NOT check independent verification.
     bool satisfied() const {
       if (best_quality == QualNone)
         return false;
       if (best_quality < requirement.min_quality)
         return false;
-      if (requirement.require_independent_verification && !is_independently_verified)
-        return false;
       return true;
+    }
+
+    // Quality conditions are satisfied but evidence is not independently
+    // verified. When require_independent_verification is true, this is a
+    // planner gap. When false, it is an improvement opportunity.
+    bool unverified() const {
+      if (best_quality == QualNone)
+        return false;
+      if (best_quality < requirement.min_quality)
+        return false;
+      return !is_independently_verified;
+    }
+
+    // All conditions met: quality conditions + optional verification.
+    bool complete() const {
+      return satisfied() && (!requirement.require_independent_verification || is_independently_verified);
+    }
+
+    // Priority for planner: missing > weak > unverified (when required) > 0 (satisfied).
+    // Higher number = higher priority.
+    int priority() const {
+      if (missing()) return 4;
+      if (weak())   return 3;
+      if (unverified() && requirement.require_independent_verification) return 2;
+      return 0; // no gap
     }
   };
 
@@ -56,7 +73,7 @@ struct EvidenceGap {
   // All requirements are satisfied at their minimum quality.
   bool complete() const {
     for (auto &rs : requirements)
-      if (!rs.satisfied())
+      if (!rs.complete())
         return false;
     return true;
   }
@@ -77,6 +94,47 @@ struct EvidenceGap {
     for (auto &rs : requirements)
       if (rs.unverified()) return true;
     return false;
+  }
+
+  // Index of the highest-priority unresolved requirement, or -1 if all
+  // satisfied. Planner uses this to decide what to resolve next.
+  int highest_priority_index() const {
+    int best = -1, best_pri = 0;
+    for (int i = 0; i < (int)requirements.size(); i++) {
+      int p = requirements[i].priority();
+      if (p > best_pri) { best_pri = p; best = i; }
+    }
+    return best;
+  }
+
+  const RequirementStatus *highest_priority_item() const {
+    int idx = highest_priority_index();
+    return idx >= 0 ? &requirements[idx] : nullptr;
+  }
+
+  // Gap metrics for telemetry — how many of each gap type.
+  int missing_count() const {
+    int n = 0;
+    for (auto &rs : requirements) if (rs.missing()) n++;
+    return n;
+  }
+
+  int weak_count() const {
+    int n = 0;
+    for (auto &rs : requirements) if (rs.weak()) n++;
+    return n;
+  }
+
+  int unverified_count() const {
+    int n = 0;
+    for (auto &rs : requirements) if (rs.unverified()) n++;
+    return n;
+  }
+
+  int satisfied_count() const {
+    int n = 0;
+    for (auto &rs : requirements) if (rs.satisfied()) n++;
+    return n;
   }
 };
 
