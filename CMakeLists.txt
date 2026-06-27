@@ -590,6 +590,7 @@ set(SERVICE_SOURCES
     src/services/goal_understanding_service.cpp
     src/services/evidence_gap_engine.cpp
     src/services/planner.cpp
+    src/services/tool_resolver.cpp
 )
 
 set(DIAGNOSTICS_SOURCES
