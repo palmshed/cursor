@@ -1,4 +1,5 @@
 #include "services/execution_engine.h"
+#include "services/evidence_gap_engine.h"
 #include "core/investigation_session.h"
 #include "services/ai_service.h"
 #include "services/confidence_service.h"
@@ -241,9 +242,18 @@ void EvidenceStore::add_evidence_entry(EvidenceClass ec,
                                        int match_count,
                                        int exact_match_count,
                                        bool phrase_match) {
-  // Deduplicate: if we already have an entry of this type with >= quality, skip
-  if (has_quality(ec, quality))
-    return;
+  // Allow multiple entries from different tools even if quality is already met,
+  // so the EvidenceGapEngine can detect independent verification.
+  // Only skip if the exact same tool already covered this at >= quality.
+  if (!tool.empty()) {
+    for (auto &e : entries)
+      if (e.type == ec && e.tool == tool && e.quality >= quality)
+        return;
+  } else {
+    // No tool specified: fall back to old dedup (any entry of this type)
+    if (has_quality(ec, quality))
+      return;
+  }
   EvidenceEntry ee;
   ee.type = ec;
   ee.quality = quality;
@@ -1886,6 +1896,29 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   result.success = use_goal_routing
       ? check_completion_goal(result.parsed_goal.goal, evidence)
       : check_completion(goal, type, evidence);
+
+  // Phase 4.1 shadow mode: run EvidenceGapEngine alongside existing
+  // completion. Log disagreements without changing behavior.
+  if (use_goal_routing && result.parsed_goal.goal.is_known()) {
+    EvidenceGapEngine gape;
+    auto reqs = evidence_for_goal(result.parsed_goal.goal);
+    auto gap = gape.evaluate(reqs, evidence);
+    bool gap_complete = gap.complete();
+    if (gap_complete != result.success) {
+      evidence.add_fact("gap_shadow_disagree: current=" +
+                        std::string(result.success ? "complete" : "incomplete") +
+                        " gap=" + std::string(gap_complete ? "complete" : "incomplete"));
+      std::string gap_detail;
+      for (auto &rs : gap.requirements) {
+        gap_detail += std::to_string(static_cast<int>(rs.requirement.ec)) + ":" +
+                      (rs.missing() ? "M" : rs.weak() ? "W" : rs.unverified() ? "U" : "OK") +
+                      "/q=" + std::to_string(static_cast<int>(rs.best_quality)) +
+                      "/v=" + (rs.is_independently_verified ? "1" : "0") + " ";
+      }
+      evidence.add_fact("gap_shadow_detail: " + gap_detail);
+    }
+  }
+
   if (type == ArchitectureReview) {
     summary = build_review_report(result.tool_history);
     evidence_summary = summary;
