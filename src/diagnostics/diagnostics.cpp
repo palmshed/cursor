@@ -81,6 +81,7 @@ public:
 
   void end_session(const Services::ExecutionResult &result,
       const std::optional<Core::InvestigationSession> &session = {}) override {
+    (void)session;
     auto end_time = std::chrono::steady_clock::now();
     std::string end_time_iso = get_iso8601_timestamp();
     double duration = std::chrono::duration<double>(end_time - start_time_).count();
@@ -648,6 +649,7 @@ public:
   }
   void end_session(const Services::ExecutionResult &result,
       const std::optional<Core::InvestigationSession> &session = {}) override {
+    (void)session;
     std::string route_name = Services::ExecutionEngine::goal_type_name(
         static_cast<Services::ExecutionEngine::GoalType>(result.goal_type));
     std::cout << "[route] " << route_name << "\n\n";
@@ -703,6 +705,7 @@ public:
   }
   void end_session(const Services::ExecutionResult &result,
       const std::optional<Core::InvestigationSession> &session = {}) override {
+    (void)session;
     j_["outcome"] = Core::outcome_name(result.outcome);
     j_["ai_called"] = Core::CommandRouter::should_call_ai(result);
 
@@ -731,6 +734,7 @@ public:
   void handle_event(const Core::TraceEvent &) override {}
   void end_session(const Services::ExecutionResult &result,
       const std::optional<Core::InvestigationSession> &session = {}) override {
+    (void)session;
     auto files = extract_files_examined(result.evidence.facts);
 
     json j;
