@@ -200,17 +200,9 @@ Never hide investigation steps.
 
 # Current Engineering Phase
 
-Level 2
+Level 2 is feature-complete but not yet closed.
 
-Planner Investigation
-
-Mission:
-
-Teach the planner to investigate before answering.
-
-Primary objective:
-
-Improve planner behaviour rather than adding capabilities.
+Level 3 must not begin until all Level 2 acceptance criteria have been satisfied.
 
 ---
 

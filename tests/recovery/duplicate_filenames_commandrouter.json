@@ -1,0 +1,9 @@
+{
+  "prompt": "Locate the real CommandRouter declaration in the include directory",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true,
+    "tools_used": ["find", "read"],
+    "evidence_contains": "include/app/command_router.h"
+  }
+}

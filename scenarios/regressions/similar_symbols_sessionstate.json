@@ -1,0 +1,9 @@
+{
+  "prompt": "Find the definition of SessionState in the main source tree and ignore test fixtures",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true,
+    "tools_used": ["find", "read"],
+    "evidence_contains": "include/core/session_state.h"
+  }
+}

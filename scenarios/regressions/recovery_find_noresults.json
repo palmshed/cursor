@@ -1,0 +1,8 @@
+{
+  "prompt": "find the zzz_nonexistent_term_xyz in this repo",
+  "expect": {
+    "outcome": "insufficient_evidence",
+    "ai_called": false,
+    "evidence_nonempty": true
+  }
+}

@@ -63,6 +63,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Generated benchmark artifacts
+capacity_review_questions.json
+capacity_review_results.json
+
 # Test artifacts
 test_data/
 tests/e2e/test_data/

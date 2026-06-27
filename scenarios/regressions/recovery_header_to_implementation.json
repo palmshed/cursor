@@ -1,0 +1,7 @@
+{
+  "prompt": "how does the Outcome enum work in this codebase",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true
+  }
+}

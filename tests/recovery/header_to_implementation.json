@@ -1,0 +1,9 @@
+{
+  "prompt": "Find the implementation of ExecutionEngine in the source files",
+  "expect": {
+    "outcome": "success",
+    "ai_called": true,
+    "tools_used": ["find", "read"],
+    "evidence_contains": "src/services/execution_engine.cpp"
+  }
+}
