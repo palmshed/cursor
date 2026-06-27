@@ -92,6 +92,9 @@ private:
   ToolCall select_next_tool_llm(const std::string &goal, GoalType type,
                                 const EvidenceStore &evidence,
                                 const std::vector<ToolResult> &tool_history = {});
+  ToolCall select_recovery_tool(const std::string &goal, GoalType type,
+                                EvidenceStore &evidence,
+                                const std::vector<ToolResult> &tool_history);
   bool check_completion(const std::string &goal, GoalType type,
                         EvidenceStore &evidence);
   static EvidenceNeed detect_evidence_need(const std::string &goal);

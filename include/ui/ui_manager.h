@@ -113,6 +113,9 @@ public:
   // Tool output visibility — called after tool completion
   void show_tool_output(const std::string &output);
 
+  // Investigation summary — called after all tools complete
+  void show_investigation_complete();
+
   // Preview proposed changes (before apply)
   void show_preview(const std::vector<PlanTaskLine> &tasks);
 

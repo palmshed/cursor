@@ -286,6 +286,39 @@ void Session::run() {
     } else {
       router_.process_user_input(user_input);
     }
+
+    // WAITING_INSPECT: brief keyboard wait for 'i' key after answer
+    if (tty && !agent_.state_.verbose_mode_ &&
+        agent_.state_.last_investigation.has_value()) {
+      struct termios oldt, newt;
+      tcgetattr(STDIN_FILENO, &oldt);
+      newt = oldt;
+      newt.c_lflag &= ~(ICANON | ECHO);
+      tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+      tcflush(STDIN_FILENO, TCIFLUSH);
+
+      std::cout << "\033[90mPress I to inspect evidence\033[0m\r"
+                << std::flush;
+
+      struct timeval tv = {3, 0};
+      fd_set fds;
+      FD_ZERO(&fds);
+      FD_SET(STDIN_FILENO, &fds);
+      int sel = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+      if (sel > 0) {
+        char ch = 0;
+        if (read(STDIN_FILENO, &ch, 1) == 1 && (ch == 'i' || ch == 'I')) {
+          // Clear the hint line before printing inspect output
+          std::cout << "\033[2K\r" << std::flush;
+          router_.handle_inspect_command();
+        }
+      }
+
+      // Clear the hint line
+      std::cout << "\033[2K\r" << std::flush;
+
+      tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    }
     if (replay_) {
       double cb = before.last_confidence_after;
       double ca = agent_.state_.last_confidence_after;

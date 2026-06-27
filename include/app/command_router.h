@@ -52,6 +52,7 @@ public:
   bool should_skip_file(const std::string &file_path, const std::string &ext);
   void toggle_verbose_mode();
   void toggle_inspect_mode();
+  void handle_inspect_command();
   void toggle_llm_classifier();
   void handle_mode_command(const std::string &arg);
   void handle_chat_management(const std::string &command);

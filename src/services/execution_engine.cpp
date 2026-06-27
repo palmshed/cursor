@@ -1,10 +1,12 @@
 #include "services/execution_engine.h"
+#include "core/investigation_session.h"
 #include "services/ai_service.h"
 #include "services/confidence_service.h"
 #include "ui/ui_manager.h"
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <regex>
@@ -801,6 +803,80 @@ ToolCall ExecutionEngine::select_next_tool_llm(
 }
 
 // ---------------------------------------------------------------------------
+// Recovery tool selection — called when the primary sequence is exhausted
+// but evidence is still insufficient.
+// ---------------------------------------------------------------------------
+
+ToolCall ExecutionEngine::select_recovery_tool(
+    const std::string &goal, GoalType type, EvidenceStore &evidence,
+    const std::vector<ToolResult> &tool_history) {
+  (void)tool_history;
+
+  // Strategy 1: find found nothing → try grep
+  if (evidence.has_fact_containing("find:noresults") &&
+      !evidence.has_fact_containing("grep:results") &&
+      !evidence.has_fact_containing("grep:noresults")) {
+    std::string term = extract_best_term(goal);
+    if (!term.empty())
+      return {"grep", term};
+  }
+
+  // Strategy 2: grep returned results but nothing was read → read now
+  if (evidence.has_fact_containing("grep:results") &&
+      !evidence.has_fact_containing("read")) {
+    return {"read", ""};
+  }
+
+  // Strategy 3: find found something and we read, but still insufficient →
+  // try grep with the same term to find additional references
+  if (evidence.has_fact_containing("find:results") &&
+      evidence.has_fact_containing("read") &&
+      !evidence.has_fact_containing("grep:results") &&
+      !evidence.has_fact_containing("grep:noresults") &&
+      !evidence.has_fact_containing("recovery:grep_after_find")) {
+    std::string term = extract_best_term(goal);
+    if (!term.empty())
+      return {"grep", term};
+  }
+
+  // Strategy 4: nothing found yet → try discovery to understand the project
+  if (!evidence.has_fact_containing("discovery") &&
+      !evidence.has_fact_containing("recovery:discovery")) {
+    return {"discovery", ""};
+  }
+
+  // Strategy 5: headers were examined but not implementation files
+  // (only applicable when find was involved)
+  if (type == CodebaseQuery && evidence.has_fact_containing("find:results")) {
+    bool has_header = false;
+    bool has_impl = false;
+    for (auto &fact : evidence.facts) {
+      if (fact.find(".h\"]") != std::string::npos ||
+          fact.find(".hpp\"]") != std::string::npos)
+        has_header = true;
+      if (fact.find(".cpp\"]") != std::string::npos ||
+          fact.find(".cc\"]") != std::string::npos ||
+          fact.find(".c\"]") != std::string::npos)
+        has_impl = true;
+    }
+    if (has_header && !has_impl &&
+        !evidence.has_fact_containing("recovery:find_impl")) {
+      std::string term = extract_best_term(goal);
+      if (!term.empty())
+        return {"find", term + " --impl"};
+    }
+    if (has_impl && !has_header &&
+        !evidence.has_fact_containing("recovery:find_header")) {
+      std::string term = extract_best_term(goal);
+      if (!term.empty())
+        return {"find", term};
+    }
+  }
+
+  return {};
+}
+
+// ---------------------------------------------------------------------------
 // Completion check
 // ---------------------------------------------------------------------------
 
@@ -1059,24 +1135,93 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   ui.show_pipeline_section(goal_type_name(type));
 
   const int MAX_ITERATIONS = 20;
+  const int MAX_RECOVERY = 3;
   std::vector<ConfidenceResult> confidence_history;
   int iteration_count = 0;
+  int recovery_count = 0;
   std::set<std::string> seen_tool_calls;
 
   for (iteration_count = 0; iteration_count < MAX_ITERATIONS; iteration_count++) {
-    if (check_completion(goal, type, evidence))
+    if (check_completion(goal, type, evidence)) {
+      // Completion is satisfied, but try confidence-based recovery if confidence
+      // is moderate and a recovery strategy is available
+      if (recovery_count < MAX_RECOVERY && !confidence_history.empty()) {
+        ConfidenceResult combined = ConfidenceService::combine(confidence_history);
+        if (combined.score < 0.7) {
+          ToolCall rc = select_recovery_tool(goal, type, evidence, result.tool_history);
+          if (!rc.tool.empty()) {
+            recovery_count++;
+            evidence.add_fact("recovery:attempt=" + std::to_string(recovery_count));
+            std::string rc_sig = rc.tool + ":" + rc.args;
+            if (seen_tool_calls.insert(rc_sig).second) {
+              ui.show_tool_invocation(rc.tool, rc.args);
+              ToolResult rtr = run_tool(rc);
+              rtr.tool = rc.tool;
+              rtr.args = rc.args;
+              result.tool_history.push_back(rtr);
+              ui.show_tool_output(rtr.out);
+              std::string rfact = rc.tool;
+              if (!rc.args.empty()) rfact += " " + rc.args;
+              evidence.add_fact(rfact);
+              evidence.facts.push_back("[" + rfact + "] " + rtr.out.substr(0, 200));
+              if (rtr.tool == "grep" && !rtr.out.empty() && rtr.out != "no matches") {
+                evidence.add_fact("grep:results");
+                evidence.mark_evidence_class(EvidenceClass::FileSearch);
+              } else if (rtr.tool == "read" && !rtr.out.empty() && rtr.out != "no files to read") {
+                evidence.add_fact("read:results");
+                evidence.mark_evidence_class(EvidenceClass::FileContent);
+              } else if (rtr.tool == "discovery" && !rtr.out.empty()) {
+                evidence.add_fact("discovery:results");
+                evidence.mark_evidence_class(EvidenceClass::Discovery);
+              } else if (rtr.tool == "find" && !rtr.out.empty() && rtr.out != "no matches") {
+                evidence.add_fact("find:results");
+                evidence.mark_evidence_class(EvidenceClass::FileSearch);
+              }
+              // Re-check completion after recovery tool
+              if (check_completion(goal, type, evidence)) {
+                // Add confidence for the recovery tool
+                ConfidenceResult cr;
+                cr.score = 0.5;
+                cr.reason = "recovery tool: " + rtr.tool;
+                confidence_history.push_back(cr);
+              }
+            }
+          }
+        }
+      }
       break;
+    }
 
     ToolCall tc = select_next_tool(goal, type, evidence, result.tool_history);
+
+    // When primary sequence is exhausted, try recovery
+    if (tc.tool.empty() && recovery_count < MAX_RECOVERY) {
+      tc = select_recovery_tool(goal, type, evidence, result.tool_history);
+      if (!tc.tool.empty()) {
+        recovery_count++;
+        evidence.add_fact("recovery:attempt=" + std::to_string(recovery_count));
+      }
+    }
+
     if (tc.tool.empty())
       break;
 
-    // Deduplicate: if the exact same tool+args was already executed, stop looping
+    // Deduplicate: if the exact same tool+args was already executed
     std::string tc_signature = tc.tool + ":" + tc.args;
     if (!seen_tool_calls.insert(tc_signature).second) {
-      result.stopped_early = true;
-      result.stop_reason = "duplicate tool call: " + tc_signature;
-      break;
+      // If recovery tool was a duplicate, try another recovery approach
+      if (recovery_count < MAX_RECOVERY) {
+        tc = select_recovery_tool(goal, type, evidence, result.tool_history);
+        if (tc.tool.empty()) break;
+        tc_signature = tc.tool + ":" + tc.args;
+        if (!seen_tool_calls.insert(tc_signature).second) break;
+        recovery_count++;
+        evidence.add_fact("recovery:attempt=" + std::to_string(recovery_count));
+      } else {
+        result.stopped_early = true;
+        result.stop_reason = "duplicate tool call: " + tc_signature;
+        break;
+      }
     }
 
     ui.show_tool_invocation(tc.tool, tc.args);
@@ -1241,27 +1386,57 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     // Check if confidence is too low to continue
     ConfidenceResult combined = ConfidenceService::combine(confidence_history);
     if (ConfidenceService::should_stop(combined, 0.2)) {
+      // Try recovery first
+      if (recovery_count < MAX_RECOVERY) {
+        ToolCall rc = select_recovery_tool(goal, type, evidence, result.tool_history);
+        if (!rc.tool.empty()) {
+          recovery_count++;
+          evidence.add_fact("recovery:attempt=" + std::to_string(recovery_count));
+          // Add the recovery tool directly without going through select_next_tool
+          std::string rc_sig = rc.tool + ":" + rc.args;
+          if (seen_tool_calls.insert(rc_sig).second) {
+            ui.show_tool_invocation(rc.tool, rc.args);
+            ToolResult rtr = run_tool(rc);
+            rtr.tool = rc.tool;
+            rtr.args = rc.args;
+            result.tool_history.push_back(rtr);
+            ui.show_tool_output(rtr.out);
+            // Record evidence from recovery tool
+            std::string rfact = rc.tool;
+            if (!rc.args.empty()) rfact += " " + rc.args;
+            evidence.add_fact(rfact);
+            evidence.facts.push_back("[" + rfact + "] " + rtr.out.substr(0, 200));
+            if (rtr.tool == "grep" && !rtr.out.empty() && rtr.out != "no matches") {
+              evidence.add_fact("grep:results");
+              evidence.mark_evidence_class(EvidenceClass::FileSearch);
+            } else if (rtr.tool == "read" && !rtr.out.empty() && rtr.out != "no files to read") {
+              evidence.add_fact("read:results");
+              evidence.mark_evidence_class(EvidenceClass::FileContent);
+            } else if (rtr.tool == "discovery" && !rtr.out.empty()) {
+              evidence.add_fact("discovery:results");
+              evidence.mark_evidence_class(EvidenceClass::Discovery);
+            } else if (rtr.tool == "find" && !rtr.out.empty() && rtr.out != "no matches") {
+              evidence.add_fact("find:results");
+              evidence.mark_evidence_class(EvidenceClass::FileSearch);
+            }
+            // Re-evaluate completion after recovery
+            if (check_completion(goal, type, evidence)) {
+              result.stopped_early = false;
+              result.stop_reason = "";
+              continue;  // exit the loop normally at next iteration
+            }
+          }
+        }
+      }
       result.stopped_early = true;
       result.stop_reason = "confidence too low: " + combined.reason;
       break;
     }
   }
 
-  // Show evidence collection progress
-  {
-    if (!result.tool_history.empty()) {
-      std::string prev_section;
-      if (!result.tool_history.empty()) {
-        auto &last = result.tool_history.back();
-        prev_section = ui.section_for_tool(last.tool);
-      }
-      std::string evidence_section = "Reviewing evidence...";
-      if (prev_section != evidence_section) {
-        ui.show_progress_section(evidence_section);
-      }
-    }
-    int tool_count = static_cast<int>(result.tool_history.size());
-    std::cout << "  \xe2\x9c\x93 Evidence reviewed\n";
+  // Show investigation summary
+  if (!result.tool_history.empty()) {
+    ui.show_investigation_complete();
   }
 
   // Build summary
@@ -1374,3 +1549,79 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
 }
 
 } // namespace Services
+
+// ---------------------------------------------------------------------------
+// InvestigationSession factory (defined outside Services namespace)
+// ---------------------------------------------------------------------------
+
+Core::InvestigationSession Core::InvestigationSession::from_result(
+    const Services::ExecutionResult &result,
+    std::string goal,
+    std::chrono::milliseconds duration) {
+  std::set<std::string> seen_files;
+
+  Core::InvestigationSession session;
+  session.goal = std::move(goal);
+  session.conclusion = result.summary;
+  session.confidence = result.confidence;
+  session.duration = duration;
+  session.outcome = result.outcome;
+  session.sufficient_evidence = result.success;
+  session.investigation_complete = !result.stopped_early;
+
+  for (auto &tr : result.tool_history) {
+    Core::ToolInvocation inv;
+    inv.tool = tr.tool;
+    inv.query = tr.args;
+
+    if (tr.tool == "grep") {
+      int matches = 0;
+      std::istringstream s(tr.out);
+      std::string l;
+      while (std::getline(s, l))
+        if (!l.empty() &&
+            l.find("CANDIDATE:") == std::string::npos &&
+            l.find("SELECTED:") == std::string::npos &&
+            l.find("REASON:") == std::string::npos &&
+            l.find("FILES:") == std::string::npos)
+          matches++;
+      inv.result = std::to_string(matches) + " match" + (matches == 1 ? "" : "es");
+    } else if (tr.tool == "find") {
+      inv.result = "files located";
+    } else if (tr.tool == "read") {
+      inv.result = "source read";
+      std::istringstream s(tr.out);
+      std::string l;
+      while (std::getline(s, l)) {
+        if (l.starts_with("--- ") && l.size() > 5) {
+          std::string fname = l.substr(4, l.size() - 8);
+          if (seen_files.insert(fname).second)
+            session.files_examined.push_back(std::filesystem::path(fname));
+        }
+      }
+    } else if (tr.tool == "git") {
+      int commits = 0;
+      std::istringstream s(tr.out);
+      std::string l;
+      while (std::getline(s, l))
+        if (!l.empty()) commits++;
+      inv.result = std::to_string(commits) + " commit" + (commits == 1 ? "" : "s");
+    } else if (tr.tool == "gh") {
+      inv.result = "CI data retrieved";
+    } else if (tr.tool == "discovery") {
+      inv.result = "project structure analysed";
+    } else {
+      inv.result = "executed";
+    }
+    session.tools_used.push_back(std::move(inv));
+  }
+
+  for (auto &fact : result.evidence.facts) {
+    if (fact.size() > 200)
+      session.evidence_summary.push_back(fact.substr(0, 200) + "...");
+    else if (!fact.empty())
+      session.evidence_summary.push_back(fact);
+  }
+
+  return session;
+}

@@ -1,6 +1,8 @@
 #pragma once
+#include "core/investigation_session.h"
 #include "core/model_catalog.h"
 #include "core/metrics.h"
+#include <optional>
 #include <string>
 
 namespace Core {
@@ -44,6 +46,9 @@ struct SessionState {
   std::string git_branch_;
   std::string git_status_;
   std::string build_artifacts_;
+
+  // Last investigation session (planner artifact for the most recent query)
+  std::optional<InvestigationSession> last_investigation;
 };
 
 } // namespace Core

@@ -79,7 +79,8 @@ public:
     trace_events_.push_back(ev);
   }
 
-  void end_session(const Services::ExecutionResult &result) override {
+  void end_session(const Services::ExecutionResult &result,
+      const std::optional<Core::InvestigationSession> &session = {}) override {
     auto end_time = std::chrono::steady_clock::now();
     std::string end_time_iso = get_iso8601_timestamp();
     double duration = std::chrono::duration<double>(end_time - start_time_).count();
@@ -324,6 +325,7 @@ QueryResult run_query(const std::string &prompt) {
   std::vector<Services::FileSearchResult> grep_results;
   std::string last_find;
 
+  auto diag_start = std::chrono::steady_clock::now();
   auto res = engine.execute(
       prompt,
       [&](const Services::ToolCall &tc) -> Services::ToolResult {
@@ -504,7 +506,14 @@ QueryResult run_query(const std::string &prompt) {
       },
       ui);
 
-  QueryResult qr = {prompt, res, trace};
+  QueryResult qr;
+  qr.prompt = prompt;
+  qr.result = res;
+  qr.trace = trace;
+  qr.investigation = Core::InvestigationSession::from_result(
+      res, prompt,
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - diag_start));
   if (is_opik_enabled()) {
     OpikConsumer opik;
     feed_consumer(opik, qr);
@@ -521,7 +530,7 @@ void feed_consumer(TraceConsumer &consumer, const QueryResult &qr) {
   for (auto &e : qr.trace) {
     consumer.handle_event(e);
   }
-  consumer.end_session(qr.result);
+  consumer.end_session(qr.result, qr.investigation);
 }
 
 class JsonConsumer : public TraceConsumer {
@@ -535,9 +544,8 @@ public:
   void handle_event(const Core::TraceEvent &event) override {
     trace_.push_back(event);
   }
-  void end_session(const Services::ExecutionResult &result) override {
-    auto files = extract_files_examined(result.evidence.facts);
-
+  void end_session(const Services::ExecutionResult &result,
+      const std::optional<Core::InvestigationSession> &session = {}) override {
     json j;
     j["prompt"] = prompt_;
     j["goal_type"] = Services::ExecutionEngine::goal_type_name(
@@ -546,25 +554,48 @@ public:
     j["ai_called"] = Core::CommandRouter::should_call_ai(result);
     j["confidence"] = result.confidence;
 
-    auto &files_arr = j["files_examined"];
-    for (auto &f : files) {
-      files_arr.push_back(f);
-    }
+    if (session.has_value()) {
+      auto &s = session.value();
+      auto &files_arr = j["files_examined"];
+      for (auto &f : s.files_examined)
+        files_arr.push_back(f.string());
 
-    auto &tools_arr = j["tools"];
-    std::vector<std::string> tools;
-    for (auto &f : result.evidence.facts) {
-      if (f.find("grep") != std::string::npos &&
-          std::find(tools.begin(), tools.end(), "grep") == tools.end()) {
-        tools.push_back("grep");
+      auto &tools_arr = j["tools"];
+      for (auto &t : s.tools_used)
+        tools_arr.push_back(t.tool);
+
+      auto &evidence_arr = j["evidence"];
+      for (auto &e : s.evidence_summary)
+        evidence_arr.push_back(e);
+
+      auto &reasoning_arr = j["reasoning"];
+      for (auto &r : s.reasoning_steps)
+        reasoning_arr.push_back(r);
+
+      j["duration_ms"] = s.duration.count();
+      j["investigation_complete"] = s.investigation_complete;
+      j["sufficient_evidence"] = s.sufficient_evidence;
+    } else {
+      // Fallback: derive from ExecutionResult (legacy path)
+      auto files = extract_files_examined(result.evidence.facts);
+      auto &files_arr = j["files_examined"];
+      for (auto &f : files) {
+        files_arr.push_back(f);
       }
-      if (f.find("read") != std::string::npos &&
-          std::find(tools.begin(), tools.end(), "read") == tools.end()) {
-        tools.push_back("read");
+
+      auto &tools_arr = j["tools"];
+      std::vector<std::string> tools;
+      for (auto &f : result.evidence.facts) {
+        if (f.find("grep") != std::string::npos &&
+            std::find(tools.begin(), tools.end(), "grep") == tools.end())
+          tools.push_back("grep");
+        if (f.find("read") != std::string::npos &&
+            std::find(tools.begin(), tools.end(), "read") == tools.end())
+          tools.push_back("read");
       }
-    }
-    for (auto &t : tools) {
-      tools_arr.push_back(t);
+      for (auto &t : tools) {
+        tools_arr.push_back(t);
+      }
     }
 
     std::cout << j.dump(2) << std::endl;
@@ -615,7 +646,8 @@ public:
     }
     event_logs_.push_back(ss.str());
   }
-  void end_session(const Services::ExecutionResult &result) override {
+  void end_session(const Services::ExecutionResult &result,
+      const std::optional<Core::InvestigationSession> &session = {}) override {
     std::string route_name = Services::ExecutionEngine::goal_type_name(
         static_cast<Services::ExecutionEngine::GoalType>(result.goal_type));
     std::cout << "[route] " << route_name << "\n\n";
@@ -669,7 +701,8 @@ public:
     }
     j_["events"].push_back(ev);
   }
-  void end_session(const Services::ExecutionResult &result) override {
+  void end_session(const Services::ExecutionResult &result,
+      const std::optional<Core::InvestigationSession> &session = {}) override {
     j_["outcome"] = Core::outcome_name(result.outcome);
     j_["ai_called"] = Core::CommandRouter::should_call_ai(result);
 
@@ -696,7 +729,8 @@ public:
     prompt_ = prompt;
   }
   void handle_event(const Core::TraceEvent &) override {}
-  void end_session(const Services::ExecutionResult &result) override {
+  void end_session(const Services::ExecutionResult &result,
+      const std::optional<Core::InvestigationSession> &session = {}) override {
     auto files = extract_files_examined(result.evidence.facts);
 
     json j;

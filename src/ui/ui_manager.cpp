@@ -792,10 +792,16 @@ std::string UIManager::section_for_tool(const std::string &tool) {
 
 void UIManager::show_progress_section(const std::string &section) {
   if (is_verbose()) return;
-  if (section != current_section_) {
-    if (!current_section_.empty()) std::cout << "\n";
-    std::cout << section << "\n\n";
-    current_section_ = section;
+
+  if (section.find("Ready to explain") != std::string::npos) {
+    // Already printed by show_investigation_complete; just reset state.
+    current_section_.clear();
+    return;
+  }
+
+  if (current_section_.empty()) {
+    std::cout << "Investigating repository...\n\n";
+    current_section_ = "investigating";
   }
 }
 
@@ -820,7 +826,7 @@ void UIManager::show_tool_invocation(const std::string &tool,
     return;
   }
 
-  // Normal mode: investigation timeline with section headers
+  // Normal mode: keep investigation quiet and answer-focused.
   show_progress_section(section_for_tool(tool));
 }
 
@@ -844,56 +850,9 @@ void UIManager::show_tool_output(const std::string &output) {
     return;
   }
 
-  // Normal mode: brief result summary
-  if (output.empty() || output == "no matches" || output == "no files to read") {
-    std::cout << "  \xe2\x86\x92 no results\n";
-    return;
-  }
-
-  if (last_tool_ == "grep") {
-    int lines = 0;
-    std::istringstream stream(output);
-    std::string line;
-    while (std::getline(stream, line))
-      if (!line.empty() && line.find("CANDIDATE:") == std::string::npos &&
-          line.find("SELECTED:") == std::string::npos &&
-          line.find("REASON:") == std::string::npos &&
-          line.find("FILES:") == std::string::npos)
-        lines++;
-    std::cout << "  \xe2\x9c\x93 Symbols checked";
-    if (lines > 0) std::cout << " (" << lines << " match" << (lines == 1 ? "" : "es") << ")";
-    std::cout << "\n";
-  } else if (last_tool_ == "find") {
-    std::cout << "  \xe2\x9c\x93 Files located\n";
-  } else if (last_tool_ == "read") {
-    std::cout << "  \xe2\x9c\x93 Read\n";
-  } else if (last_tool_ == "git") {
-    int count = 0;
-    std::istringstream stream(output);
-    std::string line;
-    while (std::getline(stream, line))
-      if (!line.empty()) count++;
-    std::cout << "  \xe2\x9c\x93 History checked";
-    if (count > 0) std::cout << " (" << count << " commit" << (count == 1 ? "" : "s") << ")";
-    std::cout << "\n";
-  } else if (last_tool_ == "gh") {
-    std::cout << "  \xe2\x9c\x93 Data retrieved\n";
-  } else {
-    int lines = 0;
-    std::string first;
-    std::istringstream stream(output);
-    std::string line;
-    while (std::getline(stream, line)) {
-      if (!line.empty() && line.find("Exit code:") == std::string::npos) {
-        if (lines == 0) first = line;
-        lines++;
-      }
-    }
-    if (lines == 1)
-      std::cout << "  \xe2\x9c\x93 " << first.substr(0, 80) << "\n";
-    else if (lines > 1)
-      std::cout << "  \xe2\x9c\x93 " << lines << " lines\n";
-  }
+  // Normal mode: tool output is hidden; the planner-centric narrative
+  // (Investigating repository... / ✓ Investigation complete / ▶ Ready to explain)
+  // is driven by show_progress_section and show_investigation_complete.
 }
 
 // ---------------------------------------------------------------------------
@@ -1069,6 +1028,18 @@ void UIManager::show_todo_list(
   }
   print_divider();
   std::cout << "\n";
+}
+
+void UIManager::show_investigation_complete() {
+  if (!is_verbose()) {
+    if (!current_section_.empty()) {
+      std::cout << Utils::Color::GREEN << "\xe2\x9c\x93" << Utils::Color::RESET
+                << " Investigation complete\n\n"
+                << "\xe2\x96\xb6 Ready to explain\n\n";
+    }
+    current_section_.clear();
+    return;
+  }
 }
 
 } // namespace Core

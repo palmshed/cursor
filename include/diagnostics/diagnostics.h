@@ -1,7 +1,9 @@
 #pragma once
 
+#include "core/investigation_session.h"
 #include "core/trace_event.h"
 #include "services/execution_engine.h"
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -11,6 +13,7 @@ struct QueryResult {
   std::string prompt;
   Services::ExecutionResult result;
   std::vector<Core::TraceEvent> trace;
+  std::optional<Core::InvestigationSession> investigation;
 };
 
 QueryResult run_query(const std::string &prompt);
@@ -22,7 +25,8 @@ public:
   virtual ~TraceConsumer() = default;
   virtual void start_session(const std::string &prompt) = 0;
   virtual void handle_event(const Core::TraceEvent &event) = 0;
-  virtual void end_session(const Services::ExecutionResult &result) = 0;
+  virtual void end_session(const Services::ExecutionResult &result,
+      const std::optional<Core::InvestigationSession> &session = {}) = 0;
 };
 
 // == Renderers (consume QueryResult) ==

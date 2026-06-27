@@ -1,4 +1,5 @@
 #include "services/replay_service.h"
+#include "core/investigation_session.h"
 #include <chrono>
 #include <ctime>
 #include <filesystem>
@@ -30,17 +31,126 @@ static long long now_epoch() {
       .count();
 }
 
-static json state_to_json(const Core::SessionState &s) {
+// ---------------------------------------------------------------------------
+// InvestigationSession JSON helpers
+// ---------------------------------------------------------------------------
+
+static json tool_invocation_to_json(const Core::ToolInvocation &t) {
   return json{
-      {"model_id",   s.active_model.id},
-      {"verbose_mode", s.verbose_mode_},
-      {"command_count", s.command_count_},
-      {"token_usage", s.token_usage_},
-      {"last_confidence_before", s.last_confidence_before},
-      {"last_confidence_after", s.last_confidence_after},
-      {"last_outcome", Core::outcome_name(s.last_outcome)},
-      {"last_execution_path", Core::execution_path_name(s.last_execution_path)},
+    {"tool", t.tool},
+    {"query", t.query},
+    {"result", t.result},
   };
+}
+
+static Core::ToolInvocation tool_invocation_from_json(const json &j) {
+  Core::ToolInvocation t;
+  t.tool   = j.value("tool", "");
+  t.query  = j.value("query", "");
+  t.result = j.value("result", "");
+  return t;
+}
+
+static json symbol_ref_to_json(const Core::SymbolReference &s) {
+  return json{
+    {"file", s.file.string()},
+    {"symbol", s.symbol},
+  };
+}
+
+static Core::SymbolReference symbol_ref_from_json(const json &j) {
+  Core::SymbolReference s;
+  s.file   = j.value("file", "");
+  s.symbol = j.value("symbol", "");
+  return s;
+}
+
+static json investigation_to_json(const Core::InvestigationSession &inv) {
+  json files = json::array();
+  for (auto &f : inv.files_examined)
+    files.push_back(f.string());
+
+  json tools = json::array();
+  for (auto &t : inv.tools_used)
+    tools.push_back(tool_invocation_to_json(t));
+
+  json symbols = json::array();
+  for (auto &s : inv.symbols_found)
+    symbols.push_back(symbol_ref_to_json(s));
+
+  json steps = json::array();
+  for (auto &r : inv.reasoning_steps)
+    steps.push_back(r);
+
+  json evidence = json::array();
+  for (auto &e : inv.evidence_summary)
+    evidence.push_back(e);
+
+  return json{
+    {"goal", inv.goal},
+    {"conclusion", inv.conclusion},
+    {"confidence", inv.confidence},
+    {"duration_ms", inv.duration.count()},
+    {"outcome", Core::outcome_name(inv.outcome)},
+    {"tools_used", tools},
+    {"files_examined", files},
+    {"symbols_found", symbols},
+    {"reasoning_steps", steps},
+    {"evidence_summary", evidence},
+    {"sufficient_evidence", inv.sufficient_evidence},
+    {"investigation_complete", inv.investigation_complete},
+  };
+}
+
+static Core::InvestigationSession investigation_from_json(const json &j) {
+  Core::InvestigationSession inv;
+  inv.goal     = j.value("goal", "");
+  inv.conclusion = j.value("conclusion", "");
+  inv.confidence = j.value("confidence", 0.0);
+  inv.duration   = std::chrono::milliseconds(j.value("duration_ms", 0LL));
+  if (j.contains("outcome"))
+    inv.outcome = Core::outcome_from_name(j.value("outcome", "insufficient_evidence"));
+
+  if (j.contains("tools_used")) {
+    for (auto &tj : j["tools_used"])
+      inv.tools_used.push_back(tool_invocation_from_json(tj));
+  }
+  if (j.contains("files_examined")) {
+    for (auto &fj : j["files_examined"])
+      inv.files_examined.push_back(fj.get<std::string>());
+  }
+  if (j.contains("symbols_found")) {
+    for (auto &sj : j["symbols_found"])
+      inv.symbols_found.push_back(symbol_ref_from_json(sj));
+  }
+  if (j.contains("reasoning_steps")) {
+    for (auto &rj : j["reasoning_steps"])
+      inv.reasoning_steps.push_back(rj.get<std::string>());
+  }
+  if (j.contains("evidence_summary")) {
+    for (auto &ej : j["evidence_summary"])
+      inv.evidence_summary.push_back(ej.get<std::string>());
+  }
+
+  inv.sufficient_evidence   = j.value("sufficient_evidence", false);
+  inv.investigation_complete = j.value("investigation_complete", false);
+  return inv;
+}
+
+static json state_to_json(const Core::SessionState &s) {
+  json j = {
+    {"model_id",   s.active_model.id},
+    {"verbose_mode", s.verbose_mode_},
+    {"command_count", s.command_count_},
+    {"token_usage", s.token_usage_},
+    {"last_confidence_before", s.last_confidence_before},
+    {"last_confidence_after", s.last_confidence_after},
+    {"last_outcome", Core::outcome_name(s.last_outcome)},
+    {"last_execution_path", Core::execution_path_name(s.last_execution_path)},
+  };
+  if (s.last_investigation.has_value())
+    j["last_investigation"] = investigation_to_json(s.last_investigation.value());
+  return j;
 }
 
 static Core::SessionState json_to_state(const json &j) {
@@ -60,6 +170,8 @@ static Core::SessionState json_to_state(const json &j) {
     s.last_outcome = Core::outcome_from_name(j.value("last_outcome", "insufficient_evidence"));
   if (j.contains("last_execution_path"))
     s.last_execution_path = Core::execution_path_from_name(j.value("last_execution_path", "unknown"));
+  if (j.contains("last_investigation"))
+    s.last_investigation = investigation_from_json(j["last_investigation"]);
   return s;
 }
 

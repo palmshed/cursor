@@ -161,6 +161,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
   bool goal_corrected = (agent_.state_.last_execution_path == Core::ExecutionPath::TaskPipeline) &&
                         (!agent_.state_.last_trust_metrics.plan_approved || !agent_.state_.last_trust_metrics.diff_approved);
 
+  auto investigation_start = std::chrono::steady_clock::now();
   auto engine_result = engine.execute(trimmed_input,
       [&](const Services::ToolCall &tc) -> Services::ToolResult {
         Services::ToolResult tr;
@@ -313,6 +314,15 @@ std::string CommandRouter::process_user_input(const std::string &input) {
 
   if (goal_corrected) {
     engine_result.trust_metrics.user_corrected_goal = true;
+  }
+
+  auto investigation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - investigation_start);
+  if (!engine_result.tool_history.empty()) {
+    agent_.state_.last_investigation = Core::InvestigationSession::from_result(
+        engine_result, trimmed_input, investigation_duration);
+  } else {
+    agent_.state_.last_investigation.reset();
   }
 
   agent_.state_.last_confidence_after = engine_result.confidence;
@@ -469,150 +479,6 @@ std::string CommandRouter::process_user_input(const std::string &input) {
       inv_summary += "  Confidence: " + label + "\n";
     }
     inv_summary += Utils::Color::RESET;
-  }
-
-  // Light evidence summary in normal mode (trust UX)
-  if (agent_.state_.inspect_mode_ == false && agent_.state_.verbose_mode_ == false &&
-      engine_result.outcome == Core::Outcome::Success &&
-      engine_result.goal_type == static_cast<int>(Services::ExecutionEngine::CodebaseQuery) &&
-      !engine_result.evidence.facts.empty()) {
-
-    // Extract up to 5 concrete files mentioned by evidence facts.
-    std::set<std::string> files;
-    for (auto &f : engine_result.evidence.facts) {
-      if (f.find(":results") != std::string::npos)
-        continue;
-
-      if (f.starts_with("[grep ")) {
-        // Evidence format looks like: "[grep <term>:results] ...", where
-        // results are stored after a ':' in the fact.
-        size_t pos = f.find(']');
-        if (pos != std::string::npos) {
-          std::string content = f.substr(pos + 2);
-          std::istringstream lines(content);
-          std::string line;
-          while (std::getline(lines, line)) {
-            // Expected: "<file>:<line>: <content>"
-            size_t colon = line.find(':');
-            if (colon != std::string::npos) {
-              files.insert(line.substr(0, colon));
-            }
-            if (files.size() >= 5)
-              break;
-          }
-        }
-      } else if (f.starts_with("[read")) {
-        // Evidence format: "[read <file>] ...", so take filename after ']'
-        // but avoid large raw output.
-        size_t pos = f.find(']');
-        if (pos != std::string::npos) {
-          std::string after = f.substr(pos + 2);
-          // after is either " <file>"-like or includes "--- <file> ---"
-          // Try to find a line starting with "--- ".
-          size_t dash = after.find("--- ");
-          if (dash != std::string::npos) {
-            size_t name_start = dash + 4;
-            size_t name_end = after.find('\n', name_start);
-            if (name_end != std::string::npos) {
-              std::string name = after.substr(name_start, name_end - name_start);
-              if (!name.empty())
-                files.insert(name);
-            }
-          }
-        }
-      }
-
-      if (files.size() >= 5)
-        break;
-    }
-
-    if (!files.empty()) {
-      std::cout << "\n" << Utils::Color::BOLD << "Repository evidence" << Utils::Color::RESET << "\n";
-      std::cout << "Files examined:\n";
-      int shown = 0;
-      for (auto &fn : files) {
-        if (shown++ >= 5)
-          break;
-        std::cout << "  • " << fn << "\n";
-      }
-      std::cout << std::flush;
-    }
-  }
-
-  // Show preparing answer stage
-  ui_.show_progress_section("\xe2\x96\xb6 Ready to explain");
-
-  // Direct answer from evidence for CodebaseQuery with success outcome
-  if (engine_result.outcome == Core::Outcome::Success &&
-      engine_result.goal_type == static_cast<int>(Services::ExecutionEngine::CodebaseQuery) &&
-      !engine_result.evidence.facts.empty()) {
-
-    // Build a direct answer from evidence facts
-    std::string answer;
-    std::set<std::string> mentioned_files;
-    for (auto &f : engine_result.evidence.facts) {
-      if (f.find(":results") != std::string::npos)
-        continue;
-      if (f.find(":done") != std::string::npos)
-        continue;
-      if (f.find(":noresults") != std::string::npos)
-        continue;
-
-      if (f.starts_with("[find ")) {
-        size_t pos = f.find(']');
-        if (pos != std::string::npos) {
-          std::string content = f.substr(pos + 2);
-          if (content.find("CANDIDATE:") != std::string::npos) {
-            std::istringstream ss(content);
-            std::string line;
-            while (std::getline(ss, line)) {
-              if (line.compare(0, 9, "SELECTED:") == 0) {
-                std::string path = line.substr(9);
-                if (!path.empty() && path[0] == ' ') path = path.substr(1);
-                mentioned_files.insert(path);
-              }
-            }
-          }
-        }
-      } else if (f.starts_with("[grep ")) {
-        size_t pos = f.find(']');
-        if (pos != std::string::npos) {
-          std::string content = f.substr(pos + 2);
-          std::istringstream lines(content);
-          std::string line;
-          while (std::getline(lines, line)) {
-            size_t colon = line.find(':');
-            if (colon != std::string::npos) {
-              mentioned_files.insert(line.substr(0, colon));
-            }
-          }
-        }
-      } else if (f.starts_with("[read ")) {
-        size_t pos = f.find(']');
-        if (pos != std::string::npos) {
-          std::string after = f.substr(pos + 2);
-          size_t dash = after.find("--- ");
-          if (dash != std::string::npos) {
-            size_t name_start = dash + 4;
-            size_t name_end = after.find('\n', name_start);
-            if (name_end != std::string::npos) {
-              std::string name = after.substr(name_start, name_end - name_start);
-              if (!name.empty())
-                mentioned_files.insert(name);
-            }
-          }
-        }
-      }
-    }
-
-    if (!mentioned_files.empty()) {
-      answer = "Found relevant files:\n";
-      for (auto &fn : mentioned_files) {
-        answer += "  \xe2\x80\xa2 " + fn + "\n";
-      }
-      std::cout << answer << std::flush;
-    }
-    return answer;
   }
 
   // Route to AI chat with evidence context
@@ -1065,7 +931,7 @@ void CommandRouter::handle_meta_command(const std::string &input) {
   } else if (command == "debug") {
     toggle_verbose_mode();
   } else if (command == "inspect") {
-    toggle_inspect_mode();
+    handle_inspect_command();
   } else if (command == "llm") {
     toggle_llm_classifier();
   } else if (command.starts_with("mode ")) {
@@ -1137,12 +1003,70 @@ void CommandRouter::toggle_verbose_mode() {
             << Utils::Color::RESET << std::endl;
 }
 
-void CommandRouter::toggle_inspect_mode() {
-  agent_.state_.inspect_mode_ = !agent_.state_.inspect_mode_;
-  std::cout << (agent_.state_.inspect_mode_ ? Utils::Color::GREEN : Utils::Color::YELLOW)
-            << (agent_.state_.inspect_mode_ ? "[inspect] Showing investigation summary"
-                                 : "[inspect] Investigation summary hidden")
-            << Utils::Color::RESET << std::endl;
+void CommandRouter::handle_inspect_command() {
+  auto &inv = agent_.state_.last_investigation;
+  if (!inv.has_value()) {
+    std::cout << Utils::Color::DIM << "No investigation from the last query.\n"
+              << Utils::Color::RESET << std::flush;
+    return;
+  }
+
+  auto &s = inv.value();
+  std::cout << "\n" << Utils::Color::BOLD << "\xe2\x96\xbc Investigation"
+            << Utils::Color::RESET << "\n\n";
+
+  std::cout << Utils::Color::BOLD << "Goal" << Utils::Color::RESET << "\n"
+            << "  " << s.goal << "\n\n";
+
+  if (!s.reasoning_steps.empty()) {
+    std::cout << Utils::Color::BOLD << "Reasoning" << Utils::Color::RESET << "\n";
+    for (auto &r : s.reasoning_steps) {
+      std::cout << "  " << r << "\n";
+    }
+    std::cout << "\n";
+  }
+
+  if (!s.tools_used.empty()) {
+    std::cout << Utils::Color::BOLD << "Evidence" << Utils::Color::RESET << "\n";
+    for (auto &t : s.tools_used) {
+      std::cout << "  " << Utils::Color::GREEN << "\xe2\x9c\x93"
+                << Utils::Color::RESET << " " << t.tool;
+      if (!t.query.empty()) std::cout << " " << t.query;
+      if (!t.result.empty()) std::cout << " (" << t.result << ")";
+      std::cout << "\n";
+    }
+    std::cout << "\n";
+  }
+
+  if (!s.files_examined.empty()) {
+    std::cout << Utils::Color::BOLD << "Files examined" << Utils::Color::RESET << "\n";
+    for (auto &f : s.files_examined) {
+      std::cout << "  \xe2\x80\xa2 " << f.string() << "\n";
+    }
+    std::cout << "\n";
+  }
+
+  if (s.confidence > 0.0) {
+    std::string label = s.confidence >= 0.8 ? "high" :
+                        s.confidence >= 0.5 ? "medium" :
+                        s.confidence >= 0.2 ? "low" : "very low";
+    std::ostringstream dur;
+    auto ms = s.duration.count();
+    if (ms >= 1000) dur << std::fixed << std::setprecision(1) << ms / 1000.0 << "s";
+    else            dur << ms << "ms";
+
+    std::cout << Utils::Color::BOLD << "Confidence" << Utils::Color::RESET << "\n"
+              << "  " << label << " (" << std::fixed << std::setprecision(2) << s.confidence << ")\n\n"
+              << Utils::Color::BOLD << "Duration" << Utils::Color::RESET << "\n"
+              << "  " << dur.str() << "\n\n";
+  }
+
+  if (!s.conclusion.empty()) {
+    std::cout << Utils::Color::BOLD << "Conclusion" << Utils::Color::RESET << "\n"
+              << "  " << s.conclusion << "\n\n";
+  }
+
+  std::cout << std::flush;
 }
 
 void CommandRouter::toggle_llm_classifier() {
