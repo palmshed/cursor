@@ -141,7 +141,7 @@ Investigation Planning
  │
  ▼
 Select Tool → Execute Tool → Collect Evidence
- │                                           │
+ │                                            │
  └──(loop until completion or tool exhaustion)┘
  │
  ▼

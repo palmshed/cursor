@@ -169,7 +169,7 @@ struct InvestigationSession {
 Planner creates InvestigationSession
         │
         ▼
-   ┌─────────────┐
+   ┌──────────────┐
    │  Session     │ ── stores as `last_investigation_`
    │  (app state) │
    └──────┬───────┘
