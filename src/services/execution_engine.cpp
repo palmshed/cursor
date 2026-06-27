@@ -233,17 +233,47 @@ bool EvidenceStore::has_fact_containing(const std::string &keyword) const {
   return false;
 }
 
+void EvidenceStore::add_evidence_entry(EvidenceClass ec,
+                                       const std::string &tool,
+                                       const std::string &query,
+                                       EvidenceQuality quality,
+                                       EvidenceStrength strength,
+                                       int match_count,
+                                       int exact_match_count,
+                                       bool phrase_match) {
+  // Deduplicate: if we already have an entry of this type with >= quality, skip
+  if (has_quality(ec, quality))
+    return;
+  EvidenceEntry ee;
+  ee.type = ec;
+  ee.quality = quality;
+  ee.strength = strength;
+  ee.tool = tool;
+  ee.query = query;
+  ee.target = query; // simplified: use query as target
+  ee.match_count = match_count;
+  ee.exact_match_count = exact_match_count;
+  ee.phrase_match = phrase_match;
+  entries.push_back(ee);
+}
+
 void EvidenceStore::mark_evidence_class(EvidenceClass ec) {
-  for (auto &c : classes)
-    if (c == ec)
-      return;
-  classes.push_back(ec);
+  // Legacy: add entry with Weak quality (equivalent to old binary model)
+  add_evidence_entry(ec, "", "", Weak, Low, 0, 0, false);
+}
+
+bool EvidenceStore::has_quality(EvidenceClass ec, EvidenceQuality min_quality) const {
+  for (auto &e : entries) {
+    if (e.type == ec && e.quality >= min_quality)
+      return true;
+  }
+  return false;
 }
 
 bool EvidenceStore::has_any_evidence_class(const std::vector<EvidenceClass> &required) const {
   for (auto &req : required)
-    for (auto &c : classes)
-      if (c == req)
+    for (auto &e : entries)
+      if (e.type == req)
         return true;
   return false;
 }
@@ -251,8 +281,8 @@ bool EvidenceStore::has_any_evidence_class(const std::vector<EvidenceClass> &req
 bool EvidenceStore::has_all_evidence_classes(const std::vector<EvidenceClass> &required) const {
   for (auto &req : required) {
     bool found = false;
-    for (auto &c : classes)
-      if (c == req) { found = true; break; }
+    for (auto &e : entries)
+      if (e.type == req) { found = true; break; }
     if (!found)
       return false;
   }
@@ -467,6 +497,92 @@ EvidenceNeed ExecutionEngine::detect_evidence_need(
                             "previous version", "recent change"}))
     return EvidenceNeed::CommitHistory;
   return EvidenceNeed::Default;
+}
+
+std::vector<EvidenceRequirement> ExecutionEngine::evidence_for_goal(const Goal &goal) {
+  if (!goal.is_known())
+    return {};
+
+  // Helper to build a requirement
+  auto req = [](EvidenceClass ec, EvidenceQuality min_q) {
+    return EvidenceRequirement{ec, min_q};
+  };
+
+  switch (goal.intent) {
+    case Intent::Status:
+      if (goal.entity == Entity::Session)
+        return {};
+      return {req(EvidenceClass::GitLog, Weak)};  // any git output suffices
+
+    case Intent::Locate:
+    case Intent::Navigate:
+      return {req(EvidenceClass::FileSearch, Moderate),
+              req(EvidenceClass::FileContent, Moderate)};
+
+    case Intent::Explain:
+      return {req(EvidenceClass::Discovery, Weak),
+              req(EvidenceClass::FileContent, Moderate)};
+
+    case Intent::Review:
+      return {req(EvidenceClass::Discovery, Weak),
+              req(EvidenceClass::FileSearch, Moderate),
+              req(EvidenceClass::FileContent, Moderate)};
+
+    case Intent::Diagnose:
+      if (goal.entity == Entity::CIPipeline ||
+          goal.entity == Entity::GitHubAction)
+        return {req(EvidenceClass::CIWorkflow, Moderate)};
+      if (goal.entity == Entity::Build)
+        return {req(EvidenceClass::Build, Weak)};
+      if (goal.entity == Entity::Test)
+        return {req(EvidenceClass::Test, Weak)};
+      return {req(EvidenceClass::FileSearch, Moderate),
+              req(EvidenceClass::FileContent, Moderate)};
+
+    case Intent::Compare:
+      return {req(EvidenceClass::FileSearch, Moderate),
+              req(EvidenceClass::FileContent, Moderate)};
+
+    case Intent::Modify:
+      return {req(EvidenceClass::Discovery, Weak),
+              req(EvidenceClass::FileSearch, Moderate),
+              req(EvidenceClass::FileContent, Moderate),
+              req(EvidenceClass::Build, Moderate),
+              req(EvidenceClass::Test, Moderate)};
+
+    case Intent::Execute:
+      return {req(EvidenceClass::Build, Weak),
+              req(EvidenceClass::Test, Weak)};
+
+    case Intent::Chat:
+      return {};
+
+    default:
+      return {};
+  }
+}
+
+bool ExecutionEngine::check_completion_goal(const Goal &goal,
+                                             EvidenceStore &evidence) {
+  // Chat and Unknown require no evidence
+  if (goal.intent == Intent::Chat || goal.intent == Intent::Unknown)
+    return true;
+
+  // Session state queries require no evidence for meta intents only
+  if (goal.entity == Entity::Session &&
+      (goal.intent == Intent::Chat || goal.intent == Intent::Unknown))
+    return true;
+
+  auto needed = evidence_for_goal(goal);
+  if (needed.empty())
+    return true;
+
+  // Check each requirement at its minimum quality threshold
+  for (auto &req : needed) {
+    if (!evidence.has_quality(req.ec, req.min_quality))
+      return false;
+  }
+  return true;
 }
 
 std::vector<EvidenceClass> ExecutionEngine::required_evidence(
@@ -730,8 +846,8 @@ ToolCall ExecutionEngine::select_next_tool_llm(
     prompt += "Required evidence (ALL must be satisfied to complete):\n";
     for (auto &ec : required) {
       bool have_it = false;
-      for (auto &c : evidence.classes)
-        if (c == ec) { have_it = true; break; }
+      for (auto &e : evidence.entries)
+        if (e.type == ec) { have_it = true; break; }
       const char *name = "Unknown";
       switch (ec) {
         case EvidenceClass::FileSearch: name = "FileSearch (use grep)"; break;
@@ -1150,7 +1266,21 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   EvidenceStore evidence;
   GoalType type = classify_goal(goal);
 
+  // Parse goal through GoalUnderstandingService for telemetry comparison
+  // (routing still uses classify_goal() -- Goal is not yet used for decisions)
+  {
+    GoalUnderstandingService gus;
+    result.parsed_goal = gus.parse(goal);
+  }
+
   ui.show_pipeline_section(goal_type_name(type));
+
+  // When GoalUnderstandingService is confident (>= 0.5), use Goal-based
+  // evidence derivation and completion instead of GoalType-based.
+  // This is the first step toward removing keyword routing -- the planner
+  // consumes semantic Goal, not raw GoalType.
+  const double GOAL_CONFIDENCE_THRESHOLD = 0.5;
+  bool use_goal_routing = (result.parsed_goal.confidence >= GOAL_CONFIDENCE_THRESHOLD);
 
   const int MAX_ITERATIONS = 20;
   const int MAX_RECOVERY = 3;
@@ -1165,7 +1295,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   std::string last_search_target = goal;
 
   for (iteration_count = 0; iteration_count < MAX_ITERATIONS; iteration_count++) {
-    if (check_completion(goal, type, evidence)) {
+    if (use_goal_routing
+        ? check_completion_goal(result.parsed_goal.goal, evidence)
+        : check_completion(goal, type, evidence)) {
       // Completion is satisfied, but try confidence-based recovery if confidence
       // is moderate and a recovery strategy is available
       if (recovery_count < MAX_RECOVERY && !confidence_history.empty()) {
@@ -1189,16 +1321,20 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
               evidence.facts.push_back("[" + rfact + "] " + rtr.out.substr(0, 200));
               if (rtr.tool == "grep" && !rtr.out.empty() && rtr.out != "no matches") {
                 evidence.add_fact("grep:results");
-                evidence.mark_evidence_class(EvidenceClass::FileSearch);
+                evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
               } else if (rtr.tool == "read" && !rtr.out.empty() && rtr.out != "no files to read") {
                 evidence.add_fact("read:results");
-                evidence.mark_evidence_class(EvidenceClass::FileContent);
+                evidence.add_evidence_entry(EvidenceClass::FileContent,
+                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
               } else if (rtr.tool == "discovery" && !rtr.out.empty()) {
                 evidence.add_fact("discovery:results");
-                evidence.mark_evidence_class(EvidenceClass::Discovery);
+                evidence.add_evidence_entry(EvidenceClass::Discovery,
+                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
               } else if (rtr.tool == "find" && !rtr.out.empty() && rtr.out != "no matches") {
                 evidence.add_fact("find:results");
-                evidence.mark_evidence_class(EvidenceClass::FileSearch);
+                evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
               }
               // Evaluate confidence for recovery tool (normal category, not hardcoded 0.5)
               {
@@ -1245,7 +1381,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
                 confidence_history.push_back(cr);
               }
               // Re-check completion after recovery tool
-              if (check_completion(goal, type, evidence)) {
+              if (use_goal_routing
+                  ? check_completion_goal(result.parsed_goal.goal, evidence)
+                  : check_completion(goal, type, evidence)) {
                 // Recovery produced evidence; loop will break with updated confidence
               }
             }
@@ -1384,28 +1522,51 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     if (has_results)
       evidence.add_fact(tc.tool + ":results");
 
-    // Mark evidence class based on tool (only when results produced)
+    // Mark evidence class based on tool (only when results produced).
+    // Use quality-aware entries: grep with many matches is Weak (imprecise),
+    // few matches is Moderate. Find/references produce more precise matches.
     if (has_results) {
-      if (tc.tool == "grep")
-        evidence.mark_evidence_class(EvidenceClass::FileSearch);
-      else if (tc.tool == "references")
-        evidence.mark_evidence_class(EvidenceClass::FileSearch);
-      else if (tc.tool == "read")
-        evidence.mark_evidence_class(EvidenceClass::FileContent);
-      else if (tc.tool == "discovery")
-        evidence.mark_evidence_class(EvidenceClass::Discovery);
-      else if (tc.tool == "cmake" && tr.out.find("error") == std::string::npos)
-        evidence.mark_evidence_class(EvidenceClass::Build);
-      else if (tc.tool == "ctest" &&
-               tr.out.find("failed") == std::string::npos &&
-               tr.out.find("FAILED") == std::string::npos)
-        evidence.mark_evidence_class(EvidenceClass::Test);
-      else if (tc.tool == "gh")
-        evidence.mark_evidence_class(EvidenceClass::CIWorkflow);
-      else if (tc.tool == "git")
-        evidence.mark_evidence_class(EvidenceClass::GitLog);
-      else if (tc.tool == "find")
-        evidence.mark_evidence_class(EvidenceClass::FileSearch);
+      if (tc.tool == "grep") {
+        // Count matches to determine quality
+        int match_lines = 0;
+        std::istringstream gcount(tr.out);
+        std::string gl;
+        while (std::getline(gcount, gl))
+          if (!gl.empty() && gl != "no matches") match_lines++;
+        auto q = (match_lines <= 10) ? Moderate : Weak;
+        evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                    tc.tool, tc.args, q, Medium, match_lines, 0, false);
+      } else if (tc.tool == "references") {
+        evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+      } else if (tc.tool == "read") {
+        evidence.add_evidence_entry(EvidenceClass::FileContent,
+                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+      } else if (tc.tool == "discovery") {
+        evidence.add_evidence_entry(EvidenceClass::Discovery,
+                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+      } else if (tc.tool == "cmake" && tr.out.find("error") == std::string::npos) {
+        evidence.add_evidence_entry(EvidenceClass::Build,
+                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+      } else if (tc.tool == "ctest" &&
+                 tr.out.find("failed") == std::string::npos &&
+                 tr.out.find("FAILED") == std::string::npos) {
+        evidence.add_evidence_entry(EvidenceClass::Test,
+                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+      } else if (tc.tool == "gh") {
+        evidence.add_evidence_entry(EvidenceClass::CIWorkflow,
+                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+      } else if (tc.tool == "git") {
+        evidence.add_evidence_entry(EvidenceClass::GitLog,
+                                    tc.tool, tc.args, Moderate, High, 0, 0, false);
+      } else if (tc.tool == "find") {
+        // Find quality depends on match reason (filename/symbol = Strong)
+        bool is_exact = (tr.out.find("REASON: filename match") != std::string::npos ||
+                         tr.out.find("REASON: symbol match") != std::string::npos);
+        auto q = is_exact ? Strong : Moderate;
+        evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                    tc.tool, tc.args, q, Medium, 0, 0, false);
+      }
     }
 
     // Evaluate confidence after each tool run
@@ -1505,16 +1666,20 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
             evidence.facts.push_back("[" + rfact + "] " + rtr.out.substr(0, 200));
             if (rtr.tool == "grep" && !rtr.out.empty() && rtr.out != "no matches") {
               evidence.add_fact("grep:results");
-              evidence.mark_evidence_class(EvidenceClass::FileSearch);
+              evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
             } else if (rtr.tool == "read" && !rtr.out.empty() && rtr.out != "no files to read") {
               evidence.add_fact("read:results");
-              evidence.mark_evidence_class(EvidenceClass::FileContent);
+              evidence.add_evidence_entry(EvidenceClass::FileContent,
+                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
             } else if (rtr.tool == "discovery" && !rtr.out.empty()) {
               evidence.add_fact("discovery:results");
-              evidence.mark_evidence_class(EvidenceClass::Discovery);
+              evidence.add_evidence_entry(EvidenceClass::Discovery,
+                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
             } else if (rtr.tool == "find" && !rtr.out.empty() && rtr.out != "no matches") {
               evidence.add_fact("find:results");
-              evidence.mark_evidence_class(EvidenceClass::FileSearch);
+              evidence.add_evidence_entry(EvidenceClass::FileSearch,
+                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
             }
             // Evaluate confidence for mid-loop recovery tool
             {
@@ -1572,7 +1737,9 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
               confidence_history.push_back(rcr);
             }
             // Re-evaluate completion after recovery
-            if (check_completion(goal, type, evidence)) {
+            if (use_goal_routing
+                ? check_completion_goal(result.parsed_goal.goal, evidence)
+                : check_completion(goal, type, evidence)) {
               result.stopped_early = false;
               result.stop_reason = "";
               continue;  // exit the loop normally at next iteration
@@ -1708,13 +1875,17 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
         ran_references = true;
       }
     }
-    bool resolved = check_completion(goal, type, evidence);
+    bool resolved = use_goal_routing
+        ? check_completion_goal(result.parsed_goal.goal, evidence)
+        : check_completion(goal, type, evidence);
     result.retrieval_metrics.caller_resolution_rate = (resolved && ran_references && !ran_grep) ? 1.0 : 0.0;
   } else {
     result.retrieval_metrics.caller_resolution_rate = 0.0;
   }
 
-  result.success = check_completion(goal, type, evidence);
+  result.success = use_goal_routing
+      ? check_completion_goal(result.parsed_goal.goal, evidence)
+      : check_completion(goal, type, evidence);
   if (type == ArchitectureReview) {
     summary = build_review_report(result.tool_history);
     evidence_summary = summary;
