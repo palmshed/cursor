@@ -50,7 +50,7 @@ classify_goal()
 |                          │       │
 |                     exhausted?  has strategy?
 |                          │       │
-|                       Answer    │
+|                       Answer     │
 |                            continue loop ──► re-check completion
 |
 └─── max 3 recovery attempts per query
