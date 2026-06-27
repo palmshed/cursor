@@ -591,6 +591,7 @@ set(SERVICE_SOURCES
     src/services/evidence_gap_engine.cpp
     src/services/planner.cpp
     src/services/tool_resolver.cpp
+    src/services/planner_loop.cpp
 )
 
 set(DIAGNOSTICS_SOURCES
