@@ -23,6 +23,8 @@
 #include <unistd.h>
 #endif
 
+volatile std::sig_atomic_t g_interrupted = 0;
+
 // ---------------------------------------------------------------------------
 // File-static: read_prompt (terminal input with history)
 // ---------------------------------------------------------------------------
@@ -81,6 +83,13 @@ static std::string read_prompt(const std::string &prompt,
   while (true) {
     unsigned char ch;
     ssize_t n = read(STDIN_FILENO, &ch, 1);
+    if (g_interrupted) {
+      clear_hint();
+      tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+      std::cout << "\033[?25h\n";
+      g_interrupted = 0;
+      return {};
+    }
     if (n <= 0 || ch == '\n' || ch == '\r') {
       clear_hint();
       esc_pending = false;
@@ -230,6 +239,7 @@ void Session::run() {
 
   std::vector<std::string> input_history;
   while (true) {
+    g_interrupted = 0;
     std::string user_input;
     if (tty) {
       user_input = read_prompt("> ", input_history, ui_);
@@ -272,6 +282,7 @@ void Session::run() {
     auto before = agent_.state_;
     if (user_input == "help" || user_input == "?") {
       router_.process_user_input("/help");
+      g_interrupted = 0;
     } else if (user_input == "version") {
       Version::print_version_info();
     } else if (user_input == "update") {
@@ -288,8 +299,9 @@ void Session::run() {
     }
 
 #ifndef _WIN32
-    // WAITING_INSPECT: brief keyboard wait for 'i' key after answer
-    if (tty && !agent_.state_.verbose_mode_ &&
+    // WAITING_INSPECT: brief keyboard wait for 'i' key after answer.
+    // Skip if Ctrl+C was pressed during processing.
+    if (!g_interrupted && tty && !agent_.state_.verbose_mode_ &&
         agent_.state_.last_investigation.has_value()) {
       struct termios oldt, newt;
       tcgetattr(STDIN_FILENO, &oldt);

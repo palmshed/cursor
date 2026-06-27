@@ -15,6 +15,7 @@
 
 #include "agent.h"
 #include "app/command_router.h"
+#include "app/common.h"
 #include "memory_manager.h"
 #include "services/ai_service.h"
 #include "services/capability_registry.h"
@@ -48,6 +49,7 @@ std::string get_exe_path() {
 int main(int argc, char *argv[]) {
 #ifndef _WIN32
   std::signal(SIGPIPE, SIG_IGN);
+  std::signal(SIGINT, [](int) { g_interrupted = 1; });
 #endif
   std::string replay_session_id;
 

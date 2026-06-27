@@ -2,9 +2,12 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <csignal>
 #include <optional>
 #include <string>
 #include <string_view>
+
+extern volatile std::sig_atomic_t g_interrupted;
 
 namespace Core {
 
