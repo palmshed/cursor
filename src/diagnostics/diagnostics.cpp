@@ -1201,6 +1201,7 @@ int check_command_assertions(const Services::StreamTelemetry &telemetry,
         std::cout << "\"" << needle.get<std::string>() << "\"";
       }
       std::cout << "\n";
+      std::cout << "  actual output:\n" << output << "\n";
       all_ok = false;
     }
   }
