@@ -6,10 +6,88 @@
 **Phase:** Level 2.4 (Goal Understanding) — planning phase
 
 > This document accurately describes the system through the end of the retrieval maturity phase. Subsequent engineering cycles (Level 2.3 Answer Finalization and Level 2.4 Goal Understanding) refined the architectural understanding and supersede several design conclusions. Telemetry data and failure frequencies remain valid observations. Interpretations of root cause have evolved as the planner matured.
+>
+> **Status:** Once Level 2 closes, this report becomes a historical record. Future planner work should produce new versions (Planner Evolution Report v2, v3) instead of rewriting this document.
 
 ---
 
-# Architectural Evolution
+# Current Architecture Snapshot
+
+```
+Product:
+AI Coding Agent
+
+Current Maturity:
+Level 2.4
+
+Planner Focus:
+Goal Understanding
+
+Primary Runtime Artifact:
+InvestigationSession
+
+Primary Evidence Artifact:
+EvidencePackage
+
+Next Milestone:
+GoalUnderstandingService
+
+Generations:
+   Gen 1 — Keyword Routing (Phase 1-2)
+   Gen 2 — Evidence-driven Investigation (Phase 3-5)
+   Gen 3 — Goal-driven Planning (Phase 6, current)
+```
+
+---
+
+# Planner Evolution
+
+Three generations span six phases. Each generation made the planner qualitatively smarter.
+
+```
+Generation 1: Keyword Routing
+
+    Phase 1: Keyword Routing
+        classify_goal() matches phrases, selects GoalType
+        → Brittle: every new phrasing needs keyword expansion
+
+    Phase 2: Deterministic Retrieval
+        Directory-aware find, shared ranking engine, reference search
+        → Fixed "cursor binary" and other retrieval failures
+        → But: planner was sending queries down the wrong path
+
+
+Generation 2: Evidence-driven Investigation
+
+    Phase 3: Planner Recovery
+        Mid-loop recovery, confidence gates, post-completion recovery
+        → Fixed premature termination
+        → But: recovery was breaking the loop (continue vs break bug)
+        → Fixed: recovery now continues instead of breaking
+
+    Phase 4: Evidence Packaging
+        EvidencePackage, InvestigationSession as canonical artifact
+        → Separated planner state from evidence for AI consumption
+
+    Phase 5: Answer Finalization [Level 2.3]
+        evidence_summary replaces summary for AI synthesis
+        Formatter strips planner metadata before AI sees it
+        → Tool calls, confidence values, planner state no longer leak into answers
+
+
+Generation 3: Goal-driven Planning [current]
+
+    Phase 6: Goal Understanding [Level 2.4]
+        GoalModel replaces GoalType as the planner's representation of intent
+        GoalUnderstandingService parses user requests into structured Goals
+        → Planner infers intent, not matches phrases
+
+
+Future: Adaptive Planning
+    Planner reasons about ambiguity, asks clarifying questions
+    Recovery strategies are goal-aware
+    Formatter selection is goal-aware
+```
 
 The system has matured through six phases. Each phase changed the understanding of what the planner needs.
 
@@ -441,3 +519,19 @@ The remaining bottleneck is not retrieval. It is **goal understanding**. The pla
 - Any new tool capability not required by Goal Understanding.
 
 **Level 2.4 is not a freeze violation.** Goal Understanding is a planner change, not a tool expansion. It changes how the planner interprets user input before selecting tools. It does not add new tools, search paths, or LLM features.
+
+---
+
+## 8. Lessons Learned
+
+These conclusions emerged from evidence accumulated across all six phases. They represent the engineering wisdom of the cycle, not hypotheses.
+
+* **Retrieval quality cannot compensate for incorrect goal understanding.** The fastest find, most accurate grep, and best-ranked results are wasted when the planner investigates the wrong question. Every retrieval fix in Phases 1-2 addressed symptoms, not the underlying misclassification.
+
+* **Recovery improves evidence quality but cannot repair a misidentified goal.** Mid-loop recovery (Phase 3) successfully detects low confidence and broadens the search, but if the GoalType was wrong, recovery still collects evidence against the wrong intent. Recovery is a tactical fix, not a strategic one.
+
+* **Answer quality depends as much on evidence formatting as on evidence collection.** The Answer Finalization phase (Level 2.3) changed no tooling, added no new search capability, and fixed zero retrieval bugs. Yet it dramatically improved perceived quality by stripping planner metadata from the AI context. What the AI sees matters as much as what the planner finds.
+
+* **Planner improvements consistently produced larger gains than tool additions.** Keyword routing fixes (Phase 1) resolved 68 historical failures — more than any single tool or retrieval upgrade. Confidence calibration (Phase 3) and evidence formatting (Level 2.3) each produced measurable gains without a single new file search capability. The planner, not the toolbelt, is the leverage point.
+
+* **Intent fragmentation is the deepest bottleneck.** The same user intent ("what changed in my working tree?") could route to five different GoalTypes depending on phrasing. No amount of retrieval or recovery can fix the inconsistency that begins at classification. Goal Understanding (Level 2.4) is the response.
