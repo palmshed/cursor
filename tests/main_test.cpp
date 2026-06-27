@@ -3,6 +3,7 @@
 #include "services/replay_service.h"
 #include "services/workflow_benchmark_service.h"
 #include "services/execution_engine.h"
+#include "services/evidence_gap_engine.h"
 #include "memory_manager.h"
 #include "agent.h"
 #include "app/command_router.h"
@@ -767,6 +768,122 @@ TEST(CompletionGoalTest, LocateWithAllEvidenceIsComplete) {
   ev.add_evidence_entry(EvidenceClass::FileContent, "read", "file.cpp",
                         Services::Moderate, Services::Medium, 0, 0, false);
   EXPECT_TRUE(Services::ExecutionEngine::check_completion_goal(g, ev));
+}
+
+// ============================================================
+// EvidenceGapEngine tests -- pure domain gap evaluation
+// ============================================================
+
+TEST(EvidenceGapTest, EmptyRequirementsIsComplete) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  auto gap = gape.evaluate({}, ev);
+  EXPECT_TRUE(gap.complete());
+  EXPECT_FALSE(gap.has_missing());
+  EXPECT_FALSE(gap.has_weak());
+  EXPECT_FALSE(gap.has_unverified());
+}
+
+TEST(EvidenceGapTest, MissingEvidenceIsDetected) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  std::vector<Services::EvidenceRequirement> reqs = {
+    {Services::EvidenceClass::FileSearch, Services::Moderate}
+  };
+  auto gap = gape.evaluate(reqs, ev);
+  EXPECT_FALSE(gap.complete());
+  EXPECT_TRUE(gap.has_missing());
+  ASSERT_EQ(gap.requirements.size(), 1);
+  EXPECT_TRUE(gap.requirements[0].missing());
+}
+
+TEST(EvidenceGapTest, WeakEvidenceIsDetected) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  ev.add_evidence_entry(Services::EvidenceClass::FileSearch, "grep", "term",
+                        Services::Weak, Services::Medium, 50, 0, false);
+  std::vector<Services::EvidenceRequirement> reqs = {
+    {Services::EvidenceClass::FileSearch, Services::Moderate}
+  };
+  auto gap = gape.evaluate(reqs, ev);
+  EXPECT_FALSE(gap.complete());
+  EXPECT_TRUE(gap.has_weak());
+  ASSERT_EQ(gap.requirements.size(), 1);
+  EXPECT_TRUE(gap.requirements[0].weak());
+}
+
+TEST(EvidenceGapTest, SatisfiedEvidenceIsComplete) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  ev.add_evidence_entry(Services::EvidenceClass::FileSearch, "grep", "term",
+                        Services::Moderate, Services::Medium, 5, 0, false);
+  ev.add_evidence_entry(Services::EvidenceClass::FileContent, "read", "file.cpp",
+                        Services::Moderate, Services::Medium, 0, 0, false);
+  std::vector<Services::EvidenceRequirement> reqs = {
+    {Services::EvidenceClass::FileSearch, Services::Moderate},
+    {Services::EvidenceClass::FileContent, Services::Moderate}
+  };
+  auto gap = gape.evaluate(reqs, ev);
+  EXPECT_TRUE(gap.complete());
+  EXPECT_FALSE(gap.has_missing());
+  EXPECT_FALSE(gap.has_weak());
+}
+
+TEST(EvidenceGapTest, MultipleRequirementsPartialCompletion) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  ev.add_evidence_entry(Services::EvidenceClass::FileSearch, "grep", "term",
+                        Services::Strong, Services::High, 1, 1, true);
+  // Missing FileContent
+  std::vector<Services::EvidenceRequirement> reqs = {
+    {Services::EvidenceClass::FileSearch, Services::Moderate},
+    {Services::EvidenceClass::FileContent, Services::Moderate}
+  };
+  auto gap = gape.evaluate(reqs, ev);
+  EXPECT_FALSE(gap.complete());
+  EXPECT_TRUE(gap.has_missing());
+  // FileSearch should be satisfied
+  EXPECT_TRUE(gap.requirements[0].satisfied());
+  EXPECT_FALSE(gap.requirements[0].missing());
+  EXPECT_FALSE(gap.requirements[0].weak());
+  // FileContent should be missing
+  EXPECT_TRUE(gap.requirements[1].missing());
+}
+
+TEST(EvidenceGapTest, UnverifiedIsTracked) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  // Single tool entry -- not independently verified
+  ev.add_evidence_entry(Services::EvidenceClass::FileSearch, "grep", "ExecutionEngine",
+                        Services::Strong, Services::High, 3, 3, true);
+  std::vector<Services::EvidenceRequirement> reqs = {
+    {Services::EvidenceClass::FileSearch, Services::Moderate}
+  };
+  auto gap = gape.evaluate(reqs, ev);
+  EXPECT_TRUE(gap.complete());
+  ASSERT_EQ(gap.requirements.size(), 1);
+  EXPECT_TRUE(gap.requirements[0].satisfied());
+  EXPECT_FALSE(gap.requirements[0].is_independently_verified);
+  EXPECT_TRUE(gap.requirements[0].unverified());
+}
+
+TEST(EvidenceGapTest, IndependentVerificationDetected) {
+  Services::EvidenceGapEngine gape;
+  Services::EvidenceStore ev;
+  // Two different tools converging on the same target
+  ev.add_evidence_entry(Services::EvidenceClass::FileSearch, "find", "ExecutionEngine",
+                        Services::Strong, Services::High, 1, 1, true);
+  ev.add_evidence_entry(Services::EvidenceClass::FileSearch, "grep", "ExecutionEngine",
+                        Services::Moderate, Services::Medium, 3, 0, false);
+  std::vector<Services::EvidenceRequirement> reqs = {
+    {Services::EvidenceClass::FileSearch, Services::Moderate}
+  };
+  auto gap = gape.evaluate(reqs, ev);
+  EXPECT_TRUE(gap.complete());
+  ASSERT_EQ(gap.requirements.size(), 1);
+  EXPECT_TRUE(gap.requirements[0].satisfied());
+  EXPECT_TRUE(gap.requirements[0].is_independently_verified);
+  EXPECT_FALSE(gap.requirements[0].unverified());
 }
 
 int main(int argc, char **argv) {
