@@ -429,6 +429,346 @@ TEST(InstrumentationTest, UserRejectedSetsTrustMetrics) {
   EXPECT_NE(t, t2); // different patterns should differ
 }
 
+// ============================================================
+// GoalUnderstandingService tests
+// ============================================================
+#include "services/goal_understanding_service.h"
+
+TEST(GoalUnderstandingTest, StatusWorkingTree) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("show changed files");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::GitWorkingTree);
+  EXPECT_EQ(pr.goal.artifact, Services::Artifact::Status);
+  EXPECT_EQ(pr.goal.scope, Services::Scope::Recent);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, StatusGitHistory) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("last commit");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::GitHistory);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, ExplainArchitecture) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("explain the architecture");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Explain);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::Architecture);
+  EXPECT_EQ(pr.goal.artifact, Services::Artifact::Overview);
+  EXPECT_EQ(pr.goal.scope, Services::Scope::Global);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, LocateSymbol) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("find CommandRouter");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Locate);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::Symbol);
+  EXPECT_EQ(pr.goal.artifact, Services::Artifact::Definition);
+  EXPECT_EQ(pr.goal.scope, Services::Scope::Local);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, DiagnoseCI) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("why did CI fail");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Diagnose);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::CIPipeline);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, ReviewArchitecture) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("review architecture");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Review);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::Architecture);
+  EXPECT_EQ(pr.goal.artifact, Services::Artifact::Report);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, ChatGreeting) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("hello");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Chat);
+  EXPECT_GE(pr.confidence, 0.3);
+}
+
+TEST(GoalUnderstandingTest, ExecuteBuild) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("run make test");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Execute);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::Build);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, StatusUncommitted) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("did I edit anything");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::GitWorkingTree);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, StatusFilesModified) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("what files are modified");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::GitWorkingTree);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, StatusSession) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("what provider am I using");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::Session);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, GitStatus) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("git status");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::GitWorkingTree);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, WhatChanged) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("what changed");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::GitWorkingTree);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, HowDoesThisWork) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("how does this work");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Explain);
+  EXPECT_GE(pr.confidence, 0.4);
+}
+
+TEST(GoalUnderstandingTest, GrepAgent) {
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("grep Agent");
+  EXPECT_EQ(pr.goal.intent, Services::Intent::Locate);
+  EXPECT_EQ(pr.goal.entity, Services::Entity::Symbol);
+  EXPECT_GE(pr.confidence, 0.5);
+}
+
+TEST(GoalUnderstandingTest, ParseResultStoredInExecutionResult) {
+  // Verify that the ExecutionResult properly holds a ParseResult
+  Services::GoalUnderstandingService gus;
+  auto pr = gus.parse("show changed files");
+
+  Services::ExecutionResult result;
+  result.parsed_goal = pr;
+
+  EXPECT_EQ(result.parsed_goal.goal.intent, Services::Intent::Status);
+  EXPECT_EQ(result.parsed_goal.goal.entity, Services::Entity::GitWorkingTree);
+  EXPECT_GE(result.parsed_goal.confidence, 0.5);
+  EXPECT_FALSE(result.parsed_goal.explanation.empty());
+}
+
+// ============================================================
+// Evidence derivation tests -- planner maps Goal to evidence requirements
+// ============================================================
+using Services::EvidenceClass;
+using Services::EvidenceRequirement;
+
+TEST(EvidenceForGoalTest, StatusGitHistoryRequiresGitLog) {
+  Services::Goal g;
+  g.intent = Services::Intent::Status;
+  g.entity = Services::Entity::GitHistory;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 1);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::GitLog);
+}
+
+TEST(EvidenceForGoalTest, StatusGitWorkingTreeRequiresGitLog) {
+  Services::Goal g;
+  g.intent = Services::Intent::Status;
+  g.entity = Services::Entity::GitWorkingTree;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 1);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::GitLog);
+}
+
+TEST(EvidenceForGoalTest, StatusSessionRequiresNoEvidence) {
+  Services::Goal g;
+  g.intent = Services::Intent::Status;
+  g.entity = Services::Entity::Session;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  EXPECT_TRUE(ev.empty());
+}
+
+TEST(EvidenceForGoalTest, LocateRequiresFileSearchAndContent) {
+  Services::Goal g;
+  g.intent = Services::Intent::Locate;
+  g.entity = Services::Entity::Symbol;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 2);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::FileSearch);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::FileContent);
+}
+
+TEST(EvidenceForGoalTest, ExplainArchitectureRequiresDiscoveryAndContent) {
+  Services::Goal g;
+  g.intent = Services::Intent::Explain;
+  g.entity = Services::Entity::Architecture;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 2);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Discovery);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::FileContent);
+}
+
+TEST(EvidenceForGoalTest, ExplainComponentRequiresDiscoveryAndContent) {
+  Services::Goal g;
+  g.intent = Services::Intent::Explain;
+  g.entity = Services::Entity::Component;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 2);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Discovery);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::FileContent);
+}
+
+TEST(EvidenceForGoalTest, ReviewRequiresDiscoveryFileSearchAndContent) {
+  Services::Goal g;
+  g.intent = Services::Intent::Review;
+  g.entity = Services::Entity::Architecture;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 3);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Discovery);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::FileSearch);
+  EXPECT_EQ(ev[2].ec, EvidenceClass::FileContent);
+}
+
+TEST(EvidenceForGoalTest, DiagnoseCIPipelineRequiresCIWorkflow) {
+  Services::Goal g;
+  g.intent = Services::Intent::Diagnose;
+  g.entity = Services::Entity::CIPipeline;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 1);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::CIWorkflow);
+}
+
+TEST(EvidenceForGoalTest, ModifyRequiresFullSuite) {
+  Services::Goal g;
+  g.intent = Services::Intent::Modify;
+  g.entity = Services::Entity::Component;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 5);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Discovery);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::FileSearch);
+  EXPECT_EQ(ev[2].ec, EvidenceClass::FileContent);
+  EXPECT_EQ(ev[3].ec, EvidenceClass::Build);
+  EXPECT_EQ(ev[4].ec, EvidenceClass::Test);
+}
+
+TEST(EvidenceForGoalTest, ExecuteRequiresBuildAndTest) {
+  Services::Goal g;
+  g.intent = Services::Intent::Execute;
+  g.entity = Services::Entity::Build;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 2);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Build);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::Test);
+}
+
+TEST(EvidenceForGoalTest, ChatRequiresNoEvidence) {
+  Services::Goal g;
+  g.intent = Services::Intent::Chat;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  EXPECT_TRUE(ev.empty());
+}
+
+TEST(EvidenceForGoalTest, UnknownIntentReturnsEmpty) {
+  Services::Goal g;
+  g.intent = Services::Intent::Unknown;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  EXPECT_TRUE(ev.empty());
+}
+
+TEST(EvidenceForGoalTest, CompareRequiresFileSearchAndContent) {
+  Services::Goal g;
+  g.intent = Services::Intent::Compare;
+  g.entity = Services::Entity::Symbol;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 2);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::FileSearch);
+  EXPECT_EQ(ev[1].ec, EvidenceClass::FileContent);
+}
+
+TEST(EvidenceForGoalTest, DiagnoseBuildRequiresBuildOnly) {
+  Services::Goal g;
+  g.intent = Services::Intent::Diagnose;
+  g.entity = Services::Entity::Build;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 1);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Build);
+}
+
+TEST(EvidenceForGoalTest, DiagnoseTestRequiresTestOnly) {
+  Services::Goal g;
+  g.intent = Services::Intent::Diagnose;
+  g.entity = Services::Entity::Test;
+  auto ev = Services::ExecutionEngine::evidence_for_goal(g);
+  ASSERT_EQ(ev.size(), 1);
+  EXPECT_EQ(ev[0].ec, EvidenceClass::Test);
+}
+
+// ============================================================
+// Completion check tests -- Goal-based completion vs GoalType-based
+// ============================================================
+
+TEST(CompletionGoalTest, ChatIsCompleteImmediately) {
+  Services::Goal g;
+  g.intent = Services::Intent::Chat;
+  Services::EvidenceStore empty;
+  EXPECT_TRUE(Services::ExecutionEngine::check_completion_goal(g, empty));
+}
+
+TEST(CompletionGoalTest, StatusWithGitLogIsComplete) {
+  Services::Goal g;
+  g.intent = Services::Intent::Status;
+  g.entity = Services::Entity::GitHistory;
+  Services::EvidenceStore ev;
+  ev.add_evidence_entry(EvidenceClass::GitLog, "git", "log --oneline -10",
+                        Services::Moderate, Services::High, 0, 0, false);
+  EXPECT_TRUE(Services::ExecutionEngine::check_completion_goal(g, ev));
+}
+
+TEST(CompletionGoalTest, StatusWithoutGitLogIsNotComplete) {
+  Services::Goal g;
+  g.intent = Services::Intent::Status;
+  g.entity = Services::Entity::GitHistory;
+  Services::EvidenceStore ev;
+  EXPECT_FALSE(Services::ExecutionEngine::check_completion_goal(g, ev));
+}
+
+TEST(CompletionGoalTest, LocateWithoutSearchIsNotComplete) {
+  Services::Goal g;
+  g.intent = Services::Intent::Locate;
+  g.entity = Services::Entity::Symbol;
+  Services::EvidenceStore ev;
+  EXPECT_FALSE(Services::ExecutionEngine::check_completion_goal(g, ev));
+}
+
+TEST(CompletionGoalTest, LocateWithAllEvidenceIsComplete) {
+  Services::Goal g;
+  g.intent = Services::Intent::Locate;
+  g.entity = Services::Entity::Symbol;
+  Services::EvidenceStore ev;
+  ev.add_evidence_entry(EvidenceClass::FileSearch, "grep", "term",
+                        Services::Moderate, Services::Medium, 5, 0, false);
+  ev.add_evidence_entry(EvidenceClass::FileContent, "read", "file.cpp",
+                        Services::Moderate, Services::Medium, 0, 0, false);
+  EXPECT_TRUE(Services::ExecutionEngine::check_completion_goal(g, ev));
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
