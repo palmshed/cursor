@@ -27,8 +27,26 @@ struct ToolResult {
 };
 
 enum EvidenceClass : int { FileSearch, FileContent, GitLog, Build, Test, Discovery, CIWorkflow };
+
 enum EvidenceQuality : int { QualNone, Weak, Moderate, Strong, Verified };
 enum EvidenceStrength : int { StrNone, Low, Medium, High };
+
+// What kind of match a tool producer observed.
+// Producers emit semantics; quality/strength are derived from semantics.
+enum class MatchSemantics : int {
+  Unknown,
+  ExactIdentifier,    // e.g. grep word-boundary match on a code symbol
+  ExactPhrase,        // quoted phrase match
+  ExactFilename,      // filename matched exactly
+  Definition,         // definition site found in file content
+  Declaration,        // declaration site found in file content
+  Reference,          // reference/symbol-use site found
+  Substring,          // partial/substring match
+  TokenOverlap,       // some tokens matched, not all
+  DirectoryContext,   // directory structure match
+  RepositoryMetadata  // git log, gh run, build output, test output
+};
+
 enum EvidenceNeed : int { Default, CommitHistory };
 enum class ClassifierMode : int { Deterministic, LLM };
 
@@ -36,6 +54,7 @@ struct EvidenceEntry {
   EvidenceClass type;
   EvidenceQuality quality{Weak};
   EvidenceStrength strength{Low};
+  MatchSemantics semantics{MatchSemantics::Unknown};
   std::string tool;
   std::string query;
   std::string target;
@@ -65,8 +84,10 @@ struct EvidenceStore {
   void add_fact(const std::string &fact);
   bool has_fact_containing(const std::string &keyword) const;
 
-  // Quality-aware evidence entry.
-  // tool, query, target, quality, strength describe provenance and precision.
+  // Evidence entry with semantic match description.
+  // When semantics is not Unknown, quality and strength are derived from
+  // semantics + match_count + phrase_match. Callers can override by passing
+  // explicit quality/strength (derivation is skipped if semantics is Unknown).
   void add_evidence_entry(EvidenceClass ec,
                           const std::string &tool = "",
                           const std::string &query = "",
@@ -74,7 +95,8 @@ struct EvidenceStore {
                           EvidenceStrength strength = Low,
                           int match_count = 0,
                           int exact_match_count = 0,
-                          bool phrase_match = false);
+                          bool phrase_match = false,
+                          MatchSemantics semantics = MatchSemantics::Unknown);
 
   // Legacy: adds entry with Weak quality (equivalent to old binary model).
   void mark_evidence_class(EvidenceClass ec);
