@@ -589,6 +589,7 @@ set(SERVICE_SOURCES
     src/services/symbol_service.cpp
     src/services/goal_understanding_service.cpp
     src/services/evidence_gap_engine.cpp
+    src/services/planner.cpp
 )
 
 set(DIAGNOSTICS_SOURCES
