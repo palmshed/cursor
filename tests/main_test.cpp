@@ -5,6 +5,7 @@
 #include "services/execution_engine.h"
 #include "services/evidence_gap_engine.h"
 #include "services/planner.h"
+#include "services/tool_resolver.h"
 #include "memory_manager.h"
 #include "agent.h"
 #include "app/command_router.h"
@@ -1006,6 +1007,71 @@ TEST(PlannerTest, WeakIsHigherPriorityThanUnverified) {
   EXPECT_TRUE(d.has_work);
   EXPECT_EQ(d.action, Services::PlannerAction::Strengthen);
   EXPECT_EQ(d.evidence_class, Services::FileContent);
+}
+
+// ---------------------------------------------------------------------------
+// ToolResolver tests
+// ---------------------------------------------------------------------------
+
+TEST(ToolResolverTest, FileSearchAcquireProducesFind) {
+  Services::ToolResolver resolver;
+  Services::PlannerDecision d;
+  d.has_work = true;
+  d.action = Services::PlannerAction::Acquire;
+  d.evidence_class = Services::FileSearch;
+  auto req = resolver.resolve(d, "OutcomeEnum");
+  EXPECT_EQ(req.tool, "find");
+  EXPECT_EQ(req.args, "OutcomeEnum");
+}
+
+TEST(ToolResolverTest, FileSearchStrengthenAddsImpl) {
+  Services::ToolResolver resolver;
+  Services::PlannerDecision d;
+  d.has_work = true;
+  d.action = Services::PlannerAction::Strengthen;
+  d.evidence_class = Services::FileSearch;
+  auto req = resolver.resolve(d, "CommandRouter");
+  EXPECT_EQ(req.tool, "find");
+  EXPECT_EQ(req.args, "CommandRouter --impl");
+}
+
+TEST(ToolResolverTest, FileSearchVerifyUsesGrep) {
+  Services::ToolResolver resolver;
+  Services::PlannerDecision d;
+  d.has_work = true;
+  d.action = Services::PlannerAction::Verify;
+  d.evidence_class = Services::FileSearch;
+  auto req = resolver.resolve(d, "ExecutionEngine");
+  EXPECT_EQ(req.tool, "grep");
+  EXPECT_EQ(req.args, "ExecutionEngine");
+}
+
+TEST(ToolResolverTest, GitLogUsesGitTool) {
+  Services::ToolResolver resolver;
+  Services::PlannerDecision d;
+  d.has_work = true;
+  d.action = Services::PlannerAction::Acquire;
+  d.evidence_class = Services::GitLog;
+  auto req = resolver.resolve(d, "");
+  EXPECT_EQ(req.tool, "git");
+}
+
+TEST(ToolResolverTest, CIVerifyUsesGh) {
+  Services::ToolResolver resolver;
+  Services::PlannerDecision d;
+  d.has_work = true;
+  d.action = Services::PlannerAction::Verify;
+  d.evidence_class = Services::CIWorkflow;
+  auto req = resolver.resolve(d, "");
+  EXPECT_EQ(req.tool, "gh");
+}
+
+TEST(ToolResolverTest, NoWorkProducesEmptyRequest) {
+  Services::ToolResolver resolver;
+  Services::PlannerDecision d;
+  d.has_work = false; // planner says done
+  auto req = resolver.resolve(d, "anything");
+  EXPECT_TRUE(req.empty());
 }
 
 int main(int argc, char **argv) {
