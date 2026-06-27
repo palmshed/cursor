@@ -235,6 +235,60 @@ bool EvidenceStore::has_fact_containing(const std::string &keyword) const {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Semantic derivation: MatchSemantics → EvidenceQuality / EvidenceStrength.
+// Producers emit factual match descriptions; quality and strength are derived
+// from what was observed, not assigned directly.
+// ---------------------------------------------------------------------------
+
+static EvidenceQuality derive_quality(MatchSemantics semantics,
+                                       bool phrase_match) {
+  switch (semantics) {
+    case MatchSemantics::ExactIdentifier:
+    case MatchSemantics::ExactFilename:
+    case MatchSemantics::Definition:
+    case MatchSemantics::Declaration:
+    case MatchSemantics::Reference:
+      return Strong;
+    case MatchSemantics::ExactPhrase:
+      return phrase_match ? Strong : Moderate;
+    case MatchSemantics::Substring:
+      return Moderate;
+    case MatchSemantics::TokenOverlap:
+      return Weak;
+    case MatchSemantics::DirectoryContext:
+    case MatchSemantics::RepositoryMetadata:
+      return Moderate;
+    default:
+      return Weak;
+  }
+}
+
+static EvidenceStrength derive_strength(MatchSemantics semantics,
+                                         int match_count) {
+  switch (semantics) {
+    case MatchSemantics::ExactIdentifier:
+    case MatchSemantics::ExactFilename:
+    case MatchSemantics::Definition:
+    case MatchSemantics::Declaration:
+    case MatchSemantics::Reference:
+      return match_count <= 1 ? High : Medium;
+    case MatchSemantics::ExactPhrase:
+      return match_count <= 1 ? Medium : Low;
+    case MatchSemantics::Substring:
+      return match_count <= 5 ? Medium : Low;
+    case MatchSemantics::TokenOverlap:
+      return Low;
+    case MatchSemantics::DirectoryContext:
+    case MatchSemantics::RepositoryMetadata:
+      return Medium;
+    default:
+      return Low;
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 void EvidenceStore::add_evidence_entry(EvidenceClass ec,
                                        const std::string &tool,
                                        const std::string &query,
@@ -242,7 +296,14 @@ void EvidenceStore::add_evidence_entry(EvidenceClass ec,
                                        EvidenceStrength strength,
                                        int match_count,
                                        int exact_match_count,
-                                       bool phrase_match) {
+                                       bool phrase_match,
+                                       MatchSemantics semantics) {
+  // Derive quality/strength from semantics when provided
+  if (semantics != MatchSemantics::Unknown) {
+    quality = derive_quality(semantics, phrase_match);
+    strength = derive_strength(semantics, match_count);
+  }
+
   // Allow multiple entries from different tools even if quality is already met,
   // so the EvidenceGapEngine can detect independent verification.
   // Only skip if the exact same tool already covered this at >= quality.
@@ -259,6 +320,7 @@ void EvidenceStore::add_evidence_entry(EvidenceClass ec,
   ee.type = ec;
   ee.quality = quality;
   ee.strength = strength;
+  ee.semantics = semantics;
   ee.tool = tool;
   ee.query = query;
   ee.target = query; // simplified: use query as target
@@ -1333,19 +1395,23 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
               if (rtr.tool == "grep" && !rtr.out.empty() && rtr.out != "no matches") {
                 evidence.add_fact("grep:results");
                 evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                            rtr.tool, rtr.args, Moderate, Medium,
+                                            0, 0, false, MatchSemantics::Substring);
               } else if (rtr.tool == "read" && !rtr.out.empty() && rtr.out != "no files to read") {
                 evidence.add_fact("read:results");
                 evidence.add_evidence_entry(EvidenceClass::FileContent,
-                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                            rtr.tool, rtr.args, Moderate, Medium,
+                                            0, 0, false, MatchSemantics::ExactIdentifier);
               } else if (rtr.tool == "discovery" && !rtr.out.empty()) {
                 evidence.add_fact("discovery:results");
                 evidence.add_evidence_entry(EvidenceClass::Discovery,
-                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                            rtr.tool, rtr.args, Moderate, Medium,
+                                            0, 0, false, MatchSemantics::DirectoryContext);
               } else if (rtr.tool == "find" && !rtr.out.empty() && rtr.out != "no matches") {
                 evidence.add_fact("find:results");
                 evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                            rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                            rtr.tool, rtr.args, Moderate, Medium,
+                                            0, 0, false, MatchSemantics::Substring);
               }
               // Evaluate confidence for recovery tool (normal category, not hardcoded 0.5)
               {
@@ -1534,49 +1600,64 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       evidence.add_fact(tc.tool + ":results");
 
     // Mark evidence class based on tool (only when results produced).
-    // Use quality-aware entries: grep with many matches is Weak (imprecise),
-    // few matches is Moderate. Find/references produce more precise matches.
+    // Producers emit MatchSemantics (what was observed). Quality and strength
+    // are derived from semantics by add_evidence_entry.
     if (has_results) {
       if (tc.tool == "grep") {
-        // Count matches to determine quality
         int match_lines = 0;
         std::istringstream gcount(tr.out);
         std::string gl;
         while (std::getline(gcount, gl))
           if (!gl.empty() && gl != "no matches") match_lines++;
-        auto q = (match_lines <= 10) ? Moderate : Weak;
+        MatchSemantics sem = MatchSemantics::Substring;
+        // Quoted queries produce phrase matches
+        if (tc.args.find('"') != std::string::npos ||
+            tc.args.find('\'') != std::string::npos)
+          sem = MatchSemantics::ExactPhrase;
         evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                    tc.tool, tc.args, q, Medium, match_lines, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    match_lines, 0, false, sem);
       } else if (tc.tool == "references") {
         evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, MatchSemantics::Reference);
       } else if (tc.tool == "read") {
         evidence.add_evidence_entry(EvidenceClass::FileContent,
-                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, MatchSemantics::ExactIdentifier);
       } else if (tc.tool == "discovery") {
         evidence.add_evidence_entry(EvidenceClass::Discovery,
-                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, MatchSemantics::DirectoryContext);
       } else if (tc.tool == "cmake" && tr.out.find("error") == std::string::npos) {
         evidence.add_evidence_entry(EvidenceClass::Build,
-                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, MatchSemantics::RepositoryMetadata);
       } else if (tc.tool == "ctest" &&
                  tr.out.find("failed") == std::string::npos &&
                  tr.out.find("FAILED") == std::string::npos) {
         evidence.add_evidence_entry(EvidenceClass::Test,
-                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, MatchSemantics::RepositoryMetadata);
       } else if (tc.tool == "gh") {
         evidence.add_evidence_entry(EvidenceClass::CIWorkflow,
-                                    tc.tool, tc.args, Moderate, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, MatchSemantics::RepositoryMetadata);
       } else if (tc.tool == "git") {
         evidence.add_evidence_entry(EvidenceClass::GitLog,
-                                    tc.tool, tc.args, Moderate, High, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, High,
+                                    0, 0, false, MatchSemantics::RepositoryMetadata);
       } else if (tc.tool == "find") {
-        // Find quality depends on match reason (filename/symbol = Strong)
-        bool is_exact = (tr.out.find("REASON: filename match") != std::string::npos ||
-                         tr.out.find("REASON: symbol match") != std::string::npos);
-        auto q = is_exact ? Strong : Moderate;
+        // Find semantics depends on match reason
+        MatchSemantics sem = MatchSemantics::Substring;
+        if (tr.out.find("REASON: filename match") != std::string::npos ||
+            tr.out.find("REASON: symbol match") != std::string::npos)
+          sem = MatchSemantics::ExactFilename;
+        else if (tr.out.find("REASON: directory match") != std::string::npos)
+          sem = MatchSemantics::DirectoryContext;
         evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                    tc.tool, tc.args, q, Medium, 0, 0, false);
+                                    tc.tool, tc.args, Moderate, Medium,
+                                    0, 0, false, sem);
       }
     }
 
@@ -1678,19 +1759,23 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
             if (rtr.tool == "grep" && !rtr.out.empty() && rtr.out != "no matches") {
               evidence.add_fact("grep:results");
               evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                          rtr.tool, rtr.args, Moderate, Medium,
+                                          0, 0, false, MatchSemantics::Substring);
             } else if (rtr.tool == "read" && !rtr.out.empty() && rtr.out != "no files to read") {
               evidence.add_fact("read:results");
               evidence.add_evidence_entry(EvidenceClass::FileContent,
-                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                          rtr.tool, rtr.args, Moderate, Medium,
+                                          0, 0, false, MatchSemantics::ExactIdentifier);
             } else if (rtr.tool == "discovery" && !rtr.out.empty()) {
               evidence.add_fact("discovery:results");
               evidence.add_evidence_entry(EvidenceClass::Discovery,
-                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                          rtr.tool, rtr.args, Moderate, Medium,
+                                          0, 0, false, MatchSemantics::DirectoryContext);
             } else if (rtr.tool == "find" && !rtr.out.empty() && rtr.out != "no matches") {
               evidence.add_fact("find:results");
               evidence.add_evidence_entry(EvidenceClass::FileSearch,
-                                          rtr.tool, rtr.args, Moderate, Medium, 0, 0, false);
+                                          rtr.tool, rtr.args, Moderate, Medium,
+                                          0, 0, false, MatchSemantics::Substring);
             }
             // Evaluate confidence for mid-loop recovery tool
             {
