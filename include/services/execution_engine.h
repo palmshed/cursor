@@ -1,5 +1,6 @@
 #pragma once
 #include "core/metrics.h"
+#include "services/goal_understanding_service.h"
 #include <functional>
 #include <string>
 #include <vector>
@@ -26,19 +27,62 @@ struct ToolResult {
 };
 
 enum EvidenceClass : int { FileSearch, FileContent, GitLog, Build, Test, Discovery, CIWorkflow };
+enum EvidenceQuality : int { QualNone, Weak, Moderate, Strong, Verified };
+enum EvidenceStrength : int { StrNone, Low, Medium, High };
 enum EvidenceNeed : int { Default, CommitHistory };
 enum class ClassifierMode : int { Deterministic, LLM };
 
+struct EvidenceEntry {
+  EvidenceClass type;
+  EvidenceQuality quality{Weak};
+  EvidenceStrength strength{Low};
+  std::string tool;
+  std::string query;
+  std::string target;
+  std::vector<std::string> sources;
+  int match_count{0};
+  int exact_match_count{0};
+  bool phrase_match{false};
+};
+
+struct EvidenceRequirement {
+  EvidenceClass ec;
+  EvidenceQuality min_quality;
+  // Verified is a derived relationship (≥2 independent producers agree
+  // on the same target, or 1 authoritative source). Single tools cannot
+  // assign Verified -- it is computed by the planner after tool selection.
+  EvidenceStrength min_strength{StrNone};
+  bool require_independent_verification{false};
+};
+
 struct EvidenceStore {
+  std::vector<EvidenceEntry> entries;
   std::vector<std::string> facts;
   std::vector<std::string> modified_files;
   std::string build_result;
   std::string test_result;
-  std::vector<EvidenceClass> classes;
 
   void add_fact(const std::string &fact);
   bool has_fact_containing(const std::string &keyword) const;
+
+  // Quality-aware evidence entry.
+  // tool, query, target, quality, strength describe provenance and precision.
+  void add_evidence_entry(EvidenceClass ec,
+                          const std::string &tool = "",
+                          const std::string &query = "",
+                          EvidenceQuality quality = Weak,
+                          EvidenceStrength strength = Low,
+                          int match_count = 0,
+                          int exact_match_count = 0,
+                          bool phrase_match = false);
+
+  // Legacy: adds entry with Weak quality (equivalent to old binary model).
   void mark_evidence_class(EvidenceClass ec);
+
+  // Returns true if any entry of type ec has quality >= min_quality.
+  bool has_quality(EvidenceClass ec, EvidenceQuality min_quality) const;
+
+  // Legacy methods (derive from entries).
   bool has_any_evidence_class(const std::vector<EvidenceClass> &required) const;
   bool has_all_evidence_classes(const std::vector<EvidenceClass> &required) const;
 };
@@ -53,6 +97,8 @@ struct ExecutionResult {
   EvidenceStore evidence;
   std::vector<ToolResult> tool_history;
   int goal_type{0};
+  // Goal Understanding phase: structured parse of user intent (telemetry only)
+  ParseResult parsed_goal;
   double confidence{0.0};
   bool stopped_early{false};
   std::string stop_reason;
@@ -80,6 +126,17 @@ public:
   // Completion check -- public so callers can inspect
   bool goal_is_achieved(const std::string &goal,
                         EvidenceStore &evidence);
+
+  // Evidence derivation from Goal (Intent + Entity) -- public for testability.
+  // GoalUnderstandingService must never know about evidence or tools -- this
+  // function lives in the planner layer.
+  // Returns requirements with minimum quality thresholds per evidence class.
+  static std::vector<EvidenceRequirement> evidence_for_goal(const Goal &goal);
+
+  // Goal-aware completion -- checks all evidence_for_goal() requirements
+  // are satisfied at the required min_quality.
+  // Replaces per-GoalType completion once Goal routing is active.
+  static bool check_completion_goal(const Goal &goal, EvidenceStore &evidence);
 
   static std::string goal_type_name(GoalType t);
 
