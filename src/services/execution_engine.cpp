@@ -596,7 +596,7 @@ ToolCall ExecutionEngine::select_next_tool(
         return {};
       }
 
-      // 0. Git diff (before reference/find — live operation, not file search)
+      // 0. Git diff (before reference/find -- live operation, not file search)
       if (is_git_diff_query(goal)) {
         if (!evidence.has_fact_containing("git diff")) {
           return {"git", "diff"};
@@ -629,7 +629,7 @@ ToolCall ExecutionEngine::select_next_tool(
           // Signal implementation-vs-header preference via args
           return {"find", term + (impl ? " --impl" : "")};
         }
-        // Empty term — skip find, go straight to grep
+        // Empty term -- skip find, go straight to grep
         evidence.add_fact("find:done");
         evidence.add_fact("find:noresults");
       }
@@ -640,7 +640,7 @@ ToolCall ExecutionEngine::select_next_tool(
         return {"read", ""};
       }
 
-      // 1. Search the codebase (grep fallback — only if find didn't resolve)
+      // 1. Search the codebase (grep fallback -- only if find didn't resolve)
       if (!evidence.has_fact_containing("grep") &&
           !evidence.has_fact_containing("search")) {
         std::string term = extract_best_term(goal);
@@ -693,7 +693,7 @@ ToolCall ExecutionEngine::select_next_tool(
         return {"grep", "AuthProvider"};
       if (!evidence.has_fact_containing("grep provider_label"))
         return {"grep", "provider_label|category_label|tier_label|api_key_var"};
-      // Use "read " + path for precise tracking — avoids false matches
+      // Use "read " + path for precise tracking -- avoids false matches
       // from grep output that happens to contain the same path substring
       if (!evidence.has_fact_containing("read include/core/session_state.h"))
         return {"read", "include/core/session_state.h"};
@@ -821,7 +821,7 @@ ToolCall ExecutionEngine::select_next_tool_llm(
 }
 
 // ---------------------------------------------------------------------------
-// Recovery tool selection — called when the primary sequence is exhausted
+// Recovery tool selection -- called when the primary sequence is exhausted
 // but evidence is still insufficient.
 // ---------------------------------------------------------------------------
 
@@ -1057,7 +1057,7 @@ std::string ExecutionEngine::build_review_report(
           "Legacy AgentMode enum remains",
           "Medium",
           f + " defines `enum AgentMode { ... }`\n"
-               "Never referenced at runtime — vestigial.",
+               "Never referenced at runtime -- vestigial.",
           "Remove AgentMode enum and associated MODE_ constants\n"
                "after one release cycle.");
       }
@@ -1129,7 +1129,7 @@ std::string ExecutionEngine::build_review_report(
   }
 
   if (findings == 0) {
-    r << "\nNo findings — architecture is clean.\n";
+    r << "\nNo findings -- architecture is clean.\n";
   }
 
   r << std::string(50, '=') << "\n";
@@ -1578,7 +1578,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
               continue;  // exit the loop normally at next iteration
             }
             // Recovery ran but completion not satisfied yet.
-            // Don't break — the next primary tool selection might complete it.
+            // Don't break -- the next primary tool selection might complete it.
             // e.g., after find+grep (low confidence), recovery might add a search
             // tool, but we still need read. Let the primary sequence try read.
             continue;
@@ -1593,7 +1593,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     ui.show_investigation_complete();
   }
 
-  // Build summary (planner debug log — for inspect mode / ArchitectureReview)
+  // Build summary (planner debug log -- for inspect mode / ArchitectureReview)
   std::string summary;
   summary += "Goal type: " + goal_type_name(type) + "\n";
   summary +=
@@ -1684,7 +1684,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
           if (pos != std::string::npos)
             evidence_summary += "Selected: " + rest.substr(pos) + "\n";
         }
-        // Skip "REASON:" lines — not useful as evidence
+        // Skip "REASON:" lines -- not useful as evidence
       }
     } else if (tr.tool == "grep") {
       // Grep output is already clean: "file:line: content"
@@ -1771,7 +1771,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   } else if (result.success) {
     result.outcome = Core::Outcome::Success;
   } else if (result.recovery_metrics.evidence_found) {
-    // Evidence exists but is the wrong class — judgment worked
+    // Evidence exists but is the wrong class -- judgment worked
     result.outcome = Core::Outcome::InsufficientEvidence;
   } else {
     result.outcome = Core::Outcome::Failure;

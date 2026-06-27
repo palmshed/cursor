@@ -113,7 +113,7 @@ void Startup::initialize(Agent& agent) {
     }
 
     // ── Free / Paid: pick a category ─────────────────────────────────────
-    // Build the category list dynamically — skip empty ones.
+    // Build the category list dynamically -- skip empty ones.
     const std::vector<ModelCategory> all_cats = {
       ModelCategory::Coding,
       ModelCategory::General,

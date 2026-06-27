@@ -46,7 +46,7 @@ Tool sequence for "Locate the definition of MemoryManager":
     combine(): 7 scores → 4.55 / 7 = 0.65
 ```
 
-The planner correctly found the class, read its header, confirmed with grep, found callers, and read usage. Three of the seven scores are the `after_read(1, true)` 0.55 — together they pull the average down by 0.09 relative to the search + reference tools.
+The planner correctly found the class, read its header, confirmed with grep, found callers, and read usage. Three of the seven scores are the `after_read(1, true)` 0.55 -- together they pull the average down by 0.09 relative to the search + reference tools.
 
 ---
 
@@ -77,7 +77,7 @@ cr = ConfidenceService::after_read(1, true);
 
 `files_read` is hardcoded `1` and `relevant_to_goal` is hardcoded `true`. The function's signature supports richer input but the call site never provides it.
 
-Reading the file that `find` located and `grep` confirmed is the **most informative step** in the pipeline — the planner found the right file and read it. But it contributes only 0.55, less than any successful search or reference tool.
+Reading the file that `find` located and `grep` confirmed is the **most informative step** in the pipeline -- the planner found the right file and read it. But it contributes only 0.55, less than any successful search or reference tool.
 
 **Impact on 50-query average:** If `after_read()` returned 0.80 for confirmed-relevant reads, application-wide confidence would rise from 0.591 to approximately 0.72 using the same tool histories.
 
@@ -131,7 +131,7 @@ Average confidence is 0.59, so this threshold is crossed by every query. The pla
 ConfidenceService::should_stop(combined, 0.2)
 ```
 
-With average confidence at 0.59, the stop gate (threshold 0.2) is never triggered during normal operation. This is actually correct behavior — we don't want to stop investigations that are producing evidence. But it means the stop gate is vestigial at current calibration levels.
+With average confidence at 0.59, the stop gate (threshold 0.2) is never triggered during normal operation. This is actually correct behavior -- we don't want to stop investigations that are producing evidence. But it means the stop gate is vestigial at current calibration levels.
 
 ### `confidence_delta` is misleading
 

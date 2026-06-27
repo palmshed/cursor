@@ -420,7 +420,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
         + engine_result.evidence_summary
         + "\n\nThe answer to the user's question is in the evidence above. "
           "Base your answer on this repository evidence. "
-          "Do not suggest generic commands or search strategies — "
+          "Do not suggest generic commands or search strategies -- "
           "the evidence was already collected from this repository.";
   } else {
     engine_evidence_context_.clear();
@@ -846,7 +846,7 @@ std::string CommandRouter::handle_ai_chat(const std::string &input) {
   std::string system_prompt = "You are a code investigation assistant. Answer the user's question "
       "directly using the repository evidence provided. "
       "Do not include tool calls, planner metadata, confidence values, or investigation details in your answer. "
-      "Do not say \"I'll check\" or \"Preparing\" — the investigation is already complete. "
+      "Do not say \"I'll check\" or \"Preparing\" -- the investigation is already complete. "
       "Synthesize a clear, direct answer from the evidence below. "
       "If the evidence includes file contents, summarize the relevant parts. "
       "If the evidence includes search results, explain what was found.";
@@ -1492,7 +1492,7 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
     return std::make_optional(std::string("cmd:") + *cmd);
   }
 
-  // Build / compile requests — route through engine for outcome tracking
+  // Build / compile requests -- route through engine for outcome tracking
   // Only intercept explicit "build:" prefix for direct commands
 
   // TODO / task comment queries (prefer over grep)
@@ -1500,7 +1500,7 @@ std::optional<std::string> CommandRouter::map_nl_to_direct_command(
     return std::make_optional(std::string("todos:."));
   }
 
-  // Grep/search-style queries — route through execution engine for proper
+  // Grep/search-style queries -- route through execution engine for proper
   // outcome tracking. Direct grep: prefix still works for explicit commands.
   if (lower.find("grep ") == 0) {
     if (auto g = extract_after({"grep "}))
@@ -3058,7 +3058,7 @@ void CommandRouter::handle_ci_command(const std::string &command) {
     std::string logs = Services::CiInvestigationService::analyze_logs(run_id);
     std::cout << logs << "\n";
   } else if (command == "repair") {
-    // /ci repair — full CI repair pipeline
+    // /ci repair -- full CI repair pipeline
     ui_.show_pipeline_section("CI Repair");
 
     // 1. Investigate
@@ -3128,7 +3128,7 @@ void CommandRouter::handle_ci_command(const std::string &command) {
 
     if (agent_.state_.perm_mode_ == Core::PermissionMode::REVIEW) {
       std::cout << Utils::Color::YELLOW
-                << "  [review] Read-only mode — changes skipped.\n"
+                << "  [review] Read-only mode -- changes skipped.\n"
                 << Utils::Color::RESET;
       return;
     }
@@ -3173,7 +3173,7 @@ void CommandRouter::handle_ci_command(const std::string &command) {
 }
 
 // ---------------------------------------------------------------------------
-// Direct command handlers — dependency / symbol / reference analysis
+// Direct command handlers -- dependency / symbol / reference analysis
 // ---------------------------------------------------------------------------
 
 void CommandRouter::handle_deps_command(const std::string &command) {
@@ -3229,7 +3229,7 @@ public:
   explicit EvidenceCollector(ToolCallback cb = nullptr)
       : tool_cb_(std::move(cb)) {}
 
-  // Get evidence for a specific task — only runs the commands this task needs
+  // Get evidence for a specific task -- only runs the commands this task needs
   std::string get_evidence(const Services::TaskItem &task) {
     // Build verification tasks
     if (task.description.find("Verify build") != std::string::npos ||
@@ -3244,7 +3244,7 @@ public:
       return tr.empty() ? "[test] not run" : "[test] " + tr;
     }
 
-    // File-specific tasks — show diff snippet
+    // File-specific tasks -- show diff snippet
     if (!task.file_ref.empty()) {
       auto snippet = diff_snippet_for(task.file_ref);
       if (!snippet.empty())
@@ -3503,7 +3503,7 @@ std::string CommandRouter::handle_task_with_planning(const std::string &input) {
   // Gate apply on permission mode
   if (agent_.state_.perm_mode_ == Core::PermissionMode::REVIEW) {
     std::cout << Utils::Color::YELLOW
-              << "  [review] Read-only mode — changes skipped.\n"
+              << "  [review] Read-only mode -- changes skipped.\n"
               << Utils::Color::RESET;
     agent_.state_.last_trust_metrics.diff_approved = false;
     return result;

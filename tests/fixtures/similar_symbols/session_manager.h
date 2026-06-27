@@ -1,4 +1,4 @@
-// Similar symbol — exists alongside real SessionState to test disambiguation
+// Similar symbol -- exists alongside real SessionState to test disambiguation
 // The planner should find real SessionState, not this one
 #pragma once
 #include <string>

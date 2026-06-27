@@ -1,4 +1,4 @@
-# Level 2 Sprint 2 — Planner Recovery
+# Level 2 Sprint 2 -- Planner Recovery
 
 ## Mission
 
@@ -26,7 +26,7 @@ select_next_tool()  →  run_tool()  →  accumulate evidence
     └───────────────┘
 ```
 
-The planner runs a single pass through the tool sequence. If `select_next_tool()` returns empty, the loop exits regardless of evidence quality. Low confidence triggers early stop — no recovery path.
+The planner runs a single pass through the tool sequence. If `select_next_tool()` returns empty, the loop exits regardless of evidence quality. Low confidence triggers early stop -- no recovery path.
 
 ### After (Recovery Loop)
 
@@ -75,21 +75,21 @@ Strategies are evaluated in order. The first matching strategy is used per recov
 
 Recovery fires at three points in the execute loop:
 
-1. **Tool sequence exhausted** — when `select_next_tool()` returns empty but completion is false, `select_recovery_tool()` is called before the loop exits (`execution_engine.cpp:1150-1157`)
+1. **Tool sequence exhausted** -- when `select_next_tool()` returns empty but completion is false, `select_recovery_tool()` is called before the loop exits (`execution_engine.cpp:1150-1157`)
 
-2. **Low confidence** — when `ConfidenceService::should_stop()` fires, recovery is tried before declaring `stopped_early` (`execution_engine.cpp:1339-1345`)
+2. **Low confidence** -- when `ConfidenceService::should_stop()` fires, recovery is tried before declaring `stopped_early` (`execution_engine.cpp:1339-1345`)
 
-3. **Post-completion confidence gate** — even when `check_completion()` returns true, if combined confidence < 0.7, a recovery tool may be executed (`execution_engine.cpp:1146-1182`)
+3. **Post-completion confidence gate** -- even when `check_completion()` returns true, if combined confidence < 0.7, a recovery tool may be executed (`execution_engine.cpp:1146-1182`)
 
 ## Telemetry
 
 Recovery attempts are recorded in the evidence store as `recovery:attempt=N` facts.
 
 Existing `RecoveryMetrics` continues to track:
-- `attempts` — total tool execution count
-- `strategy_changes` — tool type switches
-- `evidence_found` / `verification_found` — binary outcome
-- `confidence_delta` — change over the session
+- `attempts` -- total tool execution count
+- `strategy_changes` -- tool type switches
+- `evidence_found` / `verification_found` -- binary outcome
+- `confidence_delta` -- change over the session
 - Per-tool counters (grep, read, find)
 
 ## Files Changed

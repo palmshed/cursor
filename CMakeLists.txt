@@ -373,7 +373,7 @@ set(CPR_MIN_VERSION "1.10.0")
 set(CPR_FOUND FALSE)
 
 # First try to find CPR using config mode.
-# Skip on macOS — Homebrew cpr bottles often reference stale Xcode SDK
+# Skip on macOS -- Homebrew cpr bottles often reference stale Xcode SDK
 # paths that don't exist on the runner, causing CMake 3.31+ to error.
 # Build from source via FetchContent on macOS for reliability.
 if(NOT APPLE)

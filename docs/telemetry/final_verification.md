@@ -42,7 +42,7 @@ All 4 binaries (cursor-agent, validation_runner, benchmark_runner) contain the `
 - `evidence` → 8 candidates, selected `scenarios/diagnostics/evidence_export.json`
 - `CommandRouter` → 2 candidates (from benchmark run)
 
-The diagnostics path's UI shows `✓ 0 candidates ()` — this is a **display-only** issue: the diagnostics handler outputs bare paths (no `CANDIDATE:` prefix), so the UI manager at `ui_manager.cpp:868-880` counts 0. The candidates ARE found and passed to the engine (`tr.out` is non-empty → `has_results=true` → `evidence.add_fact("find:results")`). This is pre-existing behavior, not a regression.
+The diagnostics path's UI shows `✓ 0 candidates ()` -- this is a **display-only** issue: the diagnostics handler outputs bare paths (no `CANDIDATE:` prefix), so the UI manager at `ui_manager.cpp:868-880` counts 0. The candidates ARE found and passed to the engine (`tr.out` is non-empty → `has_results=true` → `evidence.add_fact("find:results")`). This is pre-existing behavior, not a regression.
 
 ### 3. Winner selection is identical
 

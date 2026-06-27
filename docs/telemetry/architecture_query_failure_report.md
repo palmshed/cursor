@@ -3,7 +3,7 @@
 **Date:** 2026-06-26  
 **Report:** `architecture_query_failure_report.md`  
 **Trigger:** `"tell me how this agent designed"`  
-**Phase:** Investigative — no fix applied
+**Phase:** Investigative -- no fix applied
 
 ---
 
@@ -76,11 +76,11 @@ For `"design"` at position 23 of `"tell me how this agent designed"`:
 | `boundary_before` | 22 | `' '` (space) | `true` |
 | `boundary_after` | 29 | `'e'` (part of "designed") | `false` |
 
-`'e'` is not a word boundary character — the match fails because "design" is a suffix of "designed".
+`'e'` is not a word boundary character -- the match fails because "design" is a suffix of "designed".
 
 #### Second sub-check: `contains_any(goal, {"explain the", "how does the", "how does a", "tell me how the"})`
 
-The goal contains `"tell me how this agent designed"` — "tell me how **the**" is not found because "this" separates "how" from "the".
+The goal contains `"tell me how this agent designed"` -- "tell me how **the**" is not found because "this" separates "how" from "the".
 
 #### Third sub-check: compound gate
 
@@ -113,8 +113,8 @@ if (contains_any(goal, {"where", "what is", "what does", "what's",
 ### What should have happened
 
 `"tell me how this agent designed"` contains:
-- `"tell me how"` — explanatory intent trigger
-- `"designed"` — architecture/design intent (morphological variant of "design")
+- `"tell me how"` -- explanatory intent trigger
+- `"designed"` -- architecture/design intent (morphological variant of "design")
 - No specific code symbol to locate
 
 This is architecturally equivalent to `"how does this agent work"` or `"tell me about the architecture"`. It should be classified as `CodebaseOverview`.
@@ -130,8 +130,8 @@ This is architecturally equivalent to `"how does this agent work"` or `"tell me 
 | Step | Tool | Args | Result |
 |---|---|---|---|
 | 1 | `find` | `agent` | `include/agent.h` (score 20, exact stem match) |
-| 2 | `read` | `include/agent.h` | 82 lines — class Agent { ... } (interface only) |
-| 3 | *(completion)* | — | find_ok=true → stop |
+| 2 | `read` | `include/agent.h` | 82 lines -- class Agent { ... } (interface only) |
+| 3 | *(completion)* | -- | find_ok=true → stop |
 
 **Files read:** 1 (`include/agent.h`)  
 **Total tools executed:** 2  
@@ -192,7 +192,7 @@ case CodebaseOverview:
          evidence.has_fact_containing("read:results");
 ```
 
-The CodebaseOverview gate requires `discovery` + `read:results` — evidence of multiple file reads. This produces richer evidence.
+The CodebaseOverview gate requires `discovery` + `read:results` -- evidence of multiple file reads. This produces richer evidence.
 
 ---
 
@@ -206,7 +206,7 @@ bool CommandRouter::should_call_ai(const Services::ExecutionResult &result) {
 }
 ```
 
-Since `outcome == Success`, AI is called unconditionally. The AI receives `engine_result.summary` — a tool history containing:
+Since `outcome == Success`, AI is called unconditionally. The AI receives `engine_result.summary` -- a tool history containing:
 
 - `find agent → include/agent.h`
 - read contents of `include/agent.h`
@@ -234,9 +234,9 @@ private:
 ```
 
 **What is missing:**
-- `src/core/agent.cpp` — implementation of `run()`, lifecycle, orchestration
-- `AGENTS.md` — architecture documentation
-- `src/main.cpp` — how Agent is instantiated and wired
+- `src/core/agent.cpp` -- implementation of `run()`, lifecycle, orchestration
+- `AGENTS.md` -- architecture documentation
+- `src/main.cpp` -- how Agent is instantiated and wired
 - Call sites: what owns Agent, what depends on Agent
 - Relationship to ExecutionEngine, CommandRouter, ReplayService
 
@@ -258,15 +258,15 @@ The AI cannot explain "how this agent is designed" from a single header with dec
 
 | Metric | Value | Interpretation |
 |---|---|---|
-| `filename_hit_rate` | 1.0 | Find succeeded — correctly found `agent.h` |
+| `filename_hit_rate` | 1.0 | Find succeeded -- correctly found `agent.h` |
 | `symbol_hit_rate` | 0.0 | No symbol scanning needed (exact filename match) |
 | `reference_hit_rate` | N/A | Reference search not triggered |
-| `grep_fallback_rate` | 0.0 | Grep not reached — find succeeded |
+| `grep_fallback_rate` | 0.0 | Grep not reached -- find succeeded |
 | `average_files_read` | **1** | Too low for architecture questions |
 | Semantic correctness | **0%** | Answer is not useful for "how is it designed" |
 | `time_until_useful_result` | ~40ms | Fast but useless |
 | User rejection risk | **High** | User sees shallow answer and aborts |
-| `insufficient_evidence` impact | None | Engine reports Success, not InsufficientEvidence — the failure is invisible to telemetry |
+| `insufficient_evidence` impact | None | Engine reports Success, not InsufficientEvidence -- the failure is invisible to telemetry |
 
 **Key insight:** The query reports as `Success` in telemetry because find+read both succeed. The failure is semantic, not mechanical. Standard telemetry metrics (tool counts, exit codes) do not capture this failure mode.
 
@@ -283,7 +283,7 @@ if (contains_any(goal, {"architecture", "design", "designed",
                          "how it works", "how does it work"}) ||
 ```
 
-**Risk:** **Low.** Adding a known morphological variant of an existing trigger word. `"designed"` cannot appear in a lookup context without architectural intent (e.g. `"where is X designed"` would be unusual). The `"designed"` match uses the same word-boundary logic — `word_boundary(' ')` after "designed" is true for any typical sentence.
+**Risk:** **Low.** Adding a known morphological variant of an existing trigger word. `"designed"` cannot appear in a lookup context without architectural intent (e.g. `"where is X designed"` would be unusual). The `"designed"` match uses the same word-boundary logic -- `word_boundary(' ')` after "designed" is true for any typical sentence.
 
 **Impact:** This query would route to CodebaseOverview and follow the discovery→read pattern, producing AGENTS.md + README + CMakeLists.txt evidence.
 
@@ -319,11 +319,11 @@ static bool contains_any_suffix(const std::string &text,
 }
 ```
 
-**Risk:** **Medium.** Could match unintended words if a root is short (e.g., "how" would match "however"). Should be used selectively — only for roots where suffix matches are semantically safe: "design", "implement", "architecture", "configure".
+**Risk:** **Medium.** Could match unintended words if a root is short (e.g., "how" would match "however"). Should be used selectively -- only for roots where suffix matches are semantically safe: "design", "implement", "architecture", "configure".
 
 **Impact:** Generalizes the fix beyond this single query. Any morphological variant of "design" would match (designed, designing, redesign, etc.).
 
-### Fix 3: Intermediate intent layer — "explain X" vs "find X"
+### Fix 3: Intermediate intent layer -- "explain X" vs "find X"
 
 **Description:** Add an intermediate classification layer between CodebaseOverview and CodebaseQuery that detects explanatory intent toward a specific code entity (e.g., "how does X work", "how is X designed", "tell me how X works"). Route these to an "ExplainCodebaseEntity" path that:
 
@@ -361,11 +361,11 @@ if (is_explanatory_query(goal) && evidence.has_fact_containing("find:results")) 
 }
 ```
 
-**Risk:** **Medium.** Increases tool count for all CodebaseQuery queries that contain "how" — including `"how do I add a file"` which currently works fine with one find+read. Would need careful guarding to avoid regressions on lookup queries that happen to contain "how".
+**Risk:** **Medium.** Increases tool count for all CodebaseQuery queries that contain "how" -- including `"how do I add a file"` which currently works fine with one find+read. Would need careful guarding to avoid regressions on lookup queries that happen to contain "how".
 
 **Impact:** Fixes the completion gate problem independently of the classification fix.
 
-### Fix 5: Evidence ranking — if top result is a header, read the corresponding .cpp
+### Fix 5: Evidence ranking -- if top result is a header, read the corresponding .cpp
 
 **Description:** After the find→read cycle reads a `.h` file, automatically enqueue a read of the corresponding `.cpp` file. This is safe because:
 - If no `.cpp` exists with the same stem, the read fails gracefully
@@ -373,7 +373,7 @@ if (is_explanatory_query(goal) && evidence.has_fact_containing("find:results")) 
 
 **Risk:** **Low-Medium.** Adds one extra tool per header-based find cycle. May increase average_files_read for all queries, not just explanatory ones. Could introduce latency for simple lookup queries.
 
-**Impact:** Every find→read cycle that reads a `.h` would also read the `.cpp` — doubling the evidence without any classification change. This alone would fix the synthesis gap for this query (agent.h + agent.cpp would give significantly more structural evidence).
+**Impact:** Every find→read cycle that reads a `.h` would also read the `.cpp` -- doubling the evidence without any classification change. This alone would fix the synthesis gap for this query (agent.h + agent.cpp would give significantly more structural evidence).
 
 ---
 

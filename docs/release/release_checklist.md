@@ -3,12 +3,12 @@
 This checklist gates every release of `cursor-agent`.
 
 Gates are ordered. A failure at any gate blocks everything below it.
-**Search Correctness is a mandatory gate** — this is a code-search product.
+**Search Correctness is a mandatory gate** -- this is a code-search product.
 Operational correctness (exit codes, routing) is necessary but not sufficient.
 
 ---
 
-## Gate 1 — Build
+## Gate 1 -- Build
 
 | # | Check | How to verify | Status |
 |---|---|---|---|
@@ -19,7 +19,7 @@ Operational correctness (exit codes, routing) is necessary but not sufficient.
 
 ---
 
-## Gate 2 — Execution
+## Gate 2 -- Execution
 
 | # | Check | How to verify | Status |
 |---|---|---|---|
@@ -31,11 +31,11 @@ Operational correctness (exit codes, routing) is necessary but not sufficient.
 
 ---
 
-## Gate 3 — Search Correctness  *(mandatory product gate)*
+## Gate 3 -- Search Correctness  *(mandatory product gate)*
 
 **Definition:** A query is semantically correct if and only if the engine returns  
-the canonical declaration, definition, or use site — not a fixture, document, or  
-forward-declaration header — for the queried symbol or intent.
+the canonical declaration, definition, or use site -- not a fixture, document, or  
+forward-declaration header -- for the queried symbol or intent.
 
 Exit code 0 does **not** satisfy this gate.
 
@@ -55,7 +55,7 @@ Exit code 0 does **not** satisfy this gate.
 
 ---
 
-## Gate 4 — UX
+## Gate 4 -- UX
 
 | # | Check | How to verify | Status |
 |---|---|---|---|
@@ -66,7 +66,7 @@ Exit code 0 does **not** satisfy this gate.
 
 ---
 
-## Gate 5 — Telemetry
+## Gate 5 -- Telemetry
 
 | # | Check | How to verify | Status |
 |---|---|---|---|
@@ -81,11 +81,11 @@ Exit code 0 does **not** satisfy this gate.
 
 | Field | Value |
 |---|---|
-| **Gate 1 — Build** | |
-| **Gate 2 — Execution** | |
-| **Gate 3 — Search Correctness** | |
-| **Gate 4 — UX** | |
-| **Gate 5 — Telemetry** | |
+| **Gate 1 -- Build** | |
+| **Gate 2 -- Execution** | |
+| **Gate 3 -- Search Correctness** | |
+| **Gate 4 -- UX** | |
+| **Gate 5 -- Telemetry** | |
 | **Overall decision** | ☐ READY  ☐ BLOCKED |
 | **Blocking items** | |
 | **Release authorized by** | |

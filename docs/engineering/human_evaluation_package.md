@@ -1,4 +1,4 @@
-# Human Evaluation Package — Planner Investigation Quality
+# Human Evaluation Package -- Planner Investigation Quality
 
 ## Purpose
 
@@ -37,14 +37,14 @@ The evaluator should be someone unfamiliar with this repository.
 ### Q2: Diagnostics Isolation
 **Question**: Find how the diagnostics module is separated from the execution engine in the source code
 
-**Expected answer**: Diagnostics lives in `src/diagnostics/diagnostics.cpp` as a standalone module. It creates its own ExecutionEngine instance and tool runners. It does NOT share state with the main Agent — it's an independent verification harness that simulates tool calls rather than using the real ones.
+**Expected answer**: Diagnostics lives in `src/diagnostics/diagnostics.cpp` as a standalone module. It creates its own ExecutionEngine instance and tool runners. It does NOT share state with the main Agent -- it's an independent verification harness that simulates tool calls rather than using the real ones.
 
 **Evidence to find**: src/diagnostics/diagnostics.cpp, the `run_query()` function
 
 ### Q3: Lifecycle Shutdown
 **Question**: Find the component responsible for lifecycle shutdown in the codebase
 
-**Expected answer**: There is no explicit shutdown sequence. `Session::run()` uses `while(true)` and returns normally when the user types "exit" or "quit". Agent objects are unwound by C++ destructor order. No dedicated shutdown component exists — the architecture relies on RAII and scope-based cleanup.
+**Expected answer**: There is no explicit shutdown sequence. `Session::run()` uses `while(true)` and returns normally when the user types "exit" or "quit". Agent objects are unwound by C++ destructor order. No dedicated shutdown component exists -- the architecture relies on RAII and scope-based cleanup.
 
 ### Q4: Command Routing
 **Question**: Trace how a user command reaches the execution engine from the terminal prompt
@@ -91,7 +91,7 @@ The evaluator should be someone unfamiliar with this repository.
 ### Q10: Recovery Loop Prevention
 **Question**: Find how the recovery loop in select_recovery_tool() prevents infinite loops
 
-**Expected answer**: Three mechanisms: (1) MAX_RECOVERY = 3 limit in execute(), (2) `seen_tool_calls` deduplication prevents running the same tool+args twice, (3) recovery strategies are evidence-driven — they only fire when specific evidence facts are missing, so they naturally terminate when all evidence gaps are filled.
+**Expected answer**: Three mechanisms: (1) MAX_RECOVERY = 3 limit in execute(), (2) `seen_tool_calls` deduplication prevents running the same tool+args twice, (3) recovery strategies are evidence-driven -- they only fire when specific evidence facts are missing, so they naturally terminate when all evidence gaps are filled.
 
 **Evidence to find**: execution_engine.cpp
 

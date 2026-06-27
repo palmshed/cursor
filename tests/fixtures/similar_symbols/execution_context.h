@@ -1,4 +1,4 @@
-// Similar symbol — exists alongside real ExecutionResult to test disambiguation
+// Similar symbol -- exists alongside real ExecutionResult to test disambiguation
 // The planner should find real ExecutionResult, not this one
 #pragma once
 #include <string>

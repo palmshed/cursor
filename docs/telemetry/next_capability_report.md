@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-With the successful deployment of the **Directory-Aware Find** ranking engine, all 37 regression and verification scenarios are passing. Telemetry confirms that first-order retrieval failures—such as the agent failing to find files by name due to malformed regex patterns—have been resolved. 
+With the successful deployment of the **Directory-Aware Find** ranking engine, all 37 regression and verification scenarios are passing. Telemetry confirms that first-order retrieval failures--such as the agent failing to find files by name due to malformed regex patterns--have been resolved. 
 
 However, a major structural capability gap remains: **The `ExecutionEngine` is currently blind to symbol declarations and cross-file references as active tools.** 
 

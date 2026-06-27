@@ -106,20 +106,20 @@ public:
   };
   void show_execution_summary(const ExecutionSummaryData &data);
 
-  // Tool visibility — called before each tool invocation
+  // Tool visibility -- called before each tool invocation
   void show_tool_invocation(const std::string &tool,
                             const std::string &args);
 
-  // Tool output visibility — called after tool completion
+  // Tool output visibility -- called after tool completion
   void show_tool_output(const std::string &output);
 
-  // Investigation summary — called after all tools complete
+  // Investigation summary -- called after all tools complete
   void show_investigation_complete();
 
   // Preview proposed changes (before apply)
   void show_preview(const std::vector<PlanTaskLine> &tasks);
 
-  // Apply prompt — returns true if user approves
+  // Apply prompt -- returns true if user approves
   static bool prompt_apply();
 
   // Change Preview display

@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-26  
 **Build:** `./build/bin/cursor-agent`  
-**Cycle:** Code Search Excellence — Phase 1 Audit  
+**Cycle:** Code Search Excellence -- Phase 1 Audit  
 **Checklist:** `docs/release/release_checklist.md`
 
 ---
@@ -16,7 +16,7 @@ Gate 3 (Search Correctness) fails. Release is not authorized.
 
 ---
 
-## Gate 1 — Build: PASS
+## Gate 1 -- Build: PASS
 
 | Check | Result |
 |---|---|
@@ -27,7 +27,7 @@ Gate 3 (Search Correctness) fails. Release is not authorized.
 
 ---
 
-## Gate 2 — Execution: PASS
+## Gate 2 -- Execution: PASS
 
 | Check | Result |
 |---|---|
@@ -42,7 +42,7 @@ It was necessary but insufficient.
 
 ---
 
-## Gate 3 — Search Correctness: FAIL
+## Gate 3 -- Search Correctness: FAIL
 
 *Source: `docs/telemetry/search_correctness_report.md`*
 
@@ -50,7 +50,7 @@ It was necessary but insufficient.
 |---|---|---|
 | Queries audited | 11 | 11 |
 | Semantically correct (PASS) | 2 (18%) | ≥ 90% |
-| Partially correct (PARTIAL) | 4 (36%) | — |
+| Partially correct (PARTIAL) | 4 (36%) | -- |
 | Semantically wrong (FAIL) | 5 (45%) | 0 Critical |
 | Confirmed bugs | 8 | 0 |
 | Grep fallback rate | 27% | ≤ 20% |
@@ -70,18 +70,18 @@ It was necessary but insufficient.
 
 ### Three failure modes
 
-**Classifier failures (4 bugs — B-02, B-03, B-05, B-08)**  
+**Classifier failures (4 bugs -- B-02, B-03, B-05, B-08)**  
 The intent classifier does not recognize ownership (`what owns`), dependency (`what depends on`), or natural-language git operations as investigation queries. Two queries returned zero tools executed and confidence 0.0.
 
-**Ranking failures (3 bugs — B-01, B-06, B-07)**  
+**Ranking failures (3 bugs -- B-01, B-06, B-07)**  
 The file ranker selects the declaring/defining file over the calling/using file for reference queries, and selects fixture files over source files for declaration queries.
 
-**Phrase normalization failure (1 bug — B-04)**  
+**Phrase normalization failure (1 bug -- B-04)**  
 Compound phrases are joined with underscores, producing symbols that do not exist in the codebase. Grep fallback then matches documentation files instead of source.
 
 ---
 
-## Gate 4 — UX: PASS (conditional)
+## Gate 4 -- UX: PASS (conditional)
 
 | Check | Result |
 |---|---|
@@ -90,11 +90,11 @@ Compound phrases are joined with underscores, producing symbols that do not exis
 | Insufficient evidence distinguishable | ✓ `outcome: insufficient_evidence` correct |
 | Errors distinguishable | ✓ stderr separate from stdout |
 
-*Condition: UX is acceptable for queries that reach the investigation path. Queries classified as General Chat show no progress UI at all — this is acceptable only while classifier failures remain open.*
+*Condition: UX is acceptable for queries that reach the investigation path. Queries classified as General Chat show no progress UI at all -- this is acceptable only while classifier failures remain open.*
 
 ---
 
-## Gate 5 — Telemetry: PASS
+## Gate 5 -- Telemetry: PASS
 
 | Check | Result |
 |---|---|
@@ -129,26 +129,26 @@ A code-search agent that consistently returns wrong files is not release-ready e
 
 ### Critical (must fix before release)
 
-1. **Classifier vocabulary** — add `what owns`, `who owns`, `what depends on`, `what uses`, `what includes` to the investigation intent trigger vocabulary.  
+1. **Classifier vocabulary** -- add `what owns`, `who owns`, `what depends on`, `what uses`, `what includes` to the investigation intent trigger vocabulary.  
    *Files:* `src/app/command_router.cpp` intent classification logic.
 
-2. **Path penalty in filename ranker** — penalize `scenarios/`, `data/`, `docs/`, `build/` paths for `find struct`/`find class` intent queries. Source directories `include/` and `src/` must rank first for declaration intents.  
+2. **Path penalty in filename ranker** -- penalize `scenarios/`, `data/`, `docs/`, `build/` paths for `find struct`/`find class` intent queries. Source directories `include/` and `src/` must rank first for declaration intents.  
    *Files:* filename ranking logic in `find_service.cpp` or equivalent.
 
-3. **Reference query ranking** — for caller/reference queries, rank `.cpp` files above `.h` files. A forward declaration or defining header is not a call site.  
+3. **Reference query ranking** -- for caller/reference queries, rank `.cpp` files above `.h` files. A forward declaration or defining header is not a call site.  
    *Files:* ranking logic in `find_service.cpp` or `execution_engine.cpp`.
 
 ### High (should fix before release)
 
-4. **Git intent matching** — extend git matchers to handle natural language wrappers: `what is the git diff`, `show me the status`, `what changed`.  
+4. **Git intent matching** -- extend git matchers to handle natural language wrappers: `what is the git diff`, `show me the status`, `what changed`.  
    *Files:* `command_router.cpp:1523` git intent branch.
 
-5. **Phrase normalization** — tokenize multi-word phrases and search each token independently. Do not join with underscores unless the compound identifier appears verbatim in the codebase.  
+5. **Phrase normalization** -- tokenize multi-word phrases and search each token independently. Do not join with underscores unless the compound identifier appears verbatim in the codebase.  
    *Files:* symbol lookup / find_service query normalization.
 
 ### Medium
 
-6. **git status vs git log disambiguation** — the bare query `git status` should execute `git status`, not `git log`.  
+6. **git status vs git log disambiguation** -- the bare query `git status` should execute `git status`, not `git log`.  
    *Files:* `command_router.cpp:1425` `is_git_status_query()`.
 
 ---
@@ -157,11 +157,11 @@ A code-search agent that consistently returns wrong files is not release-ready e
 
 Fix blockers in this order:
 
-1. Classifier vocabulary (B-02, B-03) — highest impact, lowest effort. These are vocabulary additions, not architectural changes.
-2. Path penalty (B-01) — prevents the most visible regression fixture bug.
-3. Reference ranking (B-06, B-07) — fixes the most common query pattern for architectural investigation.
-4. Git intent (B-05, B-08) — relatively contained, high user-facing impact.
-5. Phrase normalization (B-04) — most complex fix; may require tokenizer changes.
+1. Classifier vocabulary (B-02, B-03) -- highest impact, lowest effort. These are vocabulary additions, not architectural changes.
+2. Path penalty (B-01) -- prevents the most visible regression fixture bug.
+3. Reference ranking (B-06, B-07) -- fixes the most common query pattern for architectural investigation.
+4. Git intent (B-05, B-08) -- relatively contained, high user-facing impact.
+5. Phrase normalization (B-04) -- most complex fix; may require tokenizer changes.
 
 After fixes: re-run `docs/telemetry/search_correctness_report.md` against the full benchmark set. Target ≥ 90% semantic correctness and ≤ 20% grep fallback rate before re-evaluating release readiness.
 

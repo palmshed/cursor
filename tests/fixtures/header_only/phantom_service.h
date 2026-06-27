@@ -1,4 +1,4 @@
-// Header-only declaration — class declared here, no .cpp exists
+// Header-only declaration -- class declared here, no .cpp exists
 // Tests planner recovery: finds header, realizes no implementation, seeks elsewhere
 #pragma once
 #include <string>

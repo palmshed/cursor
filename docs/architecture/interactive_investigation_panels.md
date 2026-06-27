@@ -1,4 +1,4 @@
-# Interactive Investigation Panels — Feasibility Report
+# Interactive Investigation Panels -- Feasibility Report
 
 ## 1. Feasibility
 
@@ -59,7 +59,7 @@ Evidence
 ✓ git log --oneline -10
 
 Files examined
-—
+--
 
 Confidence
 0.99
@@ -88,7 +88,7 @@ Evidence
 ✓ git log --oneline -10
 
 Files examined
-—
+--
 
 Confidence
 0.99
@@ -104,7 +104,7 @@ This reuses the AI synthesis text so the user sees everything in one place.
 
 ### Hint line variants
 
-Preferred — minimal, no extra visual weight:
+Preferred -- minimal, no extra visual weight:
 
 ```
 ✓ Investigation complete
@@ -113,7 +113,7 @@ Preferred — minimal, no extra visual weight:
 Press I to inspect evidence
 ```
 
-Alternative — more compact for experienced users:
+Alternative -- more compact for experienced users:
 
 ```
 ✓ Investigation complete   [press I for evidence]
@@ -190,7 +190,7 @@ Planner creates InvestigationSession
 | Current artifact | Replaced by |
 |---|---|
 | `Result` struct in `execution_engine.cpp` | `InvestigationSession` (richer, planner-aware) |
-| ~~`InvestigationDetail` in `UIManager`~~ | ~~removed~~ — `show_investigation_complete()` now reads `InvestigationSession::tools_used` direct from agent state |
+| ~~`InvestigationDetail` in `UIManager`~~ | ~~removed~~ -- `show_investigation_complete()` now reads `InvestigationSession::tools_used` direct from agent state |
 | Ad-hoc tool history in JSON output | Structured evidence list |
 | Inline checkmarks in `show_tool_output` | Planner reasoning in session |
 
@@ -216,7 +216,7 @@ Planner creates InvestigationSession
 
 #### Population and storage (day 1-2)
 
-- `InvestigationSession::from_result()` factory in `execution_engine.cpp:1369` — populates from `ExecutionEngine::Result`
+- `InvestigationSession::from_result()` factory in `execution_engine.cpp:1369` -- populates from `ExecutionEngine::Result`
 - Extracts tool summaries (match counts, commit counts) and file paths from tool results
 - Stored as `std::optional<InvestigationSession> last_investigation` on `SessionState`
 - Timing: `std::chrono::steady_clock` wraps `engine.execute()` in both `command_router.cpp` and `diagnostics.cpp`
@@ -232,7 +232,7 @@ Planner creates InvestigationSession
 
 #### Phase A: `/inspect` command handler (0.5 day)
 
-1. Add `/inspect` route in `command_router.cpp` — reads `agent_.state_.last_investigation`
+1. Add `/inspect` route in `command_router.cpp` -- reads `agent_.state_.last_investigation`
 2. Format: multi-line print with goal, conclusion, files, tools, evidence, reasoning steps
 3. Works in both TTY and non-TTY (piped) modes
 
@@ -303,7 +303,7 @@ All required capabilities already exist in the codebase:
 | `/inspect` command | Pending | Simple route, 0.5 day |
 | Keyboard `i`-key | Pending | `WAITING_INSPECT` state, 1-2 days |
 | Replay refactor | Pending | Replace `ExecutionResult` directly, 0.5 day |
-| UI refactor | **Done** | Removed `InvestigationDetail`, `details_`, `investigation_details()` — reads `last_investigation` |
+| UI refactor | **Done** | Removed `InvestigationDetail`, `details_`, `investigation_details()` -- reads `last_investigation` |
 
 ---
 
@@ -317,7 +317,7 @@ All required capabilities already exist in the codebase:
 | Terminal scrollback makes inline output hard to see | Low | Alt-screen view as secondary option; `/inspect` reprints fresh |
 | Investigation data lost if user switches context | Low | Store last session in `Session` state, not UI state; survives screen changes |
 | Users won't discover the `i` key | Medium | Show hint text "Press I to inspect evidence" within the ready message; mention in `/help` |
-| `InvestigationSession` duplicates existing `Result` struct | Medium | Migrate incrementally — `Result` fields are a subset of session; deprecate Result after Phase 3 |
+| `InvestigationSession` duplicates existing `Result` struct | Medium | Migrate incrementally -- `Result` fields are a subset of session; deprecate Result after Phase 3 |
 
 ---
 

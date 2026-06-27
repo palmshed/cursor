@@ -9,19 +9,19 @@ API network access, AI model credentials). Fixing them requires
 provisioning that infrastructure or mocking dependencies, not
 improving the planner or search engine.
 
-The Level 2 planner backlog is distinct from these — tracked in
+The Level 2 planner backlog is distinct from these -- tracked in
 `docs/planner/`.
 
 ## CI-dependent (6)
 
 | Scenario | Root cause |
 |---|---|
-| `docker_timeout` | Requires Docker daemon — not available in CI |
-| `failure_without_logs` | Requires live GitHub workflow JSON — CI runner has no network access to GitHub API beyond checkout |
-| `multiple_failed_jobs` | Same — requires live workflow data |
-| `structural_extraction` | Same — requires live workflow data |
-| `truncated_logs` | Same — requires live workflow data |
-| `workflow_cancelled` | Same — requires live workflow data |
+| `docker_timeout` | Requires Docker daemon -- not available in CI |
+| `failure_without_logs` | Requires live GitHub workflow JSON -- CI runner has no network access to GitHub API beyond checkout |
+| `multiple_failed_jobs` | Same -- requires live workflow data |
+| `structural_extraction` | Same -- requires live workflow data |
+| `truncated_logs` | Same -- requires live workflow data |
+| `workflow_cancelled` | Same -- requires live workflow data |
 
 ## Diagnostics / Telemetry (2)
 

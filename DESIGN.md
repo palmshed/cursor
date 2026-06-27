@@ -444,7 +444,7 @@ Investigating repository…
 
 This is enforced architecturally (not by UI convention).
 
-The planner passes evidence to the `Formatter`, which produces a clean evidence summary. The AI receives only formatted evidence — it has no access to raw session state.
+The planner passes evidence to the `Formatter`, which produces a clean evidence summary. The AI receives only formatted evidence -- it has no access to raw session state.
 
 ---
 
@@ -525,7 +525,7 @@ Do not expose:
 
 unless explicitly requested via `/inspect` or debug mode.
 
-These constraints are enforced by the architecture — the `Formatter` strips all planner metadata before evidence reaches the AI, and the AI receives no access to raw session state.
+These constraints are enforced by the architecture -- the `Formatter` strips all planner metadata before evidence reaches the AI, and the AI receives no access to raw session state.
 
 Normal conversation remains answer-first.
 
@@ -560,4 +560,4 @@ Evidence is always available through `/inspect`.
 
 The interface stays out of the user's way.
 
-The answer contains no tool names, no confidence values, no planner metadata — only a clean, evidence-grounded explanation.
+The answer contains no tool names, no confidence values, no planner metadata -- only a clean, evidence-grounded explanation.

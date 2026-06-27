@@ -6,7 +6,7 @@
 
 ---
 
-## Priority 1 — Baseline Queries (5 Queries)
+## Priority 1 -- Baseline Queries (5 Queries)
 
 ### Claim: Find tried before grep for CodebaseQuery
 **Verified? YES**
@@ -54,16 +54,16 @@
 
 ---
 
-## Priority 2 — Timeline Events
+## Priority 2 -- Timeline Events
 
 ### Claim: Tool invocation emits section header + tool name
 **Verified? YES**
-- `ui_manager.cpp:802-828` — `show_tool_invocation` calls `show_progress_section(section_for_tool(tool))` (line 824) then `→ <tool> <args>` (line 826-828).
+- `ui_manager.cpp:802-828` -- `show_tool_invocation` calls `show_progress_section(section_for_tool(tool))` (line 824) then `→ <tool> <args>` (line 826-828).
 - `section_for_tool` (line 781-791): maps tool → section name (e.g., find→"Locating files...", grep→"Checking symbols...").
 
 ### Claim: Tool completion emits ✓ counts
 **Verified? YES**
-- `ui_manager.cpp:831-928` — `show_tool_output` shows:
+- `ui_manager.cpp:831-928` -- `show_tool_output` shows:
   - grep (line 857-867): `✓ N matches found`
   - find (line 868-880): `✓ N candidates (selected_path)`
   - read (line 881-898): `✓ last_file` or `✓ N files`
@@ -72,21 +72,21 @@
 
 ### Claim: "Collecting evidence..." stage appears after tool loop
 **Verified? YES**
-- `execution_engine.cpp:1165-1189` — After the main tool loop, shows `"Collecting evidence..."` section (line 1172), then `✓ N tool results, X grep, Y find, Z read` (line 1184-1188).
+- `execution_engine.cpp:1165-1189` -- After the main tool loop, shows `"Collecting evidence..."` section (line 1172), then `✓ N tool results, X grep, Y find, Z read` (line 1184-1188).
 - Runs for ALL goal types, including ArchitectureReview (called from `execute()` at line 981).
 
 ### Claim: "Preparing answer..." stage shown before answer
 **Verified? YES** (with caveats)
-- `command_router.cpp:658-659` — `show_progress_section("Preparing answer...")` shown before both direct answer (line 661-731) and AI chat (line 734-743).
+- `command_router.cpp:658-659` -- `show_progress_section("Preparing answer...")` shown before both direct answer (line 661-731) and AI chat (line 734-743).
 - **NOT shown for:** ArchitectureReview (early return at line 447-453), InsufficientEvidence/Failure/UserRejected (early return at line 467-493).
 
 ---
 
-## Priority 3 — Architecture Review Path
+## Priority 3 -- Architecture Review Path
 
 ### Claim: `build_review_report` is deterministic, no AI calls
 **Verified? YES**
-- `execution_engine.cpp:841-975` — `build_review_report` is pure string building from tool history. No AIService, no LLM, no external calls.
+- `execution_engine.cpp:841-975` -- `build_review_report` is pure string building from tool history. No AIService, no LLM, no external calls.
 - Checks for: dead AgentMode enum (line 871-898), MODE_ constants (line 901-930), test coverage gaps (line 941-963).
 - Output format: `## title` + `Risk: value` via `append_finding`.
 
@@ -97,11 +97,11 @@
 
 ### Claim: Execution path uses grep/read only, no LLM
 **Verified? YES**
-- `execution_engine.cpp:611-636` — `select_next_tool` for ArchitectureReview uses: discovery, git log, grep (AgentMode, MODE_, AuthProvider, provider_label, strategy_changes), read (session_state.h, metrics.h, execution_engine.cpp, validation_runner.cpp). No find, no AI.
+- `execution_engine.cpp:611-636` -- `select_next_tool` for ArchitectureReview uses: discovery, git log, grep (AgentMode, MODE_, AuthProvider, provider_label, strategy_changes), read (session_state.h, metrics.h, execution_engine.cpp, validation_runner.cpp). No find, no AI.
 
 ---
 
-## Priority 4 — Work Log Paths
+## Priority 4 -- Work Log Paths
 
 ### Claim: Collect + Prepare stages shown for all paths
 **Verified? YES/NO**
@@ -112,22 +112,22 @@
 
 ### Claim: Direct answer from evidence facts
 **Verified? YES**
-- `command_router.cpp:661-718` — For CodebaseQuery with Success outcome and non-empty facts, builds answer by iterating evidence facts: parses `[find ...]`, `[grep ...]`, `[read ...]` entries and extracts file paths and content.
+- `command_router.cpp:661-718` -- For CodebaseQuery with Success outcome and non-empty facts, builds answer by iterating evidence facts: parses `[find ...]`, `[grep ...]`, `[read ...]` entries and extracts file paths and content.
 
 ---
 
-## Priority 5 — Subagent Architecture Audit
+## Priority 5 -- Subagent Architecture Audit
 
 ### Claim: No Agent/Worker/Coordinator/Planner/SubAgent/Dispatcher architecture
 **Verified? YES**
 - Searched entire `src/` and `include/` directories for class definitions and references:
-  - `^class.*Agent` — No results (no Agent class, only `AgentMode` enum which is dead code)
-  - `^class.*Worker` — No results
-  - `^class.*Coordinator` — No results
-  - `^class.*Planner` — No results
-  - `SubAgent|sub_agent|sub-agent` — No results
-  - `Dispatcher` — No results
-  - `TaskPipeline` — No results (enum value exists at `metrics.h:22` but unused)
+  - `^class.*Agent` -- No results (no Agent class, only `AgentMode` enum which is dead code)
+  - `^class.*Worker` -- No results
+  - `^class.*Coordinator` -- No results
+  - `^class.*Planner` -- No results
+  - `SubAgent|sub_agent|sub-agent` -- No results
+  - `Dispatcher` -- No results
+  - `TaskPipeline` -- No results (enum value exists at `metrics.h:22` but unused)
 - Architecture is a single flat pipeline: `Agent` (not a class, just a namespace/module) → `ExecutionEngine` → `CommandRouter`.
 - 30+ service classes (FileService, GitService, AIService, etc.) are leaf dependencies, not subagents.
 
@@ -139,8 +139,8 @@
 |-------|--------|----------|
 | Find before grep | ✅ EXISTS | execution_engine.cpp:552-558 |
 | extract_best_term_plain() | ❌ MISSING | No such function |
-| Binary path detection | ❌ MISSING | command_router.cpp:176-363 — no build/bin/ check |
-| Word-level matching in find | ❌ MISSING | command_router.cpp:226-248 — only `==` and `.find()` |
+| Binary path detection | ❌ MISSING | command_router.cpp:176-363 -- no build/bin/ check |
+| Word-level matching in find | ❌ MISSING | command_router.cpp:226-248 -- only `==` and `.find()` |
 | CamelCase splitting before match | ❌ MISSING | Normalization exists (line 193-198) but term may already be regex-like |
 | "Collecting evidence..." stage | ✅ EXISTS | execution_engine.cpp:1165-1189 |
 | "Preparing answer..." stage | ✅ EXISTS | command_router.cpp:658-731 |

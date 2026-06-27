@@ -29,7 +29,7 @@ The failure topology analysis (docs/telemetry/failure_topology.md) identified **
 
 ### Recurring Finding
 
-The `cursor binary` / `cursor bin` queries failed because `extract_best_term` produces `cursor[ _-]?binary` — a pattern the find handler treated as a literal string. No filename literally contains `[ _-]?`, so word boundaries were never recognized.
+The `cursor binary` / `cursor bin` queries failed because `extract_best_term` produces `cursor[ _-]?binary` -- a pattern the find handler treated as a literal string. No filename literally contains `[ _-]?`, so word boundaries were never recognized.
 
 ---
 
@@ -46,7 +46,7 @@ Four independent find implementations existed across the codebase:
 | `tests/validation_runner.cpp` | 185–228 | Validation test runner |
 | `tests/benchmark_runner.cpp` | 73–115 | Benchmark test runner |
 
-Each duplicated the filesystem-scan, scoring, and ranking logic. Three of the four had no CamelCase normalization, word-level matching, symbol scanning, or directory-path matching — they only did exact/stem comparison against a lowered search term.
+Each duplicated the filesystem-scan, scoring, and ranking logic. Three of the four had no CamelCase normalization, word-level matching, symbol scanning, or directory-path matching -- they only did exact/stem comparison against a lowered search term.
 
 ### Multi-Word Term Matching Failure
 
@@ -87,9 +87,9 @@ ExecutionEngine::select_next_tool()
 ### Shared Function
 
 **Files:**
-- `include/services/find_service.h` — `FindCandidate` struct + `directory_aware_find()` declaration
-- `src/services/find_service.cpp` — ~240 lines: all scoring/ranking logic
-- `CMakeLists.txt` — added `SERVICE_SOURCES` entry
+- `include/services/find_service.h` -- `FindCandidate` struct + `directory_aware_find()` declaration
+- `src/services/find_service.cpp` -- ~240 lines: all scoring/ranking logic
+- `CMakeLists.txt` -- added `SERVICE_SOURCES` entry
 
 ### Scoring Cascade
 
@@ -108,9 +108,9 @@ Before computing the per-file score, the term is cleaned:
 1. Replace all `[ _-]?` substrings with spaces
 2. Split on whitespace into `term_words`
 3. If score is 0 AND term_words.size() >= 2: check each word against the stem
-4. All words must match (AND logic) — no partial word-group matching
+4. All words must match (AND logic) -- no partial word-group matching
 
-This is the only way `cursor[ _-]?binary` can match a stem like `cursor_binary` — the literal string `cursor[ _-]?binary` never appears in any filename.
+This is the only way `cursor[ _-]?binary` can match a stem like `cursor_binary` -- the literal string `cursor[ _-]?binary` never appears in any filename.
 
 ### Caller Wrappers (5–10 lines each)
 
@@ -158,16 +158,16 @@ Avg tools/query: 2.12
 ```
 
 The 2 failures match the pre-refactor baseline:
-1. `where is evidence gating implemented` — expected `InsufficientEvidence`, got `success` (grep now matches the report markdown)
-2. `how are provider credentials configured` — expected `InsufficientEvidence`, got `success` (same reason)
+1. `where is evidence gating implemented` -- expected `InsufficientEvidence`, got `success` (grep now matches the report markdown)
+2. `how are provider credentials configured` -- expected `InsufficientEvidence`, got `success` (same reason)
 
-These are **not regressions** — they were expected failures before the refactor and remain expected failures after.
+These are **not regressions** -- they were expected failures before the refactor and remain expected failures after.
 
 ### Regression Checks
 
-All 28 validation queries match their expected outcomes exactly. The 2 benchmark "failures" are unchanged from the pre-refactor baseline (grep now matches the new report file, which was added during the audit phase — pre-existing condition, not introduced by the refactor).
+All 28 validation queries match their expected outcomes exactly. The 2 benchmark "failures" are unchanged from the pre-refactor baseline (grep now matches the new report file, which was added during the audit phase -- pre-existing condition, not introduced by the refactor).
 
-The `directory_aware_find` function is tested indirectly through all 28 validation queries and 30 passing benchmark queries. No dedicated unit test was added because the function is exercised by every find-capable query in both test suites — 17 find tool invocations across the two runners.
+The `directory_aware_find` function is tested indirectly through all 28 validation queries and 30 passing benchmark queries. No dedicated unit test was added because the function is exercised by every find-capable query in both test suites -- 17 find tool invocations across the two runners.
 
 ---
 
@@ -216,7 +216,7 @@ The `directory_aware_find` function is tested indirectly through all 28 validati
 | find candidates | 2 | 2 (unchanged) |
 | Selected | command_router.h | command_router.h (unchanged) |
 | Files read | 2 | 2 |
-| Duration | — | ~100ms |
+| Duration | -- | ~100ms |
 | Outcome | Success | Success |
 
 ---
@@ -232,7 +232,7 @@ The `directory_aware_find` function is tested indirectly through all 28 validati
 | Post-find fix (word-level matching) | 4.6% | 10/217 |
 | Post-shared-engine refactor | 4.6% | 10/217 (unchanged) |
 
-**Target:** < 2.0% — **Not yet reached**, but the remaining 10 traces are routing-edge cases and nonexistent-symbol queries, not retrieval failures. The success criterion of §6.2 in failure_topology.md ("reduce `insufficient_evidence` on clean developer traces from 6.5% to below 2.0%") was set when the target was retrieval failures. Post-fix, the bottleneck has shifted.
+**Target:** < 2.0% -- **Not yet reached**, but the remaining 10 traces are routing-edge cases and nonexistent-symbol queries, not retrieval failures. The success criterion of §6.2 in failure_topology.md ("reduce `insufficient_evidence` on clean developer traces from 6.5% to below 2.0%") was set when the target was retrieval failures. Post-fix, the bottleneck has shifted.
 
 ### Retrieval Efficiency Changes
 
@@ -257,22 +257,22 @@ No query adds or loses tools. The find→read→grep→read cascade is determine
 | Implementation boost | 1/4 callers | all 4 | +3 callers |
 | Directory path matching | 1/4 callers | all 4 | +3 callers |
 
-The diagnostics tool runner (`--json`, `--timeline`) now uses CamelCase normalization, word-level matching, and symbol scanning for the first time — previously it only had exact/partial stem matching.
+The diagnostics tool runner (`--json`, `--timeline`) now uses CamelCase normalization, word-level matching, and symbol scanning for the first time -- previously it only had exact/partial stem matching.
 
 ---
 
 ## 7. Remaining Known Limitations
 
-1. **Multi-word queries with no matching filename stem.** Queries like `gh run view` or `evidence gating` produce terms that do not correspond to any single file stem. Word-level matching requires ALL words to appear in a single stem (AND logic). When no file matches, grep is the correct fallback — no find-level fix can resolve this.
+1. **Multi-word queries with no matching filename stem.** Queries like `gh run view` or `evidence gating` produce terms that do not correspond to any single file stem. Word-level matching requires ALL words to appear in a single stem (AND logic). When no file matches, grep is the correct fallback -- no find-level fix can resolve this.
 
-2. **Diagnostics tool runner output format is incompatible with UI candidate counting.** The UI manager (`ui_manager.cpp:868-880`) counts candidates by parsing `CANDIDATE:` lines. The diagnostics handler outputs bare paths. This is a pre-existing display issue in `/dev` tools (`--timeline`, `--json`) — not a functional bug. The actual candidates are found and passed to the read handler; only the terminal output count is wrong.
+2. **Diagnostics tool runner output format is incompatible with UI candidate counting.** The UI manager (`ui_manager.cpp:868-880`) counts candidates by parsing `CANDIDATE:` lines. The diagnostics handler outputs bare paths. This is a pre-existing display issue in `/dev` tools (`--timeline`, `--json`) -- not a functional bug. The actual candidates are found and passed to the read handler; only the terminal output count is wrong.
 
-3. **No production failure data yet for CamelCase/normalization/scanning features.** The three newly standardized features (CamelCase normalization, word-level matching, symbol scanning) were previously only in the production handler. The diagnostics and test handlers now have them too, but there are no production telemetry failures indicating they were needed. These are prophylactic — they prevent divergence rather than fix known bugs.
+3. **No production failure data yet for CamelCase/normalization/scanning features.** The three newly standardized features (CamelCase normalization, word-level matching, symbol scanning) were previously only in the production handler. The diagnostics and test handlers now have them too, but there are no production telemetry failures indicating they were needed. These are prophylactic -- they prevent divergence rather than fix known bugs.
 
 4. **Benchmark 2 failures are permanent (expected).** `where is evidence gating implemented` and `how are provider credentials configured` will continue to produce `success` instead of `InsufficientEvidence` as long as the grep handler can find matches in the repository. These benchmark expectations could be updated to expect `success`, or the queries could be replaced with truly nonexistent-term queries that exercise the same routing path.
 
 5. **Symbol scanning is filename-stem-gated.** Symbol scanning only runs on files that scored < 20 AND have a `.cpp`/`.h`/`.hpp`/`.c` extension. This means:
-   - Files with exact-filename matches (score 20) skip symbol scanning (intentional — no need to scan if we already matched the name perfectly).
+   - Files with exact-filename matches (score 20) skip symbol scanning (intentional -- no need to scan if we already matched the name perfectly).
    - Files with extensions outside the source set (`.py`, `.js`, `.json`, `.md`) are never scanned for symbols.
 
 ---
@@ -303,10 +303,10 @@ A new production failure cluster with at least 3 occurrences of the same query s
 ### Files Changed This Cycle
 
 ```
-NEW:   include/services/find_service.h        — FindCandidate + directory_aware_find()
-NEW:   src/services/find_service.cpp           — shared ranking engine
-MOD:   CMakeLists.txt                          — added find_service.cpp
-MOD:   src/app/command_router.cpp:176-202      — production caller (was 176-363)
-MOD:   src/diagnostics/diagnostics.cpp:363-372 — diagnostics caller (was 363-393)
-MOD:   tests/validation_runner.cpp:186-201     — validation caller (was 185-228)
-MOD:   tests/benchmark_runner.cpp:74-89        — benchmark caller (was 73-115)
+NEW:   include/services/find_service.h        -- FindCandidate + directory_aware_find()
+NEW:   src/services/find_service.cpp           -- shared ranking engine
+MOD:   CMakeLists.txt                          -- added find_service.cpp
+MOD:   src/app/command_router.cpp:176-202      -- production caller (was 176-363)
+MOD:   src/diagnostics/diagnostics.cpp:363-372 -- diagnostics caller (was 363-393)
+MOD:   tests/validation_runner.cpp:186-201     -- validation caller (was 185-228)
+MOD:   tests/benchmark_runner.cpp:74-89        -- benchmark caller (was 73-115)

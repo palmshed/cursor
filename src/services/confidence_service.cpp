@@ -29,7 +29,7 @@ static std::string fmt_score(double s) {
 const std::unordered_map<std::string, double> &ConfidenceService::category_weights() {
   // Weights sum to 1.0.
   // read is weighted highest because file content is the most informative step.
-  // search is next — locating evidence is necessary but not sufficient alone.
+  // search is next -- locating evidence is necessary but not sufficient alone.
   // verification confirms correctness when available.
   // discovery provides context but is not evidence for the answer.
   // git and ci are domain-specific adjuncts.

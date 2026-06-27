@@ -2,7 +2,7 @@
 
 ## Current Sprint
 
-### Sprint 2.1 — Confidence Calibration
+### Sprint 2.1 -- Confidence Calibration
 
 **Objective**
 
@@ -28,7 +28,7 @@ Align planner confidence with actual investigation quality.
 
 ---
 
-### Sprint 2.2 — UTF-8 Robustness
+### Sprint 2.2 -- UTF-8 Robustness
 
 **Objective**
 

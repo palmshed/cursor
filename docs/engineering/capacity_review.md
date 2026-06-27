@@ -1,4 +1,4 @@
-# Capacity Review — Level 2 Exit
+# Capacity Review -- Level 2 Exit
 
 ## Overview
 
@@ -6,18 +6,18 @@ The capacity review measures whether the planner behaves like a senior engineer 
 
 Four stress tests were designed to probe different failure modes:
 
-1. **Unknown query stress** — 100 architecture questions the planner has never seen
-2. **Wrong-first-path stress** — Fixtures that deliberately mislead the first investigation step
-3. **Noise stress** — Harmless distractions polluting the repository
-4. **Human evaluation** — An evaluation package for independent reviewers
+1. **Unknown query stress** -- 100 architecture questions the planner has never seen
+2. **Wrong-first-path stress** -- Fixtures that deliberately mislead the first investigation step
+3. **Noise stress** -- Harmless distractions polluting the repository
+4. **Human evaluation** -- An evaluation package for independent reviewers
 
 ## 1. Unknown Query Stress
 
 ### Method
 
 Generated 100 architecture questions:
-- **80 programmatic** — extracted from the codebase itself (symbols, services, enums, file ownership, dependency chains, lifecycle, configuration references)
-- **20 manual** — written as "senior engineer" questions requiring architectural reasoning
+- **80 programmatic** -- extracted from the codebase itself (symbols, services, enums, file ownership, dependency chains, lifecycle, configuration references)
+- **20 manual** -- written as "senior engineer" questions requiring architectural reasoning
 
 Each question was run through `cursor-agent --json` and the results were collected and analyzed.
 
@@ -29,14 +29,14 @@ Each question was run through `cursor-agent --json` and the results were collect
 | Recovery success | 100.0% | ≥95% | PASS |
 | Avg recoveries/query | 0.97 | <1.0 | PASS |
 | Avg files read | 1.99 | ≤4.0 | PASS |
-| Avg latency | 0.73s | — | — |
+| Avg latency | 0.73s | -- | -- |
 | Avg confidence | 0.59 | ≥0.7 | **FAIL** |
 
 ### Failure Analysis
 
-**1 error** (out of 100): "Find all references to Startup across the codebase" — crashed with `nlohmann::json type_error.316: invalid UTF-8 byte`. A pre-existing bug in SymbolService: when a matched file contains raw unescaped newlines in extracted content, JSON serialization fails. The `0x0A` byte (newline) at index 128 suggests a long line in a source file was not properly escaped. This is a **tool implementation bug**, not a planner defect.
+**1 error** (out of 100): "Find all references to Startup across the codebase" -- crashed with `nlohmann::json type_error.316: invalid UTF-8 byte`. A pre-existing bug in SymbolService: when a matched file contains raw unescaped newlines in extracted content, JSON serialization fails. The `0x0A` byte (newline) at index 128 suggests a long line in a source file was not properly escaped. This is a **tool implementation bug**, not a planner defect.
 
-**Confidence below target**: The average combined confidence (0.59) is below the 0.7 target. Investigation shows this is a **calibration issue in ConfidenceService::combine()** — individual tool confidences (0.6-0.8) are reasonable, but the `combine()` function applies a dampening factor that pulls the average down. The planner still produces correct answers (99% success), but the confidence score under-reports its certainty.
+**Confidence below target**: The average combined confidence (0.59) is below the 0.7 target. Investigation shows this is a **calibration issue in ConfidenceService::combine()** -- individual tool confidences (0.6-0.8) are reasonable, but the `combine()` function applies a dampening factor that pulls the average down. The planner still produces correct answers (99% success), but the confidence score under-reports its certainty.
 
 ### Tool Distribution
 
@@ -81,13 +81,13 @@ Three JSON scenarios under `tests/recovery/` (also copied to `scenarios/regressi
 ### Method
 
 Created 9 noise files in the production repository:
-- `docs/legacy/README.md` — misleading documentation
-- `src/generated/execution_engine.cpp` — generated stub with same class name
-- `include/generated/execution_engine.h` — generated stub header
-- `src/backup/command_router.cpp` — backup copy
-- `tests/fixtures/output/replay_service.cpp` — fixture copy
-- `data/archive/v0.1/agent.cpp` — old version
-- `build/artifacts/symbol_cache.json` — misleading artifact
+- `docs/legacy/README.md` -- misleading documentation
+- `src/generated/execution_engine.cpp` -- generated stub with same class name
+- `include/generated/execution_engine.h` -- generated stub header
+- `src/backup/command_router.cpp` -- backup copy
+- `tests/fixtures/output/replay_service.cpp` -- fixture copy
+- `data/archive/v0.1/agent.cpp` -- old version
+- `build/artifacts/symbol_cache.json` -- misleading artifact
 - Various markdown and config noise
 
 Ran 8 production queries against the noise-polluted repo, compared results against a clean baseline.
@@ -99,7 +99,7 @@ Ran 8 production queries against the noise-polluted repo, compared results again
 | Success rate | 8/8 (100%) | 8/8 (100%) | 0 |
 | Contaminated queries | 0 | 3/8 | +3 |
 
-**Contamination analysis**: The planner encounters noise files in 3 queries but still converges on production code. Contamination means noise files appeared in evidence but didn't prevent correct answers. For example, the planner saw both `include/generated/execution_engine.h` and `include/services/execution_engine.h` as find candidates — both had the same score — but when reading the generated stub, the evidence was insufficient, triggering recovery via grep which found the real file.
+**Contamination analysis**: The planner encounters noise files in 3 queries but still converges on production code. Contamination means noise files appeared in evidence but didn't prevent correct answers. For example, the planner saw both `include/generated/execution_engine.h` and `include/services/execution_engine.h` as find candidates -- both had the same score -- but when reading the generated stub, the evidence was insufficient, triggering recovery via grep which found the real file.
 
 **Conclusion**: Noise does not reduce success rate. Recovery strategies handle distractions gracefully.
 

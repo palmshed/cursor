@@ -390,7 +390,7 @@ QueryResult run_query(const std::string &prompt) {
         if (tc.tool == "references") {
           auto refs = Services::SymbolService::find_references(".", tc.args);
           if (refs.empty()) { tr.out = "no matches"; return tr; }
-          // Sort so .cpp entries appear before .h entries — headers declare,
+          // Sort so .cpp entries appear before .h entries -- headers declare,
           // source files call/instantiate. For caller queries this picks
           // the right file for reading. Among .cpp files, prefer src/ over tests/.
           std::stable_sort(refs.begin(), refs.end(),
@@ -807,7 +807,7 @@ int export_evidence(const QueryResult &qr, const std::string &output_path) {
 }
 
 // ===================================================================
-// Wrappers (dispatch layer — each creates its own QueryResult)
+// Wrappers (dispatch layer -- each creates its own QueryResult)
 // ===================================================================
 
 int run_diagnostics(const std::string &prompt) {

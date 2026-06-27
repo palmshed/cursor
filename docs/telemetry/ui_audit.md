@@ -116,7 +116,7 @@ Recommendation: ...
 | Aspect | Status | Detail |
 |--------|--------|--------|
 | Structured report exists | ✅ YES | `build_review_report` at execution_engine.cpp:841-975 |
-| Rendered with formatting | ❌ **RAW TEXT** | `std::cout << engine_result.summary;` (line 482) — markdown-like `##` headers printed as plain text |
+| Rendered with formatting | ❌ **RAW TEXT** | `std::cout << engine_result.summary;` (line 482) -- markdown-like `##` headers printed as plain text |
 | Section/card layout | ❌ NO | Plain monospace dump, no visual hierarchy |
 | Risk coloring | ❌ NO | "Medium"/"Low"/"High" risk labels are plain text strings |
 | Finding count | ✅ YES | `N findings total` printed at end |
@@ -198,7 +198,7 @@ Duration: 204.5ms
 | Aspect | Status | Detail |
 |--------|--------|--------|
 | Summary in normal mode | ❌ NO | `execution_engine.cpp:1191-1214` builds a summary string but it's only used by ArchitectureReview path (line 1222-1224) |
-| `show_context_state()` | ❌ VERBOSE-ONLY | `command_router.cpp:766` — renders goal, tasks, params but only in verbose mode |
+| `show_context_state()` | ❌ VERBOSE-ONLY | `command_router.cpp:766` -- renders goal, tasks, params but only in verbose mode |
 | `show_pipeline_section` | ❌ VERBOSE-ONLY | Goal type header hidden from normal users (line 181) |
 | Inspect mode | ✅ EXISTS | `agent_.state_.inspect_mode_` gates richer output, but `show_context_state` already handles this via is_verbose() |
 
@@ -225,15 +225,15 @@ Tools: find replay --impl; read ;
 | Feature | Backend | Visible to users? | Gap severity |
 |---------|---------|-------------------|-------------|
 | Timeline section headers | ✅ EXISTS | ✅ YES | None |
-| Collecting evidence summary | ✅ EXISTS | ✅ YES (after loop) | Minor — appears at end, not live |
-| Preparing answer header | ✅ EXISTS | ✅ YES | Minor — hidden for error states |
+| Collecting evidence summary | ✅ EXISTS | ✅ YES (after loop) | Minor -- appears at end, not live |
+| Preparing answer header | ✅ EXISTS | ✅ YES | Minor -- hidden for error states |
 | Tool checkmarks + counts | ✅ EXISTS | ✅ YES | None |
 | Find selected file | ✅ EXISTS | ✅ YES | None |
-| Find ranking detail | ✅ EXISTS | ❌ NO | Intentional — normal users don't need it |
-| Architecture Review formatting | ✅ EXISTS | ❌ RAW TEXT | **Gap** — structured data rendered as plain text |
-| Telemetry (duration, iter, outcome) | ✅ EXISTS | ❌ HIDDEN | Intentional — but no debug view exists |
-| Error state (stderr, exit code) | ✅ EXISTS | ❌ SWALLOWED | **Gap** — error info hidden in normal mode |
-| Read tool shows all files | ✅ EXISTS | ❌ LAST-ONLY | **Gap** — only last file visible |
+| Find ranking detail | ✅ EXISTS | ❌ NO | Intentional -- normal users don't need it |
+| Architecture Review formatting | ✅ EXISTS | ❌ RAW TEXT | **Gap** -- structured data rendered as plain text |
+| Telemetry (duration, iter, outcome) | ✅ EXISTS | ❌ HIDDEN | Intentional -- but no debug view exists |
+| Error state (stderr, exit code) | ✅ EXISTS | ❌ SWALLOWED | **Gap** -- error info hidden in normal mode |
+| Read tool shows all files | ✅ EXISTS | ❌ LAST-ONLY | **Gap** -- only last file visible |
 
 ### Recommended improvements (foundation for next cycle, not implementation now)
 

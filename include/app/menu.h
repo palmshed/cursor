@@ -8,7 +8,7 @@ namespace Core {
 
 bool is_tty_stream(FILE *stream);
 
-// Simple menu — returns index of chosen item, or -1 on escape.
+// Simple menu -- returns index of chosen item, or -1 on escape.
 int show_menu(const std::string &title,
               const std::vector<std::string> &items,
               int default_index);

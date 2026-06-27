@@ -51,7 +51,7 @@ static std::string root_cause(const std::string &,
                                 const std::vector<std::string> &tools,
                                 const std::string &failure_class) {
   if (failure_class == "Retrieval") {
-    if (tools.empty()) return "No tools executed — classified as GeneralChat instead of investigation";
+    if (tools.empty()) return "No tools executed -- classified as GeneralChat instead of investigation";
     if (tools.size() == 1 && tools[0].find("grep") != std::string::npos)
       return "Grep returned no matches for extracted search term";
     return "Evidence insufficient after " + std::to_string(tools.size()) + " tools";

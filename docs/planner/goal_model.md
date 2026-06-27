@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Add a structured `Goal` object alongside the existing `GoalType` enum that captures what the user wants to know — before the planner decides how to investigate.
+Add a structured `Goal` object alongside the existing `GoalType` enum that captures what the user wants to know -- before the planner decides how to investigate.
 
 The Goal describes **knowledge**, not **execution**.
 
@@ -31,7 +31,7 @@ Everything else (confidence, evidence requirements, completion criteria, tool de
 
 These are designed to be stable. Once finalized they should almost never change.
 
-### Intent — the primary action
+### Intent -- the primary action
 
 ```cpp
 enum class Intent {
@@ -49,7 +49,7 @@ enum class Intent {
 };
 ```
 
-### Entity — the subject the user is asking about
+### Entity -- the subject the user is asking about
 
 ```cpp
 enum class Entity {
@@ -69,7 +69,7 @@ enum class Entity {
 };
 ```
 
-### Artifact — the kind of answer the user expects
+### Artifact -- the kind of answer the user expects
 
 ```cpp
 enum class Artifact {
@@ -87,7 +87,7 @@ enum class Artifact {
 };
 ```
 
-### Scope — breadth of the question
+### Scope -- breadth of the question
 
 ```cpp
 enum class Scope {
@@ -140,7 +140,7 @@ Goal {
 
 Parse confidence: 0.88
 Ambiguities: [
-    "GitWorkingTree vs GitHistory" — "changed files" usually means working tree,
+    "GitWorkingTree vs GitHistory" -- "changed files" usually means working tree,
      but could mean across commits
 ]
 ```
@@ -214,19 +214,19 @@ Goal {
 | Intent | Implicit in keyword match | Explicit Intent enum |
 | Target | Implicit in keyword match | Explicit Entity + Artifact |
 | Planner contamination | GoalType drives tool selection directly | Goal is purely about user intent; tools are a separate concern |
-| New phrasing | Requires new `contains_any()` entry | No change — same Goal inferred from different words |
+| New phrasing | Requires new `contains_any()` entry | No change -- same Goal inferred from different words |
 | Ambiguity | Undetected (maps to wrong GoalType) | Captured as parse confidence + ambiguity list |
 
 ---
 
 ## What This Unlocks
 
-1. **Evidence derivation becomes a function of Goal** — `evidence_for(Goal)` replaces `required_evidence(GoalType)`. Adding a new combination requires a row, not a keyword list expansion.
+1. **Evidence derivation becomes a function of Goal** -- `evidence_for(Goal)` replaces `required_evidence(GoalType)`. Adding a new combination requires a row, not a keyword list expansion.
 
-2. **Completion becomes generic** — the planner checks "is the required evidence for this Goal satisfied?" instead of hardcoded per-type checks.
+2. **Completion becomes generic** -- the planner checks "is the required evidence for this Goal satisfied?" instead of hardcoded per-type checks.
 
-3. **Recovery becomes goal-aware** — instead of broader grep, the planner can ask "did I misidentify the entity? Should I broaden the scope?"
+3. **Recovery becomes goal-aware** -- instead of broader grep, the planner can ask "did I misidentify the entity? Should I broaden the scope?"
 
-4. **Formatter selection** — different artifacts (Overview vs Report vs RootCause) can use different prompts without changing the planner.
+4. **Formatter selection** -- different artifacts (Overview vs Report vs RootCause) can use different prompts without changing the planner.
 
-5. **Adding new phrasings** — requires zero code changes. The GoalUnderstandingService infers the same Intent + Entity from different words.
+5. **Adding new phrasings** -- requires zero code changes. The GoalUnderstandingService infers the same Intent + Entity from different words.

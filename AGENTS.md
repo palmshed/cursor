@@ -90,15 +90,15 @@ Investigation, evidence packaging, and synthesis are intentionally separated.
 
 # Investigation Lifecycle
 
-Every investigation produces an `InvestigationSession` — the canonical record of what the planner learned.
+Every investigation produces an `InvestigationSession` -- the canonical record of what the planner learned.
 
 The session is consumed by:
 
-* **AI synthesis** — transformed into a natural-language answer via the `Formatter`
-* **`/inspect`** — displayed as evidence summary
-* **Replay** — serialized for historical analysis
-* **JSON output** — machine-readable diagnostics
-* **Telemetry** — planner quality metrics
+* **AI synthesis** -- transformed into a natural-language answer via the `Formatter`
+* **`/inspect`** -- displayed as evidence summary
+* **Replay** -- serialized for historical analysis
+* **JSON output** -- machine-readable diagnostics
+* **Telemetry** -- planner quality metrics
 
 No consumer reconstructs investigation state independently.
 
@@ -240,19 +240,19 @@ Broad grep is the last resort.
 
 The planner classifies user intent before selecting tools.
 
-Classification is not keyword matching — it maps the user's question to an information need.
+Classification is not keyword matching -- it maps the user's question to an information need.
 
 Supported goal types:
 
-* `CommitHistory` — git log, status, diff
-* `CodebaseQuery` — find, grep, read
-* `CodebaseOverview` — discovery, read
-* `ArchitectureReview` — cross-file structural analysis
-* `CICheck` — GitHub Actions investigation
-* `GitHubInvestigation` — CI run diagnostics
-* `CodeChange` — edit with plan+verify
-* `GeneralChat` — conversation only
-* `SessionState` — runtime configuration queries
+* `CommitHistory` -- git log, status, diff
+* `CodebaseQuery` -- find, grep, read
+* `CodebaseOverview` -- discovery, read
+* `ArchitectureReview` -- cross-file structural analysis
+* `CICheck` -- GitHub Actions investigation
+* `GitHubInvestigation` -- CI run diagnostics
+* `CodeChange` -- edit with plan+verify
+* `GeneralChat` -- conversation only
+* `SessionState` -- runtime configuration queries
 
 Each goal type declares mandatory evidence.
 
@@ -303,16 +303,16 @@ Investigating repository…
 
 Developer access:
 
-* `/inspect` — evidence summary
-* Debug mode — planner decisions, confidence, recovery
-* Replay — full investigation history
-* JSON output — machine-readable diagnostics
+* `/inspect` -- evidence summary
+* Debug mode -- planner decisions, confidence, recovery
+* Replay -- full investigation history
+* JSON output -- machine-readable diagnostics
 
 ---
 
 # Current Engineering Phase
 
-**Level 2 — Planner Recovery and Answer Finalization**
+**Level 2 -- Planner Recovery and Answer Finalization**
 
 Level 2 is feature-complete but not yet closed.
 
@@ -415,11 +415,11 @@ One planner. Many deterministic tools.
 | `ARCHITECTURE.md` | Engineers | Runtime architecture, component relationships, data flow |
 | `DESIGN.md` | Product | User experience philosophy, interaction model, visibility layers |
 
-`docs/engineering/` — Engineering deep-dives (confidence calibration, planner recovery, acceptance criteria)
+`docs/engineering/` -- Engineering deep-dives (confidence calibration, planner recovery, acceptance criteria)
 
-`docs/architecture/` — Architecture decisions (implementation audit, review records)
+`docs/architecture/` -- Architecture decisions (implementation audit, review records)
 
-`docs/telemetry/` — Metrics and measurement (capacity review, human evaluation)
+`docs/telemetry/` -- Metrics and measurement (capacity review, human evaluation)
 
 ---
 

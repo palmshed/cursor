@@ -73,11 +73,11 @@ public:
   void set_ai_service(class AIService *ai) { ai_ = ai; }
   void set_classifier_mode(ClassifierMode mode) { mode_ = mode; }
 
-  // Main entry — runs the evidence loop then returns
+  // Main entry -- runs the evidence loop then returns
   ExecutionResult execute(const std::string &goal, ToolRunner run_tool,
                           Core::UIManager &ui);
 
-  // Completion check — public so callers can inspect
+  // Completion check -- public so callers can inspect
   bool goal_is_achieved(const std::string &goal,
                         EvidenceStore &evidence);
 

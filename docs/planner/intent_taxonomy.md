@@ -2,7 +2,7 @@
 
 Derived from 114 prompts in the corpus (see `prompt_corpus.csv`).
 
-## 1. EXPLAIN — "how does this work", "explain the architecture"
+## 1. EXPLAIN -- "how does this work", "explain the architecture"
 
 The user wants a conceptual understanding of how something works.
 
@@ -17,7 +17,7 @@ The user wants a conceptual understanding of how something works.
 
 ---
 
-## 2. LOCATE — "where is X", "find X defined"
+## 2. LOCATE -- "where is X", "find X defined"
 
 The user wants to find a specific file, symbol, definition, or usage.
 
@@ -33,7 +33,7 @@ The user wants to find a specific file, symbol, definition, or usage.
 
 ---
 
-## 3. REVIEW — "review architecture", "audit technical debt"
+## 3. REVIEW -- "review architecture", "audit technical debt"
 
 The user wants a structured analysis, not just an explanation.
 
@@ -47,7 +47,7 @@ The user wants a structured analysis, not just an explanation.
 
 ---
 
-## 4. STATUS — "last commit", "git status", "what changed"
+## 4. STATUS -- "last commit", "git status", "what changed"
 
 The user wants to know the current state of the repository.
 
@@ -60,11 +60,11 @@ The user wants to know the current state of the repository.
 
 **Current GoalType mapping:** CommitHistory, SessionState
 
-**Failure pattern:** The most brittle classifier. Every phrasing had to be added as a keyword. Before the catch-all fix, queries like *"check if any files changed"* leaked to GeneralChat (zero evidence collected). *"what files are modified"* and *"show me uncommitted changes"* still fail — no keyword matches.
+**Failure pattern:** The most brittle classifier. Every phrasing had to be added as a keyword. Before the catch-all fix, queries like *"check if any files changed"* leaked to GeneralChat (zero evidence collected). *"what files are modified"* and *"show me uncommitted changes"* still fail -- no keyword matches.
 
 ---
 
-## 5. DIAGNOSE — "why did CI fail", "find why X is triggered"
+## 5. DIAGNOSE -- "why did CI fail", "find why X is triggered"
 
 The user wants to identify the root cause of a failure.
 
@@ -79,7 +79,7 @@ The user wants to identify the root cause of a failure.
 
 ---
 
-## 6. COMPARE — "what is the difference between X and Y"
+## 6. COMPARE -- "what is the difference between X and Y"
 
 The user wants a comparison.
 
@@ -89,7 +89,7 @@ The user wants a comparison.
 
 ---
 
-## 7. NAVIGATE — "read file X", "show memory"
+## 7. NAVIGATE -- "read file X", "show memory"
 
 The user wants to directly access a resource.
 
@@ -104,7 +104,7 @@ The user wants to directly access a resource.
 
 ---
 
-## 8. MODIFY — "add X", "refactor Y", "fix Z"
+## 8. MODIFY -- "add X", "refactor Y", "fix Z"
 
 The user wants to change code.
 
@@ -119,7 +119,7 @@ The user wants to change code.
 
 ---
 
-## 9. EXECUTE — "run make test", "build the project"
+## 9. EXECUTE -- "run make test", "build the project"
 
 The user wants to run a shell command or build.
 
@@ -129,13 +129,13 @@ The user wants to run a shell command or build.
 
 ---
 
-## 10. CHAT — "how are you", "hello", "what can you do"
+## 10. CHAT -- "how are you", "hello", "what can you do"
 
 The user is having a conversation, not asking about the repo.
 
 **Current GoalType mapping:** GeneralChat
 
-**Failure pattern:** Low — these are handled well.
+**Failure pattern:** Low -- these are handled well.
 
 ---
 
@@ -208,12 +208,12 @@ what is the status of my github action
 
 # Observations
 
-1. **STATUS is the most fragmented intent** — 5 different GoalTypes (CommitHistory, SessionState, CodebaseQuery, CodebaseOverview, GeneralChat) depending on phrasing. A single `STATUS` intent with different entities would be cleaner.
+1. **STATUS is the most fragmented intent** -- 5 different GoalTypes (CommitHistory, SessionState, CodebaseQuery, CodebaseOverview, GeneralChat) depending on phrasing. A single `STATUS` intent with different entities would be cleaner.
 
-2. **LOCATE is the most mature intent** — consistently maps to CodebaseQuery, tools work well, confidence is high.
+2. **LOCATE is the most mature intent** -- consistently maps to CodebaseQuery, tools work well, confidence is high.
 
-3. **EXPLAIN and REVIEW overlap** — *"review architecture"* is EXPLAIN + structured output. The difference is in the expected answer format, not the investigation.
+3. **EXPLAIN and REVIEW overlap** -- *"review architecture"* is EXPLAIN + structured output. The difference is in the expected answer format, not the investigation.
 
-4. **COMPARE is orphaned** — classified as GeneralChat, so it collects zero evidence. It should be a real intent that triggers evidence collection.
+4. **COMPARE is orphaned** -- classified as GeneralChat, so it collects zero evidence. It should be a real intent that triggers evidence collection.
 
-5. **The entity dimension is missing** — *"explain the architecture"* vs *"explain how auth works"* are the same intent (EXPLAIN) with different entities (architecture vs auth system). The planner should differentiate by entity, not by changing the intent classification.
+5. **The entity dimension is missing** -- *"explain the architecture"* vs *"explain how auth works"* are the same intent (EXPLAIN) with different entities (architecture vs auth system). The planner should differentiate by entity, not by changing the intent classification.

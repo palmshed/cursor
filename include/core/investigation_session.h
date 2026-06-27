@@ -10,7 +10,7 @@ namespace Services { struct ExecutionResult; }
 namespace Core {
 
 // -----------------------------------------------------------------------------
-// ToolInvocation — a planner-facing record of a tool being used
+// ToolInvocation -- a planner-facing record of a tool being used
 // (not a tool log: no exit codes, no raw output, no stderr)
 // -----------------------------------------------------------------------------
 struct ToolInvocation {
@@ -20,7 +20,7 @@ struct ToolInvocation {
 };
 
 // -----------------------------------------------------------------------------
-// SymbolReference — a resolved symbol in the codebase
+// SymbolReference -- a resolved symbol in the codebase
 // -----------------------------------------------------------------------------
 struct SymbolReference {
   std::filesystem::path file;
@@ -28,7 +28,7 @@ struct SymbolReference {
 };
 
 // -----------------------------------------------------------------------------
-// InvestigationSession — the single canonical record of one investigation
+// InvestigationSession -- the single canonical record of one investigation
 //
 // This is a planner artifact, not a UI object.
 // Every other representation (UI output, JSON, replay, /inspect, telemetry)

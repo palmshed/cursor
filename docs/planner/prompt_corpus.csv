@@ -5,7 +5,7 @@
 #   OK = correctly classified
 #   WRONG = wrong GoalType
 #   LEAK = leaks to GeneralChat (no evidence collected)
-#   AMBIG = ambiguous — depends on context not captured in text
+#   AMBIG = ambiguous -- depends on context not captured in text
 #
 # ==============================================================
 # Architecture / Design / Overview
@@ -160,7 +160,7 @@ build the project | CodeChange | CodeChange | OK | main_test
 compile | CodeChange | CodeChange | OK | main_test
 
 # ==============================================================
-# Recovery benchmarks (not prompts — task descriptions)
+# Recovery benchmarks (not prompts -- task descriptions)
 # ==============================================================
 # Fix: CI workflow runs nonexistent command | CodeChange | CodeChange | OK | benchmark
 # Add: version command to CLI app | CodeChange | CodeChange | OK | benchmark

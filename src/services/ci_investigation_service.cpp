@@ -201,18 +201,18 @@ std::string CiInvestigationService::analyze_logs(long long run_id) {
 std::string CiInvestigationService::suggest_fix(const std::string &text) {
   if (text.find("Assertion") != std::string::npos ||
       text.find("expected") != std::string::npos)
-    return "Test assertion failure — check test expectations";
+    return "Test assertion failure -- check test expectations";
   if (text.find("not found") != std::string::npos ||
       text.find("No such") != std::string::npos)
-    return "Missing file or dependency — check the referenced path";
+    return "Missing file or dependency -- check the referenced path";
   if (text.find("error:") != std::string::npos ||
       text.find("Error:") != std::string::npos)
-    return "Compilation or runtime error — check the source file referenced in the error";
+    return "Compilation or runtime error -- check the source file referenced in the error";
   if (text.find("timeout") != std::string::npos ||
       text.find("Timeout") != std::string::npos)
-    return "Operation timed out — consider increasing timeout or optimizing the operation";
+    return "Operation timed out -- consider increasing timeout or optimizing the operation";
   if (text.find("Exit code 1") != std::string::npos)
-    return "Command exited with non-zero status — check the failed command's output";
+    return "Command exited with non-zero status -- check the failed command's output";
   return "Review the log output for details";
 }
 

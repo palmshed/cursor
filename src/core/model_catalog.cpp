@@ -89,7 +89,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
   static const std::vector<ModelConfig> kModels = {
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  FREE — OpenRouter
+    //  FREE -- OpenRouter
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -330,7 +330,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  FREE — third-party providers
+    //  FREE -- third-party providers
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -344,7 +344,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  PAID — OpenAI
+    //  PAID -- OpenAI
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -368,7 +368,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  PAID — Groq
+    //  PAID -- Groq
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -391,7 +391,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  PAID — Fireworks
+    //  PAID -- Fireworks
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -405,7 +405,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  PAID — Cerebras
+    //  PAID -- Cerebras
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -419,7 +419,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  PAID — DeepSeek
+    //  PAID -- DeepSeek
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -443,7 +443,7 @@ const std::vector<ModelConfig>& ModelCatalog::models() {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  LOCAL — Ollama (defaults; startup discovers the real list at runtime)
+    //  LOCAL -- Ollama (defaults; startup discovers the real list at runtime)
     // ══════════════════════════════════════════════════════════════════════════
 
     {

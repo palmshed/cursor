@@ -140,7 +140,7 @@ std::vector<FindCandidate> directory_aware_find(const std::string &term,
 
 The read-tool coupling is the real obstacle. A shares a captured vector
 between find and read. To share the find function, the tool runner lambda
-must still own the vector. This is fine — the shared function returns
+must still own the vector. This is fine -- the shared function returns
 candidates, the lambda selects top-N and stores them locally.
 
 The output format difference means each caller would wrap the shared function
@@ -157,7 +157,7 @@ with its own formatting loop. That is a 3–5 line wrapper per caller.
 1. **Single source of truth for ranking.** The scoring rules (exact=20,
    partial=10, directory=5, word-level=12, symbol up to 18, impl boost=8)
    and the ranking logic (descending score, ascending path for ties) would
-   live in one place. Currently each copy can drift independently —
+   live in one place. Currently each copy can drift independently --
    they already have different extension filters and A has features the
    other three lack.
 
@@ -175,7 +175,7 @@ with its own formatting loop. That is a 3–5 line wrapper per caller.
 If the four extension filters genuinely need to stay different (e.g.,
 diagnostics truly never needs `.yml` files), then keeping them separate is
 acceptable, but B and C/D should at minimum adopt A's CamelCase
-normalization, symbol scanning, and word-level matching — since those
+normalization, symbol scanning, and word-level matching -- since those
 features are bug fixes, not configuration preferences.
 
 ### Proposed scope for sharing

@@ -131,7 +131,7 @@ TEST(AgentTest, ShowAgentDocumentation) {
   });
 
   // Behavioral assertions: verify the command executed successfully
-  // and loaded AGENTS.md content — do not assert literal document text
+  // and loaded AGENTS.md content -- do not assert literal document text
   EXPECT_NE(output.find("Runtime help from AGENTS.md"), std::string::npos);
   EXPECT_TRUE(output.size() > 100);
 }

@@ -18,7 +18,7 @@ required_evidence() + select_next_tool() (hardcoded per GoalType)
 Tool execution
 ```
 
-**Problem:** The jump from text → GoalType discards all semantic information. Entity, artifact, and scope are lost. The planner can't reason about what it doesn't know — it can only match phrases. Every new phrasing requires a keyword list update.
+**Problem:** The jump from text → GoalType discards all semantic information. Entity, artifact, and scope are lost. The planner can't reason about what it doesn't know -- it can only match phrases. Every new phrasing requires a keyword list update.
 
 ---
 
@@ -94,7 +94,7 @@ ParseResult:
         scope:    Scope::Recent
     confidence: 0.88
     ambiguities: [
-        "entity could be GitHistory (files changed across commits) — lower confidence"
+        "entity could be GitHistory (files changed across commits) -- lower confidence"
     ]
     explanation: "contains 'changed files' → Status intent, GitWorkingTree entity"
 ```
@@ -165,7 +165,7 @@ std::vector<EvidenceClass> evidence_for(const Goal &goal) {
 }
 ```
 
-Adding support for a new combination requires adding a row — not expanding keyword lists.
+Adding support for a new combination requires adding a row -- not expanding keyword lists.
 
 ---
 
@@ -289,7 +289,7 @@ When `parse_confidence > threshold` (e.g., 0.8), use `evidence_for(goal)` instea
 
 ### Step 4: Derive completion from Goal
 
-Same approach — use Goal-based completion when confident, fall back to existing checks otherwise.
+Same approach -- use Goal-based completion when confident, fall back to existing checks otherwise.
 
 ### Step 5: Phase out keyword routing
 

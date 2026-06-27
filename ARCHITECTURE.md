@@ -276,11 +276,11 @@ Contents:
 
 InvestigationSession is consumed by:
 
-* **EvidencePackage** — builds evidence for AI (not all session data)
-* **`/inspect`** — displays evidence summary to developers
-* **Replay** — serialized for historical analysis
-* **JSON output** — machine-readable diagnostics
-* **Telemetry** — planner quality metrics
+* **EvidencePackage** -- builds evidence for AI (not all session data)
+* **`/inspect`** -- displays evidence summary to developers
+* **Replay** -- serialized for historical analysis
+* **JSON output** -- machine-readable diagnostics
+* **Telemetry** -- planner quality metrics
 
 No consumer reconstructs investigation state independently.
 
@@ -537,7 +537,7 @@ Speculative abstractions are intentionally avoided.
 
 # Current Maturity
 
-**Level 2 — Planner Recovery and Answer Finalization**
+**Level 2 -- Planner Recovery and Answer Finalization**
 
 Current architectural focus:
 
