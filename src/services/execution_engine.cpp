@@ -1,5 +1,6 @@
 #include "services/execution_engine.h"
 #include "services/evidence_gap_engine.h"
+#include "services/planner.h"
 #include "core/investigation_session.h"
 #include "services/ai_service.h"
 #include "services/confidence_service.h"
@@ -1897,8 +1898,8 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       ? check_completion_goal(result.parsed_goal.goal, evidence)
       : check_completion(goal, type, evidence);
 
-  // Phase 4.1 shadow mode: run EvidenceGapEngine alongside existing
-  // completion. Always log structured comparison. Do not change behavior.
+  // Phase 4.1/4.2 shadow mode: run EvidenceGapEngine + Planner alongside
+  // existing completion. Log agreement and metrics. Do not change behavior.
   if (use_goal_routing && result.parsed_goal.goal.is_known()) {
     EvidenceGapEngine gape;
     auto reqs = evidence_for_goal(result.parsed_goal.goal);
@@ -1921,44 +1922,47 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
                 "/v" + (rs.is_independently_verified ? "1" : "0") + " ";
     }
 
+    // Gap metrics
+    int m_cnt = gap.missing_count();
+    int w_cnt = gap.weak_count();
+    int u_cnt = gap.unverified_count();
+
     // Classify reason for disagreement
     std::string reason;
     if (verdict == "disagree") {
-      int missing = 0, weak = 0, unverified = 0;
-      for (auto &rs : gap.requirements) {
-        if (rs.missing()) missing++;
-        else if (rs.weak()) weak++;
-        else if (rs.unverified()) unverified++;
-      }
       if (gap_complete && !result.success) {
         reason = "gap_says_complete_but_current_does_not";
       } else if (!gap_complete && result.success) {
         reason = "current_says_complete_but_gap_finds=";
-        if (missing > 0) reason += std::to_string(missing) + "missing_";
-        if (weak > 0) reason += std::to_string(weak) + "weak_";
-        if (unverified > 0) reason += std::to_string(unverified) + "unverified";
+        if (m_cnt > 0) reason += std::to_string(m_cnt) + "missing_";
+        if (w_cnt > 0) reason += std::to_string(w_cnt) + "weak_";
+        if (u_cnt > 0) reason += std::to_string(u_cnt) + "unverified";
       }
     } else {
-      // On agreement, check if gap found any weak/unverified (quality improvement opportunity)
-      int weak = 0, unverified = 0;
-      for (auto &rs : gap.requirements) {
-        if (rs.weak()) weak++;
-        else if (rs.unverified()) unverified++;
-      }
-      if (weak > 0 || unverified > 0)
-        reason = "agrees_but_has_opportunities_weak=" + std::to_string(weak) +
-                 "_unverified=" + std::to_string(unverified);
+      if (w_cnt > 0 || u_cnt > 0)
+        reason = "agrees_but_has_opportunities_weak=" + std::to_string(w_cnt) +
+                 "_unverified=" + std::to_string(u_cnt);
       else
         reason = "identical";
     }
 
+    // Phase 4.2 shadow: run Planner alongside (no behavioral change)
+    Planner pln;
+    auto decision = pln.decide(gap);
+
     evidence.add_fact("gap_shadow: " + verdict +
                       " current=" + cur_status +
                       " gap=" + gap_status +
-                      " reason=" + reason);
+                      " reason=" + reason +
+                      " missing=" + std::to_string(m_cnt) +
+                      " weak=" + std::to_string(w_cnt) +
+                      " unverified=" + std::to_string(u_cnt) +
+                      " planner=" + (decision.has_work ? decision.describe() : std::string("done")));
     evidence.add_fact("gap_shadow_detail: " + detail);
     std::cerr << "[GAP SHADOW] " << verdict
+              << " m=" << m_cnt << " w=" << w_cnt << " u=" << u_cnt
               << " reason=" << reason
+              << " planner=" << (decision.has_work ? decision.describe() : "done")
               << " detail=" << detail << std::endl;
   }
 
