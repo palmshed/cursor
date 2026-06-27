@@ -1,6 +1,7 @@
 #include "services/execution_engine.h"
 #include "services/evidence_gap_engine.h"
 #include "services/planner.h"
+#include "services/planner_loop.h"
 #include "core/investigation_session.h"
 #include "services/ai_service.h"
 #include "services/confidence_service.h"
@@ -1367,6 +1368,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   // multiple tools operating on the same topic can still converge.
   std::string last_search_target = goal;
 
+  // Phase 4.5 shadow metrics — last tool executed across loop boundary
+  PlannerShadowMetrics planner_shadow;
+  std::string last_tool, last_args;
+
   for (iteration_count = 0; iteration_count < MAX_ITERATIONS; iteration_count++) {
     if (use_goal_routing
         ? check_completion_goal(result.parsed_goal.goal, evidence)
@@ -1509,6 +1514,21 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     tr.args = tc.args;
     result.tool_history.push_back(tr);
     ui.show_tool_output(tr.out);
+    last_tool = tc.tool;
+    last_args = tc.args;
+
+    // Phase 4.5 shadow step inside loop: compare planner choice with actual tool
+    if (use_goal_routing && result.parsed_goal.goal.is_known()) {
+      std::string search_term = extract_best_term(goal);
+      auto shadow_step = run_planner_shadow_step(
+          result.parsed_goal.goal, evidence, search_term,
+          tc.tool, tc.args);
+      planner_shadow.steps.push_back(shadow_step);
+      if (!shadow_step.agreement && shadow_step.planner_would_continue) {
+        std::cerr << "[PLANNER SHADOW] iteration=" << iteration_count
+                  << " " << shadow_step.describe() << std::endl;
+      }
+    }
 
     std::string fact = tc.tool;
     if (!tc.args.empty())
@@ -1983,6 +2003,11 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       ? check_completion_goal(result.parsed_goal.goal, evidence)
       : check_completion(goal, type, evidence);
 
+  // Phase 4.5 shadow metrics summary
+  if (planner_shadow.total_iterations() > 0) {
+    evidence.add_fact("planner_shadow: " + planner_shadow.summary());
+  }
+
   // Phase 4.1/4.2 shadow mode: run EvidenceGapEngine + Planner alongside
   // existing completion. Log agreement and metrics. Do not change behavior.
   if (use_goal_routing && result.parsed_goal.goal.is_known()) {
@@ -2080,12 +2105,12 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
                                 : confidence_history.front().score);
 
   // Compute strategy changes (number of times the tool type changes)
-  std::string last_tool;
+  std::string prev_tool;
   for (const auto &tr : result.tool_history) {
-    if (!last_tool.empty() && tr.tool != last_tool) {
+    if (!prev_tool.empty() && tr.tool != prev_tool) {
       result.recovery_metrics.strategy_changes++;
     }
-    last_tool = tr.tool;
+    prev_tool = tr.tool;
   }
 
   // Detect if any tool call reverted files
