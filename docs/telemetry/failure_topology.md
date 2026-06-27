@@ -1,9 +1,13 @@
-# Failure Topology & Telemetry Analysis
+# Failure Topology
 
-**Original Date:** 2026-06-26  
-**Last Revised:** 2026-06-28  
-**Data Scope:** 432 log files, 1,306 total telemetry traces from `~/.cursor/replay`  
-**Phase:** Level 2.4 (Goal Understanding) — planning phase
+Telemetry analysis and engineering observations.
+
+**Original:** 2026-06-26  
+**Revised:** 2026-06-28  
+
+**Source:** `~/.cursor/replay`  
+**Logs:** 432  
+**Traces:** 1,306
 
 > This document accurately describes the system through the end of the retrieval maturity phase. Subsequent engineering cycles (Level 2.3 Answer Finalization and Level 2.4 Goal Understanding) refined the architectural understanding and supersede several design conclusions. Telemetry data and failure frequencies remain valid observations. Interpretations of root cause have evolved as the planner matured.
 >
