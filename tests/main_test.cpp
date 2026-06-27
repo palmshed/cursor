@@ -4,6 +4,7 @@
 #include "services/workflow_benchmark_service.h"
 #include "services/execution_engine.h"
 #include "services/evidence_gap_engine.h"
+#include "services/planner.h"
 #include "memory_manager.h"
 #include "agent.h"
 #include "app/command_router.h"
@@ -884,6 +885,127 @@ TEST(EvidenceGapTest, IndependentVerificationDetected) {
   EXPECT_TRUE(gap.requirements[0].satisfied());
   EXPECT_TRUE(gap.requirements[0].is_independently_verified);
   EXPECT_FALSE(gap.requirements[0].unverified());
+}
+
+// ---------------------------------------------------------------------------
+// Planner tests
+// ---------------------------------------------------------------------------
+
+TEST(PlannerTest, NoGapProducesNoWork) {
+  Services::Planner pln;
+  Services::EvidenceGap gap;
+  Services::EvidenceRequirement req;
+  req.ec = Services::FileSearch;
+  req.min_quality = Services::Moderate;
+  Services::EvidenceGap::RequirementStatus rs;
+  rs.requirement = req;
+  rs.best_quality = Services::Moderate; // satisfied
+  rs.is_independently_verified = true;
+  gap.requirements.push_back(rs);
+  auto d = pln.decide(gap);
+  EXPECT_FALSE(d.has_work);
+}
+
+TEST(PlannerTest, MissingEvidenceProducesAcquire) {
+  Services::Planner pln;
+  Services::EvidenceGap gap;
+  Services::EvidenceRequirement req;
+  req.ec = Services::FileSearch;
+  req.min_quality = Services::Moderate;
+  Services::EvidenceGap::RequirementStatus rs;
+  rs.requirement = req;
+  rs.best_quality = Services::QualNone; // missing
+  gap.requirements.push_back(rs);
+  auto d = pln.decide(gap);
+  EXPECT_TRUE(d.has_work);
+  EXPECT_EQ(d.action, Services::PlannerAction::Acquire);
+  EXPECT_EQ(d.evidence_class, Services::FileSearch);
+}
+
+TEST(PlannerTest, WeakEvidenceProducesStrengthen) {
+  Services::Planner pln;
+  Services::EvidenceGap gap;
+  Services::EvidenceRequirement req;
+  req.ec = Services::FileContent;
+  req.min_quality = Services::Moderate;
+  Services::EvidenceGap::RequirementStatus rs;
+  rs.requirement = req;
+  rs.best_quality = Services::Weak; // weak
+  gap.requirements.push_back(rs);
+  auto d = pln.decide(gap);
+  EXPECT_TRUE(d.has_work);
+  EXPECT_EQ(d.action, Services::PlannerAction::Strengthen);
+  EXPECT_EQ(d.evidence_class, Services::FileContent);
+}
+
+TEST(PlannerTest, UnverifiedEvidenceProducesVerify) {
+  Services::Planner pln;
+  Services::EvidenceGap gap;
+  Services::EvidenceRequirement req;
+  req.ec = Services::Discovery;
+  req.min_quality = Services::Moderate;
+  req.require_independent_verification = true;
+  Services::EvidenceGap::RequirementStatus rs;
+  rs.requirement = req;
+  rs.best_quality = Services::Strong; // meets quality
+  rs.is_independently_verified = false; // but not verified
+  gap.requirements.push_back(rs);
+  auto d = pln.decide(gap);
+  EXPECT_TRUE(d.has_work);
+  EXPECT_EQ(d.action, Services::PlannerAction::Verify);
+  EXPECT_EQ(d.evidence_class, Services::Discovery);
+}
+
+TEST(PlannerTest, MissingIsHigherPriorityThanWeak) {
+  Services::Planner pln;
+  Services::EvidenceGap gap;
+  Services::EvidenceRequirement req_fs;
+  req_fs.ec = Services::FileSearch;
+  req_fs.min_quality = Services::Moderate;
+  Services::EvidenceGap::RequirementStatus rs_fs;
+  rs_fs.requirement = req_fs;
+  rs_fs.best_quality = Services::Weak; // weak
+  gap.requirements.push_back(rs_fs);
+
+  Services::EvidenceRequirement req_sr;
+  req_sr.ec = Services::Discovery;
+  req_sr.min_quality = Services::Moderate;
+  Services::EvidenceGap::RequirementStatus rs_sr;
+  rs_sr.requirement = req_sr;
+  rs_sr.best_quality = Services::QualNone; // missing (higher priority)
+  gap.requirements.push_back(rs_sr);
+
+  auto d = pln.decide(gap);
+  EXPECT_TRUE(d.has_work);
+  EXPECT_EQ(d.action, Services::PlannerAction::Acquire);
+  EXPECT_EQ(d.evidence_class, Services::Discovery);
+}
+
+TEST(PlannerTest, WeakIsHigherPriorityThanUnverified) {
+  Services::Planner pln;
+  Services::EvidenceGap gap;
+  Services::EvidenceRequirement req_sr;
+  req_sr.ec = Services::FileContent;
+  req_sr.min_quality = Services::Moderate;
+  Services::EvidenceGap::RequirementStatus rs_sr;
+  rs_sr.requirement = req_sr;
+  rs_sr.best_quality = Services::Weak; // weak (middle priority)
+  gap.requirements.push_back(rs_sr);
+
+  Services::EvidenceRequirement req_ci;
+  req_ci.ec = Services::CIWorkflow;
+  req_ci.min_quality = Services::Moderate;
+  req_ci.require_independent_verification = true;
+  Services::EvidenceGap::RequirementStatus rs_ci;
+  rs_ci.requirement = req_ci;
+  rs_ci.best_quality = Services::Strong; // meets quality but unverified (lowest)
+  rs_ci.is_independently_verified = false;
+  gap.requirements.push_back(rs_ci);
+
+  auto d = pln.decide(gap);
+  EXPECT_TRUE(d.has_work);
+  EXPECT_EQ(d.action, Services::PlannerAction::Strengthen);
+  EXPECT_EQ(d.evidence_class, Services::FileContent);
 }
 
 int main(int argc, char **argv) {
