@@ -303,7 +303,7 @@ A new production failure cluster with at least 3 occurrences of the same query s
 ### Files Changed This Cycle
 
 ```
-NEW:   include/services/find_service.h        -- FindCandidate + directory_aware_find()
+NEW:   include/services/find_service.h         -- FindCandidate + directory_aware_find()
 NEW:   src/services/find_service.cpp           -- shared ranking engine
 MOD:   CMakeLists.txt                          -- added find_service.cpp
 MOD:   src/app/command_router.cpp:176-202      -- production caller (was 176-363)
