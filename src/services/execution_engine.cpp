@@ -1898,25 +1898,68 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       : check_completion(goal, type, evidence);
 
   // Phase 4.1 shadow mode: run EvidenceGapEngine alongside existing
-  // completion. Log disagreements without changing behavior.
+  // completion. Always log structured comparison. Do not change behavior.
   if (use_goal_routing && result.parsed_goal.goal.is_known()) {
     EvidenceGapEngine gape;
     auto reqs = evidence_for_goal(result.parsed_goal.goal);
     auto gap = gape.evaluate(reqs, evidence);
     bool gap_complete = gap.complete();
-    if (gap_complete != result.success) {
-      evidence.add_fact("gap_shadow_disagree: current=" +
-                        std::string(result.success ? "complete" : "incomplete") +
-                        " gap=" + std::string(gap_complete ? "complete" : "incomplete"));
-      std::string gap_detail;
-      for (auto &rs : gap.requirements) {
-        gap_detail += std::to_string(static_cast<int>(rs.requirement.ec)) + ":" +
-                      (rs.missing() ? "M" : rs.weak() ? "W" : rs.unverified() ? "U" : "OK") +
-                      "/q=" + std::to_string(static_cast<int>(rs.best_quality)) +
-                      "/v=" + (rs.is_independently_verified ? "1" : "0") + " ";
-      }
-      evidence.add_fact("gap_shadow_detail: " + gap_detail);
+
+    std::string verdict = (gap_complete == result.success) ? "agree" : "disagree";
+    std::string gap_status = gap_complete ? "complete" : "incomplete";
+    std::string cur_status = result.success ? "complete" : "incomplete";
+
+    // Build per-requirement summary
+    std::string detail;
+    for (auto &rs : gap.requirements) {
+      std::string st = rs.missing() ? "M" :
+                       rs.weak() ? "W" :
+                       rs.satisfied() ? "OK" : "?";
+      detail += std::to_string(static_cast<int>(rs.requirement.ec)) + ":" + st +
+                "/q" + std::to_string(static_cast<int>(rs.best_quality)) +
+                "/rq" + std::to_string(static_cast<int>(rs.requirement.min_quality)) +
+                "/v" + (rs.is_independently_verified ? "1" : "0") + " ";
     }
+
+    // Classify reason for disagreement
+    std::string reason;
+    if (verdict == "disagree") {
+      int missing = 0, weak = 0, unverified = 0;
+      for (auto &rs : gap.requirements) {
+        if (rs.missing()) missing++;
+        else if (rs.weak()) weak++;
+        else if (rs.unverified()) unverified++;
+      }
+      if (gap_complete && !result.success) {
+        reason = "gap_says_complete_but_current_does_not";
+      } else if (!gap_complete && result.success) {
+        reason = "current_says_complete_but_gap_finds=";
+        if (missing > 0) reason += std::to_string(missing) + "missing_";
+        if (weak > 0) reason += std::to_string(weak) + "weak_";
+        if (unverified > 0) reason += std::to_string(unverified) + "unverified";
+      }
+    } else {
+      // On agreement, check if gap found any weak/unverified (quality improvement opportunity)
+      int weak = 0, unverified = 0;
+      for (auto &rs : gap.requirements) {
+        if (rs.weak()) weak++;
+        else if (rs.unverified()) unverified++;
+      }
+      if (weak > 0 || unverified > 0)
+        reason = "agrees_but_has_opportunities_weak=" + std::to_string(weak) +
+                 "_unverified=" + std::to_string(unverified);
+      else
+        reason = "identical";
+    }
+
+    evidence.add_fact("gap_shadow: " + verdict +
+                      " current=" + cur_status +
+                      " gap=" + gap_status +
+                      " reason=" + reason);
+    evidence.add_fact("gap_shadow_detail: " + detail);
+    std::cerr << "[GAP SHADOW] " << verdict
+              << " reason=" << reason
+              << " detail=" << detail << std::endl;
   }
 
   if (type == ArchitectureReview) {
