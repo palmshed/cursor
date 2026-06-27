@@ -587,6 +587,7 @@ set(SERVICE_SOURCES
     src/services/dependency_service.cpp
     src/services/find_service.cpp
     src/services/symbol_service.cpp
+    src/services/goal_understanding_service.cpp
 )
 
 set(DIAGNOSTICS_SOURCES
@@ -727,6 +728,17 @@ if(CURSOR_BUILD_TESTS)
     )
     target_link_libraries(benchmark_runner PRIVATE cursor_lib)
     set_target_properties(benchmark_runner PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+        MACOSX_RPATH ON
+    )
+
+    add_executable(verification_test tests/verification_test.cpp)
+    target_include_directories(verification_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+    target_link_libraries(verification_test PRIVATE cursor_lib)
+    set_target_properties(verification_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
         MACOSX_RPATH ON
     )
