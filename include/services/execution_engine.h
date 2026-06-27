@@ -47,6 +47,9 @@ struct ExecutionResult {
   bool success{false};
   std::string summary;
   std::string ai_response;
+  // Clean evidence-only summary for AI consumption (no planner metadata).
+  // Contains only extracted tool outputs, formatted as evidence statements.
+  std::string evidence_summary;
   EvidenceStore evidence;
   std::vector<ToolResult> tool_history;
   int goal_type{0};

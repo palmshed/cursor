@@ -417,7 +417,7 @@ std::string CommandRouter::process_user_input(const std::string &input) {
     // Always feed evidence into AI context (hidden from UX but grounds the answer)
     engine_evidence_context_ =
         "REPOSITORY EVIDENCE (found in the current repository):\n"
-        + engine_result.summary
+        + engine_result.evidence_summary
         + "\n\nThe answer to the user's question is in the evidence above. "
           "Base your answer on this repository evidence. "
           "Do not suggest generic commands or search strategies — "
@@ -843,7 +843,13 @@ std::string CommandRouter::handle_ai_chat(const std::string &input) {
     full_context = agent_context + "\n\n" + full_context;
   }
 
-  std::string system_prompt = "Answer questions from repository evidence.";
+  std::string system_prompt = "You are a code investigation assistant. Answer the user's question "
+      "directly using the repository evidence provided. "
+      "Do not include tool calls, planner metadata, confidence values, or investigation details in your answer. "
+      "Do not say \"I'll check\" or \"Preparing\" — the investigation is already complete. "
+      "Synthesize a clear, direct answer from the evidence below. "
+      "If the evidence includes file contents, summarize the relevant parts. "
+      "If the evidence includes search results, explain what was found.";
   ui_.show_ai_prompt(system_prompt, input);
 
   std::string response = agent_.ai_service_->chat(input, full_context);

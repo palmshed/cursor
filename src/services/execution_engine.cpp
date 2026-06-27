@@ -341,16 +341,20 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
 
   // Commit history and git intent: "status", "branch", "log" commands
   if (contains_any(goal, {"last commit", "last comit", "recent commit", "recent comit",
-                             "recent commits", "recent comits",
-                             "latest commit", "latest comit",
-                             "git history", "git log", "commit log",
-                             "recent changes", "recent change",
-                             "what changed", "what changed last",
-                             "commit history", "show commit", "show recent",
-                             "check commit", "check comit",
-                             "previous commit", "previous comit",
-                             "git status", "current branch", "what branch",
-                             "branch am i", "show branch", "git branch"}))
+                              "recent commits", "recent comits",
+                              "latest commit", "latest comit",
+                              "git history", "git log", "commit log",
+                              "recent changes", "recent change",
+                              "what changed", "what changed last",
+                              "changed files", "files changed",
+                              "modified files", "what files changed",
+                              "show changed files", "show modified files",
+                              "check changed files", "check modified files",
+                              "commit history", "show commit", "show recent",
+                              "check commit", "check comit",
+                              "previous commit", "previous comit",
+                              "git status", "current branch", "what branch",
+                              "branch am i", "show branch", "git branch"}))
     return CommitHistory;
 
   if (mode_ == ClassifierMode::LLM && ai_)
@@ -390,10 +394,20 @@ ExecutionEngine::GoalType ExecutionEngine::classify_goal(
     return CodebaseQuery;
 
   if (contains_any(goal, {"add", "implement", "refactor", "fix", "migrate",
-                           "create", "remove", "update", "upgrade",
-                           "delete", "rename", "extract", "build",
-                           "setup", "configure"}))
+                            "create", "remove", "update", "upgrade",
+                            "delete", "rename", "extract", "build",
+                            "setup", "configure"}))
     return CodeChange;
+
+  // Catch-all: queries that escaped investigation-specific patterns but
+  // clearly ask about repository state. Prevents silent GeneralChat fallback
+  // where the AI synthesizes answers without running any tools.
+  if (contains_any(goal, {"check the", "check what", "check if",
+                           "check whether", "check for",
+                           "what are the", "what is the current",
+                           "get the latest", "get the current",
+                           "list all", "list the"}))
+    return CodebaseQuery;
 
   return GeneralChat;
 }
@@ -445,8 +459,12 @@ std::string ExecutionEngine::goal_type_name(GoalType t) {
 EvidenceNeed ExecutionEngine::detect_evidence_need(
     const std::string &goal) {
   if (contains_any(goal, {"commit", "history",
-                           "change log", "what changed",
-                           "previous version", "recent change"}))
+                            "change log", "what changed",
+                            "changed files", "files changed",
+                            "modified files", "what files changed",
+                            "show changed files", "show modified files",
+                            "check changed files", "check modified files",
+                            "previous version", "recent change"}))
     return EvidenceNeed::CommitHistory;
   return EvidenceNeed::Default;
 }
@@ -1136,10 +1154,15 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
 
   const int MAX_ITERATIONS = 20;
   const int MAX_RECOVERY = 3;
+  const double RECOVERY_THRESHOLD = 0.5; // will be derived from calibration data in step 7
   std::vector<ConfidenceResult> confidence_history;
   int iteration_count = 0;
   int recovery_count = 0;
   std::set<std::string> seen_tool_calls;
+  // Use the user's query as the initial search target for convergence detection.
+  // When tools have empty args, this provides a fallback target so that
+  // multiple tools operating on the same topic can still converge.
+  std::string last_search_target = goal;
 
   for (iteration_count = 0; iteration_count < MAX_ITERATIONS; iteration_count++) {
     if (check_completion(goal, type, evidence)) {
@@ -1147,7 +1170,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       // is moderate and a recovery strategy is available
       if (recovery_count < MAX_RECOVERY && !confidence_history.empty()) {
         ConfidenceResult combined = ConfidenceService::combine(confidence_history);
-        if (combined.score < 0.7) {
+        if (combined.score < RECOVERY_THRESHOLD) {
           ToolCall rc = select_recovery_tool(goal, type, evidence, result.tool_history);
           if (!rc.tool.empty()) {
             recovery_count++;
@@ -1177,13 +1200,53 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
                 evidence.add_fact("find:results");
                 evidence.mark_evidence_class(EvidenceClass::FileSearch);
               }
+              // Evaluate confidence for recovery tool (normal category, not hardcoded 0.5)
+              {
+                ConfidenceResult cr;
+                cr.target = rtr.args;
+                if (rtr.tool == "grep") {
+                  int hits = 0;
+                  std::istringstream ss(rtr.out);
+                  std::string line;
+                  while (std::getline(ss, line))
+                    if (!line.empty() && line != "no matches") hits++;
+                  cr = ConfidenceService::after_search(rtr.args, hits);
+                } else if (rtr.tool == "read") {
+                  cr = ConfidenceService::after_read(1, true);
+                } else if (rtr.tool == "references") {
+                  bool ok = rtr.out != "no matches" && !rtr.out.empty();
+                  cr.category = "search";
+                  cr.score = ok ? 0.8 : 0.3;
+                  cr.reason = ok ? "references matched callers" : "references found no callers";
+                } else if (rtr.tool == "find") {
+                  bool ok = rtr.out != "no matches" && !rtr.out.empty();
+                  cr.category = "search";
+                  cr.score = ok ? 0.8 : 0.3;
+                  cr.reason = ok ? "find matched files" : "find found nothing";
+                } else if (rtr.tool == "cmake") {
+                  bool ok = rtr.out.find("error") == std::string::npos;
+                  cr = ConfidenceService::after_build(ok, ok ? "" : rtr.out.substr(0, 200));
+                } else if (rtr.tool == "ctest") {
+                  cr.category = "verification";
+                  bool ok = (rtr.out.find("failed") == std::string::npos &&
+                             rtr.out.find("FAILED") == std::string::npos);
+                  cr.score = ok ? 0.9 : 0.3;
+                  cr.reason = ok ? "tests passed" : "tests failed";
+                } else if (rtr.tool == "discovery") {
+                  cr.category = "discovery";
+                  bool ok = !rtr.out.empty();
+                  cr.score = ok ? 0.70 : 0.30;
+                  cr.reason = ok ? "project structure analysed" : "discovery failed";
+                } else {
+                  cr.category = "tool_generic";
+                  cr.score = 0.5;
+                  cr.reason = "recovery tool executed: " + rtr.tool;
+                }
+                confidence_history.push_back(cr);
+              }
               // Re-check completion after recovery tool
               if (check_completion(goal, type, evidence)) {
-                // Add confidence for the recovery tool
-                ConfidenceResult cr;
-                cr.score = 0.5;
-                cr.reason = "recovery tool: " + rtr.tool;
-                confidence_history.push_back(cr);
+                // Recovery produced evidence; loop will break with updated confidence
               }
             }
           }
@@ -1347,6 +1410,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
 
     // Evaluate confidence after each tool run
     ConfidenceResult cr;
+    cr.target = tc.args;
     if (tc.tool == "grep") {
       int hits = 0;
       std::istringstream ss(tr.out);
@@ -1358,25 +1422,58 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       if (hits > result.recovery_metrics.grep_max_hits)
         result.recovery_metrics.grep_max_hits = hits;
       cr = ConfidenceService::after_search(tc.args, hits);
+      cr.target = tc.args.empty() ? last_search_target : tc.args;
+      if (!tc.args.empty()) last_search_target = tc.args;
     } else if (tc.tool == "read") {
       cr = ConfidenceService::after_read(1, true);
+      // Read tool often has empty args; use last search target for convergence
+      cr.target = tc.args.empty() ? last_search_target : tc.args;
     } else if (tc.tool == "references") {
+      cr.category = "search";
+      cr.target = tc.args.empty() ? last_search_target : tc.args;
+      if (!tc.args.empty()) last_search_target = tc.args;
       bool ok = tr.out != "no matches" && !tr.out.empty();
       cr.score = ok ? 0.8 : 0.3;
       cr.reason = ok ? "references matched callers" : "references found no callers";
     } else if (tc.tool == "find") {
+      cr.category = "search";
+      cr.target = tc.args.empty() ? last_search_target : tc.args;
+      if (!tc.args.empty()) last_search_target = tc.args;
       bool ok = tr.out != "no matches" && !tr.out.empty();
       cr.score = ok ? 0.8 : 0.3;
       cr.reason = ok ? "find matched files" : "find found nothing";
     } else if (tc.tool == "cmake") {
-      bool ok = tr.out.find("error") == std::string::npos;
-      cr = ConfidenceService::after_build(ok, ok ? "" : tr.out.substr(0, 200));
+      bool cmake_ok = tr.out.find("error") == std::string::npos;
+      cr = ConfidenceService::after_build(cmake_ok, cmake_ok ? "" : tr.out.substr(0, 200));
+      cr.target = tc.args;
     } else if (tc.tool == "ctest") {
+      cr.category = "verification";
+      cr.target = tc.args;
       bool ok = (tr.out.find("failed") == std::string::npos &&
                  tr.out.find("FAILED") == std::string::npos);
       cr.score = ok ? 0.9 : 0.3;
       cr.reason = ok ? "tests passed" : "tests failed";
+    } else if (tc.tool == "git") {
+      cr.category = "git";
+      cr.target = tc.args;
+      bool ok = !tr.out.empty() && tr.out.find("fatal") == std::string::npos;
+      cr.score = ok ? 0.75 : 0.30;
+      cr.reason = ok ? "git results" : "git found nothing";
+    } else if (tc.tool == "gh") {
+      cr.category = "ci";
+      cr.target = tc.args;
+      bool ok = !tr.out.empty();
+      cr.score = ok ? 0.80 : 0.30;
+      cr.reason = ok ? "CI data retrieved" : "CI data unavailable";
+    } else if (tc.tool == "discovery") {
+      cr.category = "discovery";
+      cr.target = tc.args;
+      bool ok = !tr.out.empty();
+      cr.score = ok ? 0.70 : 0.30;
+      cr.reason = ok ? "project structure analysed" : "discovery failed";
     } else {
+      cr.category = "tool_generic";
+      cr.target = tc.args;
       cr.score = 0.5;
       cr.reason = "tool executed";
     }
@@ -1419,18 +1516,75 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
               evidence.add_fact("find:results");
               evidence.mark_evidence_class(EvidenceClass::FileSearch);
             }
+            // Evaluate confidence for mid-loop recovery tool
+            {
+              ConfidenceResult rcr;
+              rcr.target = rc.args.empty() ? last_search_target : rc.args;
+              if (rc.tool == "grep") {
+                int hits = 0;
+                std::istringstream ss(rtr.out);
+                std::string line;
+                while (std::getline(ss, line))
+                  if (!line.empty() && line != "no matches") hits++;
+                rcr = ConfidenceService::after_search(rc.args, hits);
+                rcr.target = rc.args.empty() ? last_search_target : rc.args;
+                if (!rc.args.empty()) last_search_target = rc.args;
+              } else if (rc.tool == "read") {
+                rcr = ConfidenceService::after_read(1, true);
+                rcr.target = rc.args.empty() ? last_search_target : rc.args;
+              } else if (rc.tool == "references") {
+                rcr.category = "search";
+                bool ok = rtr.out != "no matches" && !rtr.out.empty();
+                rcr.score = ok ? 0.8 : 0.3;
+                rcr.reason = ok ? "references matched callers" : "references found no callers";
+                rcr.target = rc.args.empty() ? last_search_target : rc.args;
+                if (!rc.args.empty()) last_search_target = rc.args;
+              } else if (rc.tool == "find") {
+                rcr.category = "search";
+                bool ok = rtr.out != "no matches" && !rtr.out.empty();
+                rcr.score = ok ? 0.8 : 0.3;
+                rcr.reason = ok ? "find matched files" : "find found nothing";
+                rcr.target = rc.args.empty() ? last_search_target : rc.args;
+                if (!rc.args.empty()) last_search_target = rc.args;
+              } else if (rc.tool == "cmake") {
+                bool cmake_ok = rtr.out.find("error") == std::string::npos;
+                rcr = ConfidenceService::after_build(cmake_ok, cmake_ok ? "" : rtr.out.substr(0, 200));
+                rcr.target = rc.args;
+              } else if (rc.tool == "ctest") {
+                rcr.category = "verification";
+                bool ok = (rtr.out.find("failed") == std::string::npos &&
+                           rtr.out.find("FAILED") == std::string::npos);
+                rcr.score = ok ? 0.9 : 0.3;
+                rcr.reason = ok ? "tests passed" : "tests failed";
+                rcr.target = rc.args;
+              } else if (rc.tool == "discovery") {
+                rcr.category = "discovery";
+                bool ok = !rtr.out.empty();
+                rcr.score = ok ? 0.70 : 0.30;
+                rcr.reason = ok ? "project structure analysed" : "discovery failed";
+                rcr.target = rc.args;
+              } else {
+                rcr.category = "tool_generic";
+                rcr.score = 0.5;
+                rcr.reason = "recovery tool executed: " + rtr.tool;
+                rcr.target = rc.args;
+              }
+              confidence_history.push_back(rcr);
+            }
             // Re-evaluate completion after recovery
             if (check_completion(goal, type, evidence)) {
               result.stopped_early = false;
               result.stop_reason = "";
               continue;  // exit the loop normally at next iteration
             }
+            // Recovery ran but completion not satisfied yet.
+            // Don't break — the next primary tool selection might complete it.
+            // e.g., after find+grep (low confidence), recovery might add a search
+            // tool, but we still need read. Let the primary sequence try read.
+            continue;
           }
         }
       }
-      result.stopped_early = true;
-      result.stop_reason = "confidence too low: " + combined.reason;
-      break;
     }
   }
 
@@ -1439,7 +1593,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
     ui.show_investigation_complete();
   }
 
-  // Build summary
+  // Build summary (planner debug log — for inspect mode / ArchitectureReview)
   std::string summary;
   summary += "Goal type: " + goal_type_name(type) + "\n";
   summary +=
@@ -1468,6 +1622,82 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   // Final confidence
   ConfidenceResult final_confidence = ConfidenceService::combine(confidence_history);
   summary += "Confidence: " + final_confidence.reason + "\n";
+  // Calibration breakdown
+  for (const auto &bd : final_confidence.breakdown) {
+    auto fmt_debug = [](double v) {
+      std::ostringstream os;
+      os.setf(std::ios::fixed);
+      os.precision(2);
+      os << v;
+      return os.str();
+    };
+    summary += "  " + bd.category + ": max=" + fmt_debug(bd.max_score) +
+               " agree=" + fmt_debug(bd.agreement) +
+               " eff=" + fmt_debug(bd.effective_score) +
+               " w=" + fmt_debug(bd.weight) +
+               " c=" + fmt_debug(bd.contribution) + "\n";
+  }
+
+  // Build clean evidence summary for AI consumption (no planner metadata).
+  // Extracts only the meaningful tool outputs as plain evidence statements.
+  std::string evidence_summary;
+  for (auto &tr : result.tool_history) {
+    if (tr.out.empty() || tr.out == "no matches" || tr.out == "no files to read")
+      continue;
+    if (tr.tool == "git" || tr.tool == "gh") {
+      // For git/gh, the full output is the answer (commit log, CI status, etc.)
+      evidence_summary += tr.out;
+      if (!evidence_summary.empty() && evidence_summary.back() != '\n')
+        evidence_summary += '\n';
+    } else if (tr.tool == "read") {
+      // Extract file path from the "--- filename ---" header, then the content
+      std::istringstream lines(tr.out);
+      std::string line;
+      std::string current_file;
+      bool in_content = false;
+      while (std::getline(lines, line)) {
+        if (line.starts_with("--- ") && line.size() > 5) {
+          // "--- filename ---" → extract the filename
+          current_file = line.substr(4, line.size() - 7);
+          evidence_summary += "File: " + current_file + "\n";
+          in_content = false;
+          continue;
+        }
+        evidence_summary += "  " + line + "\n";
+      }
+    } else if (tr.tool == "find") {
+      // Strip planner-internal CANDIDATE/SELECTED/REASON prefixes
+      std::istringstream lines(tr.out);
+      std::string line;
+      while (std::getline(lines, line)) {
+        if (line.starts_with("CANDIDATE:")) {
+          auto rest = line.substr(10);
+          // Format: " path score reason" → extract just "path"
+          auto first_space = rest.find_first_not_of(' ');
+          auto space_after_path = rest.find(' ', first_space + 1);
+          if (first_space != std::string::npos && space_after_path != std::string::npos) {
+            evidence_summary += "  " + rest.substr(first_space, space_after_path - first_space) + "\n";
+          }
+        } else if (line.starts_with("SELECTED:")) {
+          auto rest = line.substr(9);
+          auto pos = rest.find_first_not_of(' ');
+          if (pos != std::string::npos)
+            evidence_summary += "Selected: " + rest.substr(pos) + "\n";
+        }
+        // Skip "REASON:" lines — not useful as evidence
+      }
+    } else if (tr.tool == "grep") {
+      // Grep output is already clean: "file:line: content"
+      evidence_summary += tr.out;
+      if (!evidence_summary.empty() && evidence_summary.back() != '\n')
+        evidence_summary += '\n';
+    } else {
+      // Any other tool output included as-is
+      evidence_summary += tr.out;
+      if (!evidence_summary.empty() && evidence_summary.back() != '\n')
+        evidence_summary += '\n';
+    }
+  }
 
   // Compute caller_resolution_rate
   if (is_reference_query(goal)) {
@@ -1490,8 +1720,10 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   result.success = check_completion(goal, type, evidence);
   if (type == ArchitectureReview) {
     summary = build_review_report(result.tool_history);
+    evidence_summary = summary;
   }
   result.summary = summary;
+  result.evidence_summary = evidence_summary;
   result.evidence = std::move(evidence);
   result.goal_type = static_cast<int>(type);
   result.confidence = final_confidence.score;
