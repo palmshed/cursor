@@ -70,17 +70,17 @@ ExecutionEngine::select_next_tool()
     ┌─────────────────────────────────────┐
     │  Tool Runner Lambda (caller)        │
     │  ┌───────────────────────────────┐  │
-    │  │ strip --impl flag            │  │
-    │  │                              │  │
-    │  ▼                              │  │
-    │  Services::directory_aware_find │  │
-    │  (term, impl_query)             │  │
-    │         │                       │  │
-    │         ▼                       │  │
-    │  vector<FindCandidate>          │  │
-    │         │                       │  │
-    │  Caller formats output          │  │
-    │  + manages read coupling        │  │
+    │  │ strip --impl flag             │  │
+    │  │                               │  │
+    │  ▼                               │  │
+    │  Services::directory_aware_find  │  │
+    │  (term, impl_query)              │  │
+    │         │                        │  │
+    │         ▼                        │  │
+    │  vector<FindCandidate>           │  │
+    │         │                        │  │
+    │  Caller formats output           │  │
+    │  + manages read coupling         │  │
     └─────────────────────────────────────┘
 ```
 
