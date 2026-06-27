@@ -38,6 +38,16 @@ Generations:
    Gen 3 — Goal-driven Planning (Phase 6, current)
 ```
 
+## Status
+
+```
+Phase:       Level 2.4 (Goal Understanding)
+State:       Feature complete through Level 2.3
+             Goal Understanding under active development
+Next exit:   Complete GoalUnderstandingService
+             Close Level 2
+```
+
 ---
 
 # Planner Evolution
@@ -522,7 +532,23 @@ The remaining bottleneck is not retrieval. It is **goal understanding**. The pla
 
 ---
 
-## 8. Lessons Learned
+## 8. Related Engineering Milestones
+
+The architectural changes described in this report are implemented in the following commits:
+
+```
+8efa69df  Confidence calibration — category-weighted combine with convergence bonus
+b83bca26  Answer finalization — evidence_summary, recovery-continue, git classification
+58921a33  Core documentation rewrite — product identity, architecture, design
+2b4d716f  Failure topology revision — architectural evolution, goal understanding failures
+faf66d9e  Confidence calibration investigation records
+a3fe130c  Goal understanding architecture proposal
+a626c0e4  Failure topology report refinement — snapshot, generations, lessons learned
+```
+
+---
+
+## 9. Lessons Learned
 
 These conclusions emerged from evidence accumulated across all six phases. They represent the engineering wisdom of the cycle, not hypotheses.
 
