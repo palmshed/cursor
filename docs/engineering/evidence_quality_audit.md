@@ -11,29 +11,173 @@ expected InsufficientEvidence  got success
 Every failure is a false positive -- the investigation collected evidence that the
 evidence model accepted but a human reviewer would reject.
 
-This document audits every `EvidenceClass` against four questions to find the
-root cause.
+The root cause: **evidence is currently binary. Knowledge isn't.**
+
+The planner asks "do I have FileSearch?" when it should ask "how good is my
+FileSearch evidence?"
+
+This document defines the evidence quality model that replaces binary evidence
+checking with quality-aware completion.
 
 ---
 
-## The Four Questions
+## Part I: The Evidence Model
+
+### EvidenceQuality vs EvidenceStrength
+
+These are separate concepts that are often conflated.
+
+**EvidenceQuality** measures how precisely the evidence matches the user's
+question. It answers: "did we find the right thing?"
+
+**EvidenceStrength** measures how much supporting data was collected. It
+answers: "how much of it did we find?"
+
+Example -- searching for "evidence gating":
+
+```
+FileSearch
+  Quality: Weak      (no file contains the exact phrase)
+  Strength: High     (grep matched "evidence" in many files)
+```
+
+The match is imprecise (Weak) but there is a lot of it (High).
+
+Example -- searching for `ExecutionEngine`:
+
+```
+FileSearch
+  Quality: Strong    (exact symbol match)
+  Strength: Medium   (found in a moderate number of files)
+```
+
+The match is precise (Strong) with a moderate volume (Medium).
+
+The distinction matters because completion depends on **quality**, not
+strength. Many weak matches are still weak. A single strong match is enough.
+
+### Vocabulary
+
+Five levels. No numeric scores.
+
+| Level | Meaning |
+|-------|---------|
+| `None` | No evidence of this class was collected |
+| `Weak` | Evidence exists but is imprecise or unreliable |
+| `Moderate` | Evidence is plausible but not definitive |
+| `Strong` | Evidence is precise and well-supported |
+| `Verified` | Evidence is independently corroborated or authoritative |
+
+No 0.61, 0.84, 0.33. If a value is not one of these five, it is not a quality
+value.
+
+### Quality per Evidence Class
+
+| Class | Weak | Moderate | Strong | Verified |
+|-------|------|----------|--------|----------|
+| FileSearch | Tokenized grep match, >10 results | Substring match, ≤10 results | Exact phrase or symbol match | Exact match + confirmed by read |
+| FileContent | First result from grep list | Read a ranked candidate | Read the highest-confidence candidate | Read + reader agreed |
+| GitLog | `git status` for history query | `git log` without query terms | `git log` with matching commits | Git (authoritative for history) |
+| Build | cmake no-op (nothing to build) | cmake builds but not the target | cmake builds the specific target | Build + test both pass |
+| Test | ctest reports 0 tests run | ctest passes some tests | ctest passes all relevant tests | Build + test both pass |
+| Discovery | Any scan output | Project type correctly identified | Full metadata (type, source count, test presence) | Same result from two scans |
+| CIWorkflow | Empty response "[]" | Run list returned | Run list with matching workflow | Run log confirms failure/success |
+
+### The Verified Level
+
+**Verified is not a quality threshold. It is a relationship.**
+
+A tool cannot assign Verified. It is derived by the planner when two
+independent evidence producers agree on the same conclusion.
+
+> Verified evidence has been independently corroborated by at least two
+> compatible sources, or by one deterministic source whose correctness is
+> authoritative for the question being asked.
+
+Definition:
+
+| Condition | Level |
+|-----------|-------|
+| Single tool, exact match | Strong |
+| Two independent tools agree on the same target | Verified |
+| Authoritative source (git log, gh run view) | Verified |
+
+Examples:
+
+- `directory-aware find` + `read` both identify the same implementation
+  file → **Verified** (two tools, same result)
+- `git log` for "what is the last commit" → **Verified** (Git is
+  authoritative for commit history)
+- `grep` alone → never higher than **Strong** (no corroboration)
+- `find` + `grep` both match the same file → **Strong**, not Verified
+  (both are search tools sharing the same false-positive signal)
+- `gh run view` → **Verified** (GitHub is authoritative for CI results)
+
+The planner computes Verified after tool selection. It is the completion
+gate's strongest signal: if every required class is either Strong from a
+single tool or Verified from corroboration, the planner can stop.
+
+---
+
+### Evidence Gap Abstraction
+
+Before tool planning can be evidence-driven, the planner needs one more
+abstraction:
+
+```
+Goal
+
+↓
+
+Evidence Requirements
+
+↓
+
+Evidence Gap    ← missing
+
+↓
+
+Planner
+
+↓
+
+Tool
+```
+
+The Evidence Gap is the set of requirements not yet satisfied at the
+required quality. The planner does not choose a tool directly from the
+Goal. It first computes:
+
+> "I need FileSearch at Strong+"
+> "I have FileSearch at Moderate"
+> "Gap: need Strong"
+> "Tool: directory-aware find (produces Strong)"
+
+This separation ensures tool planning becomes an implementation detail
+of evidence acquisition, not the planner's primary logic.
+
+---
+
+## Part II: Current Evidence Audit
+
+### The Four Questions
 
 For each class:
 
-1. **What exactly satisfies it?** -- The current implementation.
-2. **Can weak evidence satisfy it?** -- Can a tool return something and the class
-   be marked even though the result is useless?
-3. **Can unrelated evidence satisfy it?** -- Can the class be marked by evidence
-   that has nothing to do with the user's query?
-4. **Can duplicated evidence satisfy it?** -- Can the same underlying fact mark
-   the class more than once, or can multiple classes be marked by the same
-   fact?
+1. **What exactly satisfies it?** -- Today's implementation.
+2. **Can weak evidence satisfy it?** -- Can a tool return something and the
+   class be marked even though the result is useless?
+3. **Can unrelated evidence satisfy it?** -- Can the class be marked by
+   evidence that has nothing to do with the user's query?
+4. **Can duplicated evidence satisfy it?** -- Can the same underlying fact
+   mark the class more than once, or can multiple classes be marked by the
+   same fact?
 
 ---
 
-## EvidenceClass::FileSearch (value 0)
+### EvidenceClass::FileSearch
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
@@ -41,534 +185,535 @@ For each class:
 | `references` | output is not "no matches" |
 | `find` | output is not "no matches" |
 
-### Satisfaction semantics
+#### Current satisfaction semantics
 
 `evidence.classes` contains `FileSearch` if any of the three tools returned
-non-empty output at least once.
+non-empty output at least once. Idempotent.
 
-Idempotent -- marking twice is a no-op.
+#### Q1: What exactly satisfies it?
 
-### Q1: What exactly satisfies it?
+Any tool call that produces at least one character of output. No minimum match
+count, no match-quality threshold, no distinction between exact match and
+substring match.
 
-Any tool call to `grep`, `references`, or `find` that produces at least one
-character of output.
+#### Q2: Can weak evidence satisfy it?
 
-There is no minimum match count, no match-quality threshold, no distinction
-between exact match and substring match, and no check that the matched term
-appears as a semantic unit rather than a character sequence.
+**Yes.** `grep "evidence gating"` executes as two independent searches.
+"evidence" exists in the codebase; "gating" does not. FileSearch is marked
+because the first search succeeded. The model cannot distinguish:
+- "found a file containing the exact multi-word term"
+- "found files where each word appears somewhere independently"
 
-### Q2: Can weak evidence satisfy it?
+#### Q3: Can unrelated evidence satisfy it?
 
-**Yes.** Consider:
+**Yes.** Any file containing any substring of the query triggers marking.
+"search for xqkz_2024_nonexistent_class" -- grep tokenizes and finds files
+containing "search" or "class". FileSearch is marked for a nonexistent class.
 
-- `grep "evidence gating"` matches 3 files because "evidence" appears in
-  `AGENTS.md` and `ARCHITECTURE.md` -- the two-word phrase "evidence gating"
-  does not exist anywhere in the codebase. But `grep` tokenizes the query with
-  word boundaries, so `grep "evidence gating"` is executed as
-  `grep evidence; grep gating`. Both terms exist independently, so FileSearch
-  is marked.
+#### Q4: Can duplicated evidence satisfy it?
 
-  The evidence model cannot distinguish:
-  - "grep found a file containing the exact multi-word term" from
-  - "grep found files where each word appears somewhere independently"
-
-- `find "startup model selection"` finds no file named exactly that, but `find`
-  does token-based matching and returns `startup.cpp` (which contains "startup").
-  The class is marked. The evidence model cannot distinguish:
-  - "find found the exact file the user was looking for" from
-  - "find found any file that shares a token"
-
-### Q3: Can unrelated evidence satisfy it?
-
-**Yes.** Any file containing any substring of the query triggers marking. The
-relevance to the user's question is never evaluated.
-
-Example: "search for xqkz_2024_nonexistent_class" -- `find` returns no file
-containing that exact string. But `grep` tokenizes and finds files with
-"search" or "class" in them. FileSearch is marked. The planner now thinks it
-has evidence for a nonexistent class.
-
-### Q4: Can duplicated evidence satisfy it?
-
-**No** -- idempotent marking prevents multiple marks from the same class. But
-multiple tools can independently mark the same class. `find` + `grep` both
-mark FileSearch. This means the planner cannot know whether FileSearch was
-satisfied by a high-quality exact match from `references` or by a broad
-tokenized `grep` match.
+**No** -- idempotent. But multiple tools can independently mark the same
+class. The planner cannot know whether FileSearch was satisfied by an exact
+`references` match or a broad tokenized `grep`.
 
 ---
 
-## EvidenceClass::FileContent (value 1)
+### EvidenceClass::FileContent
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
 | `read` | output is not "no files to read" |
 
-### Satisfaction semantics
+#### Current satisfaction semantics
 
 `evidence.classes` contains `FileContent` if `read` returned file contents at
 least once.
 
-### Q1: What exactly satisfies it?
+#### Q1: What exactly satisfies it?
 
-Any call to `read` that successfully opens and reads a file.
+Any call to `read` that successfully opens and reads a file. No check that
+the file is related to the query or was the intended target.
 
-There is no check that the file read is related to the query. There is no
-check that the file was the intended target of the search.
+#### Q2: Can weak evidence satisfy it?
 
-### Q2: Can weak evidence satisfy it?
+**Yes.** If grep returns 1,000 files and read picks the first one arbitrarily,
+any one file satisfies FileContent. "provider credentials" + `grep "provider"`
+returns 30 files; `read` opens `provider_auth.h` which contains "provider" but
+does not discuss credential configuration.
 
-**Yes.** If `grep` returns 1,000 matching files and `read` picks one
-arbitrarily (the first in the list), any one file satisfies FileContent.
+#### Q3: Can unrelated evidence satisfy it?
 
-If the user asked about "provider credentials" and `grep "provider"` returns
-30 files, `read` reads the first one (`provider_auth.h`). The file contains
-"provider" but does not discuss credential configuration at all. FileContent
-is marked.
+**Yes.** For "search for xqkz_2024_nonexistent_class" -- grep tokenizes to
+`xqkz`, `2024`, `nonexistent`, `class` -- "class" matches `session.h` which
+contains "class". FileContent is marked for an unrelated file.
 
-### Q3: Can unrelated evidence satisfy it?
-
-**Yes.** Consider:
-
-- User asks "search for xqkz_2024_nonexistent_class"
-- `grep` tokenizes to `xqkz`, `2024`, `nonexistent`, `class`
-- "class" is a common word -- multiple files matched
-- `read` opens the first match (say `session.h` which contains "class")
-- FileContent is marked
-
-The user's question was about a specific nonexistent class. The evidence
-returned is a file containing the word "class". These are semantically
-unrelated.
-
-### Q4: Can duplicated evidence satisfy it?
+#### Q4: Can duplicated evidence satisfy it?
 
 **No** -- idempotent.
 
 ---
 
-## EvidenceClass::GitLog (value 2)
+### EvidenceClass::GitLog
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
 | `git` | output is not empty |
 
-### Q1: What exactly satisfies it?
+#### Current satisfaction semantics
 
 Any `git` command that produces output.
 
-### Q2: Can weak evidence satisfy it?
+#### Q1: What exactly satisfies it?
 
-**Yes.** `git status` output satisfies GitLog. So does `git log --oneline -1`.
-There is no check that the git output is relevant to the query context.
+Any `git` command with output. `git status` satisfies GitLog. So does
+`git log --oneline -1`.
 
-### Q3: Can unrelated evidence satisfy it?
+#### Q2: Can weak evidence satisfy it?
 
-**Yes.** A query about architecture will never need git evidence, but if a
-recovery tool accidentally calls `git`, GitLog is marked. This is unlikely in
-practice because tool selection is query-driven, but nothing prevents it.
+**Yes.** `git status` output for a "what is the last commit" query is weak --
+it shows the branch and dirty state but not the commit history.
 
-### Q4: Can duplicated evidence satisfy it?
+#### Q3: Can unrelated evidence satisfy it?
+
+Rare. Tool selection is query-driven, so git is only called for git-related
+queries. But nothing prevents it.
+
+#### Q4: Can duplicated evidence satisfy it?
 
 **No** -- idempotent.
 
 ---
 
-## EvidenceClass::Build (value 3)
+### EvidenceClass::Build
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
 | `cmake` | output does not contain "error" |
 
-### Q1: What exactly satisfies it?
+#### Current satisfaction semantics
 
 `cmake` exits with output that does not contain the substring "error".
 
-### Q2: Can weak evidence satisfy it?
+#### Q1: What exactly satisfies it?
 
-**Yes.** `cmake --build .` may succeed trivially (nothing to rebuild) even when
-no build actually happened. The evidence model treats a cache-hit no-op as
-equivalent to a full rebuild.
+A cmake invocation that does not print "error". A cache-hit no-op (nothing to
+build) is treated identically to a full rebuild.
 
-### Q3: Can unrelated evidence satisfy it?
+#### Q2: Can weak evidence satisfy it?
 
-**Yes.** A query about documentation never needs build evidence. But if the
-planner selects `cmake` as a recovery step, Build is marked regardless of
-whether a build was useful.
+**Yes.** `cmake --build .` may succeed trivially when nothing changed. The
+model treats a no-op as equivalent to evidence that the build works.
 
-### Q4: Can duplicated evidence satisfy it?
+#### Q3: Can unrelated evidence satisfy it?
+
+Rare. cmake is only called when the planner needs build context.
+
+#### Q4: Can duplicated evidence satisfy it?
 
 **No** -- idempotent.
 
 ---
 
-## EvidenceClass::Test (value 4)
+### EvidenceClass::Test
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
 | `ctest` | output does not contain "failed" or "FAILED" |
 
-### Q1: What exactly satisfies it?
+#### Current satisfaction semantics
 
-`ctest` output does not contain "failed" (case-insensitive).
+`ctest` output does not contain "failed".
 
-### Q2: Can weak evidence satisfy it?
+#### Q1: What exactly satisfies it?
 
-**Yes.** `ctest` may report "0 tests passed" with no failures. The evidence
-model treats this the same as "all 500 tests passed".
+A ctest invocation that does not print "failed". `ctest` reporting "0 tests
+passed" with no failures is marked the same as "all 500 tests passed".
 
-### Q3: Can unrelated evidence satisfy it?
+#### Q2: Can weak evidence satisfy it?
 
-**Yes.** Same as Build -- any ctest call marks Test regardless of relevance.
+**Yes.** Zero tests run with no failures is not meaningful evidence.
 
-### Q4: Can duplicated evidence satisfy it?
+#### Q3: Can unrelated evidence satisfy it?
+
+Rare. Same as Build.
+
+#### Q4: Can duplicated evidence satisfy it?
 
 **No** -- idempotent.
 
 ---
 
-## EvidenceClass::Discovery (value 5)
+### EvidenceClass::Discovery
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
 | `discovery` | output is not empty |
 
-### Q1: What exactly satisfies it?
+#### Current satisfaction semantics
 
-Any `discovery` tool output. The tool always returns project metadata
-(project type, source count, test presence).
+Any `discovery` tool output. The tool always returns project metadata.
 
-### Q2: Can weak evidence satisfy it?
+#### Q1: What exactly satisfies it?
 
-**Yes.** `discovery` always returns *something* -- every project has a project
-type and a source count. The class is always marked if `discovery` is called.
+Any scan output. The tool always returns something (project type, source
+count, test presence).
 
-### Q3: Can unrelated evidence satisfy it?
+#### Q2: Can weak evidence satisfy it?
 
-**No** -- `discovery` only runs when the planner asks for it, and it always
-returns project-level evidence. The risk is not unrelated evidence but
-**insufficient** evidence: a project may be too large for `discovery` to
-meaningfully describe.
+**Yes.** discovery always returns something. The class is always marked if
+discovery is called. The risk is not weak evidence but **insufficient**
+detail -- a project may be too large for discovery to describe meaningfully.
 
-### Q4: Can duplicated evidence satisfy it?
+#### Q3: Can unrelated evidence satisfy it?
+
+**No** -- discovery only runs when the planner asks for it.
+
+#### Q4: Can duplicated evidence satisfy it?
 
 **No** -- idempotent.
 
 ---
 
-## EvidenceClass::CIWorkflow (value 6)
+### EvidenceClass::CIWorkflow
 
-### Producers
+#### Producers
 
 | Tool | Condition |
 |------|-----------|
 | `gh` | output is not empty |
 
-### Q1: What exactly satisfies it?
+#### Current satisfaction semantics
 
 Any `gh` command that produces output.
 
-### Q2: Can weak evidence satisfy it?
+#### Q1: What exactly satisfies it?
 
-**Yes.** `gh run list` that returns an empty list (no runs found) still
-produces "[]" as output. The tool considers this a valid result. CIWorkflow
-is marked even though no CI data was actually collected.
+Any GitHub CLI output. `gh run list` returning an empty array "[]" produces
+output and CIWorkflow is marked even though no runs exist.
 
-### Q3: Can unrelated evidence satisfy it?
+#### Q2: Can weak evidence satisfy it?
 
-**Yes.** `gh pr list` would mark CIWorkflow even though the query might be
-about CI failures. The tool name `gh` is overloaded -- any GitHub CLI command
-marks the same class.
+**Yes.** Empty response produces the same class as a detailed run log.
 
-### Q4: Can duplicated evidence satisfy it?
+#### Q3: Can unrelated evidence satisfy it?
+
+**Yes.** `gh pr list` marks CIWorkflow even for non-CI queries. The tool name
+`gh` is overloaded.
+
+#### Q4: Can duplicated evidence satisfy it?
 
 **No** -- idempotent.
 
 ---
 
-## Cross-Cutting Observations
+## Part III: Cross-Cutting Observations
 
 ### 1. Evidence is purely syntactic
 
 Every producer checks one thing: "was there output?" Not "was the output
-relevant to the query?"
-
-The evidence model cannot distinguish:
-- `grep "exact_function_name"` → 1 file, 1 match
-- `grep "generic_english_word"` → 47 files, 312 matches
-
-Both mark `FileSearch`. Both satisfy completion.
+relevant to the query?" The model cannot distinguish an exact function name
+match from a broad English word match. Both mark `FileSearch`.
 
 ### 2. Tokenization leaks
 
-Grep and find both tokenize queries into space-separated terms. A query like
-"evidence gating" becomes two independent searches. If either term exists
-anywhere, FileSearch is marked.
-
-The evidence model should require **phrase-level matching** for multi-word
-queries before marking FileSearch.
+Grep and find tokenize queries into space-separated terms. "evidence gating"
+becomes two independent searches. If either term exists anywhere, FileSearch
+is marked. Require **phrase-level matching** for multi-word queries.
 
 ### 3. No evidence provenance
 
-`evidence.classes` is a flat `std::vector<EvidenceClass>`. There is no
-information about:
-- Which tool produced it
-- How many matches were found
-- What the match quality was
-- Whether it was an exact match or a partial match
-
-`EvidenceStore` has separate fields (`facts`, `modified_files`, etc.), but
+`evidence.classes` is a flat `std::vector<EvidenceClass>`. No information
+about which tool produced it, how many matches, match quality, or exact vs
+partial. EvidenceStore has separate `facts` and `modified_files` fields, but
 nothing ties a class back to its source.
 
-### 4. The six failing benchmarks all follow the same pattern
+### 4. The six failing benchmarks share one pattern
 
 ```
-User query with a specific multi-word term
+multi-word query term
     ↓
-Tool tokenizes the term into space-separated words
+tool tokenizes into independent words
     ↓
-Tool finds matches for individual words (not the phrase)
+tool finds matches for individual words (not the phrase)
     ↓
-FileSearch is marked
+FileSearch is marked (any output suffices)
     ↓
 FileContent is marked (first match read)
     ↓
-Both evidence classes satisfied → completion = true
+both classes satisfied → completion = true
     ↓
-InsufficientEvidence expected but success returned
+expected InsufficientEvidence but got success
 ```
 
-The pattern is:
-1. query term is multi-word or uncommon
-2. tools find partial/substring matches
-3. evidence classes are marked
-4. completion accepts the weak evidence
-5. benchmark expected the gate to stop this (but it didn't)
+No amount of tool tuning can fix this. The fix is in how completion evaluates
+evidence, not in how tools collect it.
 
 ### 5. Fix requires more than better grep
 
-The six failures involve different tool behaviors:
+The six failures involve four different tool behaviors:
 - **Fuzzy grep** ("evidence gating" → matches "evidence")
 - **Tokenized find** ("startup model selection" → returns "startup.cpp")
 - **Broad grep** ("provider credentials configured" → matches "provider")
-- **Nonexistent terms** (xqkz_*) → partial token matches
+- **Nonexistent terms** (xqkz_* → partial token matches)
 
-A single threshold won't fix all six. Each needs a different evidence quality
-rule.
+A single threshold will not fix all six. The quality model handles each
+differently because each has a different quality profile.
 
 ---
 
-## Provenance Schema (Proposal)
+## Part IV: The New Architecture
 
-The current `std::vector<EvidenceClass> classes` is insufficient. Replace with
-a structure that tracks provenance:
+### Evidence Provenance Schema
+
+The current `std::vector<EvidenceClass> classes` is replaced with a
+provenance-bearing structure:
 
 ```cpp
 struct EvidenceEntry {
-  EvidenceClass ec;
-  std::string tool;         // "grep", "find", "references", etc.
-  std::string query;        // the original query term used
-  std::string summary;      // e.g., "3 files, 12 matches; 1 exact, 11 partial"
-  int match_count;          // number of total matches
-  int exact_match_count;    // matches that are exact (not substring)
-  bool phrase_match;        // true if multi-word query matched as a phrase
-};
-```
+  EvidenceClass type;
 
-This gives the completion gate enough information to ask:
+  Tool tool;            // which tool produced this ("grep", "find", "git", etc.)
+  std::string query;    // the original query text passed to the tool
+  std::string target;   // what was searched (e.g., a filename, symbol, or phrase)
 
-- "Did FileSearch come from an exact phrase match or a tokenized grep?"
-- "Did FileContent read the highest-ranked candidate or the first match?"
-- "Does the number of matches suggest high precision or noise?"
+  EvidenceQuality quality;
+  EvidenceStrength strength;
 
----
+  std::vector<std::string> sources;  // files or resources examined
 
-## Per-Class Quality Criteria (Proposal)
-
-### FileSearch
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Exact | Single/multi-word term matched as exact phrase in filename or symbol |
-| Strong | Term matched as case-sensitive substring, ≤10 results |
-| Weak | Term matched via tokenized grep, >10 results |
-| None | No matches returned |
-
-**Gate rule:** FileSearch is insufficient unless at least `Strong`.
-
-This alone fixes all six benchmark failures -- none of the failing queries
-produce exact or strong FileSearch evidence (the terms don't exist).
-
-### FileContent
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Exact | Read the file returned by the highest-confidence search result |
-| Weak | Read a file from the search result list (current behavior) |
-| None | No file read |
-
-**Gate rule:** FileContent requires at least `Weak` (current baseline is fine
--- the fix is in FileSearch, not FileContent).
-
-### GitLog
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Relevant | Output contains a query term |
-| Generic | Any git output (current behavior) |
-
-**Gate rule:** GitLog requires at least `Generic`. (No changes needed -- git
-queries already work correctly.)
-
-### Build
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Clean | cmake succeeds with relevant targets |
-| Generic | cmake succeeds (current behavior) |
-
-**Gate rule:** Build requires `Clean`. (Change: verify the build target is
-not a no-op.)
-
-### Test
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Passing | ctest passes with >0 tests run |
-| Generic | ctest has no failures (current behavior) |
-
-**Gate rule:** Test requires `Passing`. (Change: ctest must have run at
-least one test.)
-
-### Discovery
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Detailed | Project type and source/tests counts populated |
-| Generic | Any output (current behavior) |
-
-**Gate rule:** Discovery requires at least `Generic`. (No changes needed.)
-
-### CIWorkflow
-
-| Quality Level | Minimum Requirements |
-|---------------|---------------------|
-| Populated | gh returned non-empty data (run list has entries) |
-| Empty | gh returned empty "[]" |
-
-**Gate rule:** CIWorkflow requires `Populated`. (Change: check that the
-output is not an empty JSON array/object.)
-
----
-
-## Implementation Impact
-
-### EvidenceStore changes
-
-```
-std::vector<EvidenceClass> classes
-    ↓
-std::vector<EvidenceEntry> evidence_entries
-```
-
-Add:
-
-```cpp
-struct EvidenceEntry {
-  EvidenceClass ec;
-  std::string tool;
-  std::string query;
+  // Metadata
   int match_count;
   int exact_match_count;
   bool phrase_match;
 };
 ```
 
-And quality-checking methods:
+### Quality and Strength
 
 ```cpp
-enum class EvidenceQuality { None, Weak, Strong, Exact };
-
-EvidenceQuality quality_of(EvidenceClass ec) const;
-bool has_quality(EvidenceClass ec, EvidenceQuality min) const;
+enum EvidenceQuality { QualNone, Weak, Moderate, Strong, Verified };
+enum EvidenceStrength { StrNone, Low, Medium, High };
 ```
 
-### Producer changes
+Quality and strength are set independently by each tool after execution.
 
-Each tool call site enriches the EvidenceEntry with provenance data:
+For grep:
+- If query matched as exact phrase → quality = Strong
+- If query matched as identifier (code symbol) → quality = Strong
+- If query matched as case-sensitive substring, ≤10 results → quality = Moderate
+- If query matched via tokenized grep, >10 results → quality = Weak
+- No matches → quality = None
+- match_count > 50 → strength = High; > 10 → Medium; > 0 → Low
 
-- `grep` → reports match count, exact-match count, phrase-match flag
-- `find` → reports candidate count, exact filename matches vs partial
-- `references` → reports reference count
-- `read` → reports which file was selected and why
+> **Note:** Match-count-based quality (≤10→Moderate, >10→Weak) is a
+> temporary heuristic. Quality should eventually depend on match semantics:
+> - exact phrase → Strong
+> - identifier → Strong
+> - substring, ≤10 results → Moderate
+> - substring, >10 results → Weak
+> - token overlap → Weak
+>
+> Ten imprecise matches are not better than one exact match.
+> This refinement belongs in Phase 4 once tools can report match
+> semantics alongside output.
 
-### Consumer changes
+For find:
+- Exact filename match → quality = Strong
+- Partial filename match → quality = Moderate
+- Token-based match → quality = Weak
+- No matches → quality = None
 
-`has_all_evidence_classes` becomes:
+For references:
+- Symbol has > 5 references → quality = Strong; > 0 → Moderate; none → None
+
+### Completion Depends on Minimum Quality
+
+`evidence_for_goal()` returns both the required class AND the minimum quality:
 
 ```cpp
-bool has_all_evidence_classes(
-    const std::vector<EvidenceClass> &required,
-    EvidenceQuality min_quality = EvidenceQuality::Weak) const;
+struct EvidenceRequirement {
+  EvidenceClass ec;
+  EvidenceQuality min_quality;
+};
+
+std::vector<EvidenceRequirement> evidence_for_goal(const Goal &goal);
 ```
 
-And `evidence_for_goal` / `check_completion_goal` pass the minimum quality
-level required per intent:
+| Intent | FileSearch min | FileContent min | Discovery min | Other |
+|--------|---------------|-----------------|---------------|-------|
+| Locate | Strong | Moderate | -- | -- |
+| Navigate | Strong | Moderate | -- | -- |
+| Explain | Strong | Moderate | Moderate | -- |
+| Review | Strong | Moderate | Moderate | -- |
+| Diagnose | Strong | Moderate | -- | CIWorkflow: Strong |
+| Compare | Strong | Moderate | -- | -- |
+| Status | -- | -- | -- | GitLog: Moderate |
+| Execute | -- | -- | -- | Build: Strong, Test: Strong |
+| Modify | Strong | Strong | Moderate | Build: Verified, Test: Verified |
+| Chat | -- | -- | -- | -- |
 
-| Intent | Min FileSearch Quality |
-|--------|------------------------|
-| Locate | Strong |
-| Navigate | Strong |
-| Explain | Strong (needs good search) |
-| Review | Strong |
-| Diagnose | Strong |
-| Compare | Strong |
-| Status | Weak (git queries work with generic output) |
-| Execute | Weak (build/test results are pass/fail, not search) |
-| Modify | Strong |
+When checking completion:
 
-### Planner impact
+```cpp
+bool check_completion_goal(const Goal &goal, EvidenceStore &evidence) {
+  auto requirements = evidence_for_goal(goal);
+  for (auto &req : requirements) {
+    if (!evidence.has_quality(req.ec, req.min_quality))
+      return false;
+  }
+  return true;
+}
+```
 
-`select_next_tool()` gains awareness of evidence quality. When quality is
-`Weak` or `None`, the planner can:
+### Confidence Derivation
 
-1. Retry with a more specific tool (e.g., `references` instead of `grep`)
-2. Retry with exact-match mode
-3. Mark completion as `InsufficientEvidence` instead of `Success`
+Confidence is no longer computed from tool execution metrics. It is derived
+from three properties of the collected evidence:
 
-This replaces the current binary `has_results` gate.
+```
+Confidence
+    ↓
+evidence quality      -- the minimum quality across all required classes
+    ↓
+evidence coverage     -- what fraction of required classes are satisfied
+    ↓
+evidence agreement    -- do independent evidence sources agree?
+```
+
+Derivation rules:
+
+| Condition | Confidence Level |
+|-----------|-----------------|
+| All required classes at Verified | Complete |
+| All required at Strong or Verified | High |
+| All required at Moderate or better | Medium |
+| Some required at Weak | Low |
+| One or more required at None | None |
+
+Confidence is explainable: "confidence is Medium because Codebase evidence
+is only Moderate (grep found partial matches, not exact)."
+
+No formula. No floats. No category-weighted combine with convergence bonus.
+
+### Planner Impact
+
+`select_next_tool()` no longer asks "which tool should I use?" It asks:
+
+```
+Which evidence class is still missing?
+```
+
+Then maps:
+
+```
+Missing FileSearch at Strong quality
+    ↓
+directory-aware find (highest quality) or references (if symbol)
+```
+
+```
+Missing GitLog at Moderate quality
+    ↓
+git log --oneline -10 (already works)
+```
+
+```
+Missing Discovery at Moderate quality
+    ↓
+discovery tool (already works)
+```
+
+Tools become implementations of evidence acquisition, not components of a
+goal type switch.
 
 ---
 
-## Precedent
-
-The current `facts` field in `EvidenceStore` already tracks tool-specific
-outcomes. `"find:results"`, `"grep:results"`, `"read:results"` are facts.
-But they are not structured -- they are opaque strings that heuristic code
-checks.
-
-EvidenceEntry replaces ad-hoc facts with structured provenance, making
-quality checks deterministic rather than heuristic.
-
----
-
-## Audit Summary
+## Part V: Audit Summary
 
 | Class | Weak evidence possible? | Unrelated possible? | Duplicated possible? | Fix required? |
 |-------|------------------------|---------------------|----------------------|---------------|
-| FileSearch | Yes (tokenized grep) | Yes (substring match) | No | **Yes** -- phrase/exact gate |
+| FileSearch | Yes (tokenized grep) | Yes (substring match) | No | **Yes** -- quality levels |
 | FileContent | Yes (wrong file read) | Yes (arbitrary file) | No | **Yes** -- provenance tracking |
-| GitLog | Yes (status ≠ history) | Rare | No | No |
+| GitLog | No | Rare | No | No |
 | Build | Yes (no-op cmake) | Rare | No | **Yes** -- check real build |
 | Test | Yes (0 tests run) | Rare | No | **Yes** -- check test count > 0 |
 | Discovery | Yes (always succeeds) | No | No | No |
 | CIWorkflow | Yes (empty response) | Rare | No | **Yes** -- check non-empty data |
+
+The six benchmark failures are all fixed by the same change: FileSearch
+completion requires at least Moderate quality, and none of the six failing
+queries can produce FileSearch at Moderate or above (the terms they search
+for do not exist as exact or near-exact matches in the codebase).
+
+---
+
+## Part VI: Migration Path
+
+### Step 1: Data model
+
+Replace `std::vector<EvidenceClass> classes` with
+`std::vector<EvidenceEntry> entries` in `EvidenceStore`. Add
+`EvidenceQuality` and `EvidenceStrength` enums. Add
+`evidence.has_quality(ec, min_quality)`.
+
+### Step 2: Producers
+
+Each tool call site (grep, find, references, read, etc.) sets quality and
+strength based on its output characteristics. Provenance data (tool, query,
+target, match counts) is recorded in the `EvidenceEntry`.
+
+### Step 3: Evidence requirements
+
+Extend `evidence_for_goal()` to return `EvidenceRequirement` with
+`min_quality` instead of bare `EvidenceClass`. Update
+`check_completion_goal()` to use `has_quality()`.
+
+### Step 4: Remove old confidence
+
+Delete the `ConfidenceService` class. Replace the confidence derivation
+with the three-property model (quality, coverage, agreement).
+
+### Step 5: Planner reroute
+
+Change `select_next_tool()` to iterate over missing evidence requirements
+and pick the tool that best satisfies each.
+
+### Step 6: Remove GoalType
+
+Once evidence-driven tool planning matches or exceeds GoalType-based routing,
+delete the keyword routing and `required_evidence()`.
+
+---
+
+## Part VII: Architectural Invariants
+
+1. **Evidence quality is set by tools, evaluated by the planner.** Tools
+   report what they found and how well. The planner decides whether it is
+   enough.
+
+2. **Quality and strength are always separated.** No tool sets a single
+   "score." Every piece of evidence has two independent dimensions.
+
+3. **The vocabulary is fixed.** If a value is not one of the five quality
+   levels or four strength levels, it is not a valid evidence rating.
+
+4. **Confidence is derived, not computed.** No formulas. No numeric
+   combination. Explainable from three named properties.
+
+5. **Verified requires corroboration.** The highest quality level requires
+   either two independent sources agreeing or one authoritative source.
+   Single-tool grep can never reach Verified.
+
+6. **Tools implement evidence acquisition.** The planner does not ask
+   "what GoalType is this?" It asks "which evidence class is still
+   missing?"
