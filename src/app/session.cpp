@@ -287,6 +287,7 @@ void Session::run() {
       router_.process_user_input(user_input);
     }
 
+#ifndef _WIN32
     // WAITING_INSPECT: brief keyboard wait for 'i' key after answer
     if (tty && !agent_.state_.verbose_mode_ &&
         agent_.state_.last_investigation.has_value()) {
@@ -319,6 +320,7 @@ void Session::run() {
 
       tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     }
+#endif
     if (replay_) {
       double cb = before.last_confidence_after;
       double ca = agent_.state_.last_confidence_after;
