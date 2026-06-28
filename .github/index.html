@@ -86,8 +86,8 @@ pre{
 pre .bold{font-weight:700;}
 pre .dim{color:var(--dim);}
 pre .input{outline:none;}
-pre .cursor-block{display:inline-block;width:.6em;height:1em;background:var(--fg);vertical-align:text-bottom;animation:cursor-blink 1s step-end infinite;}
-@keyframes cursor-blink{50%{opacity:0;}}
+pre .cursor-block{display:inline-block;width:.6em;height:1em;border:1px solid var(--fg);vertical-align:text-bottom;}
+pre .input:focus .cursor-block{background:var(--fg);}
 
 .ci{font-size:13px;vertical-align:middle;margin-left:4px;transition:color .3s;}
 .ci-ok{color:#3fb950;}
