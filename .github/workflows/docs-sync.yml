@@ -1,0 +1,29 @@
+name: docs-sync
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**']
+  workflow_dispatch:
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: source
+      - uses: actions/checkout@v4
+        with:
+          repository: palmshed/cursor-docs
+          token: ${{ secrets.DOCS_SYNC_TOKEN }}
+          path: dest
+      - run: |
+          rm -rf dest/docs
+          cp -r source/docs dest/
+          rm -f dest/sync.md
+      - run: |
+          cd dest
+          git config user.name 'brand-cursor[bot]'
+          git config user.email 'brand-cursor[bot]@users.noreply.github.com'
+          git add -A
+          git diff --quiet && echo "no changes" || git commit -m "sync docs from cursor@$GITHUB_SHA"
+          git push
