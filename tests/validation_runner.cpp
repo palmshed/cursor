@@ -1,4 +1,5 @@
 #include "services/execution_engine.h"
+#include "services/planner_loop.h"
 #include "services/file_service.h"
 #include "services/find_service.h"
 #include "services/symbol_service.h"
@@ -250,6 +251,7 @@ int main(int, char **) {
 
       auto start = high_resolution_clock::now();
       auto result = engine.execute(query, runner, ui);
+      delete result.planner_shadow;
       auto end = high_resolution_clock::now();
 
       double ms = duration_cast<microseconds>(end - start).count() / 1000.0;

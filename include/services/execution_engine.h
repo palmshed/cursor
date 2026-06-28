@@ -11,6 +11,11 @@ class UIManager;
 
 namespace Services {
 
+// Forward declaration avoids a circular dependency.
+// Planner loop owns PlannerShadowMetrics.
+// ExecutionResult stores a non-owning pointer for reporting.
+struct PlannerShadowMetrics;
+
 struct ToolCall {
   std::string tool;
   std::string args;
@@ -118,6 +123,7 @@ struct ExecutionResult {
   std::string evidence_summary;
   EvidenceStore evidence;
   std::vector<ToolResult> tool_history;
+  PlannerShadowMetrics *planner_shadow{nullptr};
   int goal_type{0};
   // Goal Understanding phase: structured parse of user intent (telemetry only)
   ParseResult parsed_goal;

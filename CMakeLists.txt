@@ -757,6 +757,17 @@ if(CURSOR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
         MACOSX_RPATH ON
     )
+
+    add_executable(shadow_report_runner tests/shadow_report_runner.cpp)
+    target_include_directories(shadow_report_runner PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+    target_link_libraries(shadow_report_runner PRIVATE cursor_lib)
+    set_target_properties(shadow_report_runner PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+        MACOSX_RPATH ON
+    )
 endif()
 
 # Set target properties

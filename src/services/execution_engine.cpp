@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <regex>
 #include <sstream>
 #include <set>
@@ -1369,7 +1370,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   std::string last_search_target = goal;
 
   // Phase 4.5 shadow metrics — last tool executed across loop boundary
-  PlannerShadowMetrics planner_shadow;
+  auto planner_shadow = std::make_unique<PlannerShadowMetrics>();
   std::string last_tool, last_args;
 
   for (iteration_count = 0; iteration_count < MAX_ITERATIONS; iteration_count++) {
@@ -1523,7 +1524,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       auto shadow_step = run_planner_shadow_step(
           result.parsed_goal.goal, evidence, search_term,
           tc.tool, tc.args);
-      planner_shadow.steps.push_back(shadow_step);
+      planner_shadow->steps.push_back(shadow_step);
       if (!shadow_step.agreement && shadow_step.planner_would_continue) {
         std::cerr << "[PLANNER SHADOW] iteration=" << iteration_count
                   << " " << shadow_step.describe() << std::endl;
@@ -2004,8 +2005,8 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
       : check_completion(goal, type, evidence);
 
   // Phase 4.5 shadow metrics summary
-  if (planner_shadow.total_iterations() > 0) {
-    evidence.add_fact("planner_shadow: " + planner_shadow.summary());
+  if (planner_shadow->total_iterations() > 0) {
+    evidence.add_fact("planner_shadow: " + planner_shadow->summary());
   }
 
   // Phase 4.1/4.2 shadow mode: run EvidenceGapEngine + Planner alongside
@@ -2084,6 +2085,7 @@ ExecutionResult ExecutionEngine::execute(const std::string &goal,
   result.evidence_summary = evidence_summary;
   result.evidence = std::move(evidence);
   result.goal_type = static_cast<int>(type);
+  result.planner_shadow = planner_shadow.release();
   result.confidence = final_confidence.score;
 
   // Recovery metrics (compute before outcome logic)

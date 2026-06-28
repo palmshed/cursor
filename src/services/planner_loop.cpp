@@ -1,5 +1,7 @@
+#include "services/execution_engine.h"
 #include "services/planner_loop.h"
 #include "ui/ui_manager.h"
+#include <set>
 #include <sstream>
 
 namespace Services {
@@ -11,11 +13,18 @@ namespace Services {
 std::string PlannerLoopStep::describe() const {
   if (!planner_would_continue)
     return "gap satisfied";
-  std::string s = decision.describe() + "→" + request.tool;
+  std::string s = decision.describe() + "\u2192" + request.tool;
   if (!request.args.empty()) s += " " + request.args;
   s += " actual=" + actual_tool;
   if (!actual_args.empty()) s += " " + actual_args;
   s += agreement ? " agree" : " disagree(" + reason + ")";
+  return s;
+}
+
+std::string PlannerLoopStep::describe_full() const {
+  std::string s = describe();
+  if (!planner_would_continue || agreement) return s;
+  s += expected_disagreement ? " [expected]" : " [UNEXPECTED]";
   return s;
 }
 
@@ -37,11 +46,36 @@ int PlannerShadowMetrics::disagreements() const {
   return n;
 }
 
+int PlannerShadowMetrics::expected_disagreements() const {
+  int n = 0;
+  for (auto &s : steps)
+    if (s.planner_would_continue && !s.agreement && s.expected_disagreement) n++;
+  return n;
+}
+
+int PlannerShadowMetrics::unexpected_disagreements() const {
+  int n = 0;
+  for (auto &s : steps)
+    if (s.planner_would_continue && !s.agreement && !s.expected_disagreement) n++;
+  return n;
+}
+
 std::string PlannerShadowMetrics::summary() const {
   std::ostringstream oss;
   oss << "planner_shadow: steps=" << steps.size()
       << " agree=" << agreements()
-      << " disagree=" << disagreements();
+      << " disagree=" << disagreements()
+      << " expected=" << expected_disagreements()
+      << " unexpected=" << unexpected_disagreements();
+  return oss.str();
+}
+
+std::string PlannerShadowMetrics::detailed_report() const {
+  std::ostringstream oss;
+  for (size_t i = 0; i < steps.size(); i++) {
+    auto &s = steps[i];
+    oss << "  step[" << i << "]: " << s.describe_full() << "\n";
+  }
   return oss.str();
 }
 
@@ -62,6 +96,7 @@ PlannerLoopStep run_planner_shadow_step(
 
   if (!goal.is_known()) {
     step.reason = "unknown_goal";
+    step.expected_disagreement = true;
     return step;
   }
 
@@ -72,6 +107,7 @@ PlannerLoopStep run_planner_shadow_step(
   if (gap.complete()) {
     step.planner_would_continue = false;
     step.reason = "complete";
+    step.expected_disagreement = true;
     return step;
   }
 
@@ -89,6 +125,7 @@ PlannerLoopStep run_planner_shadow_step(
   if (step.request.empty()) {
     step.agreement = false;
     step.reason = "planner_has_no_tool";
+    step.expected_disagreement = true;
   } else if (step.request.tool == actual_tool) {
     // Tools match — moderate agreement (args may differ)
     step.agreement = true;
@@ -97,6 +134,24 @@ PlannerLoopStep run_planner_shadow_step(
     step.agreement = false;
     step.reason = std::string("tool_mismatch planner=") + step.request.tool +
                    " actual=" + actual_tool;
+    // Classify expected disagreements:
+    // Tools that can produce similar evidence are interchangeable.
+    // A mismatch between tools in the same group is expected.
+    // Tools that can produce similar evidence are interchangeable.
+    // These groups capture common tool-choice variations.
+    static const std::set<std::string> content_tools =
+        {"find", "grep", "references", "read", "discovery"};
+    static const std::set<std::string> build_tools =
+        {"cmake", "ctest", "gh", "git"};
+    static const std::set<std::string> review_tools =
+        {"find", "grep", "references", "read", "discovery", "git"};
+
+    bool same_group =
+        (content_tools.count(step.request.tool) && content_tools.count(actual_tool)) ||
+        (build_tools.count(step.request.tool) && build_tools.count(actual_tool)) ||
+        (review_tools.count(step.request.tool) && review_tools.count(actual_tool));
+
+    step.expected_disagreement = same_group;
   }
 
   return step;

@@ -1,4 +1,5 @@
 #include "services/execution_engine.h"
+#include "services/planner_loop.h"
 #include "services/file_service.h"
 #include "services/find_service.h"
 #include "services/symbol_service.h"
@@ -160,6 +161,8 @@ int main(int argc, char **argv) {
       };
 
       auto result = engine.execute(query, runner, ui);
+      // Clean up planner shadow metrics (heap-allocated)
+      delete result.planner_shadow;
       std::vector<std::string> tools;
       for (auto &tr : result.tool_history)
         tools.push_back(tr.tool + " " + tr.args);
