@@ -46,6 +46,9 @@ header{
   letter-spacing:.02em;
 }
 
+body{animation:fade-in .5s ease both;}
+@keyframes fade-in{from{opacity:0;}}
+
 .meta{
   color:var(--dim);
   margin-top:4px;
@@ -85,6 +88,13 @@ pre .dim{color:var(--dim);}
 pre .input{outline:none;}
 pre .cursor-block{display:inline-block;width:.6em;height:1em;background:var(--fg);vertical-align:text-bottom;animation:cursor-blink 1s step-end infinite;}
 @keyframes cursor-blink{50%{opacity:0;}}
+
+.ci{font-size:13px;vertical-align:middle;margin-left:4px;transition:color .3s;}
+.ci-ok{color:#3fb950;}
+.ci-fail{color:#f85149;}
+.ci-run{color:#d29922;animation:ci-spin 1s step-end infinite;}
+@keyframes ci-spin{50%{opacity:.3;}}
+.ci-unknown{color:var(--dim);}
 
 .hint{font-size:.85rem;color:var(--dim);margin:0 0 8px;}
 .hint kbd{border:1px solid var(--border);border-radius:3px;padding:1px 5px;font:inherit;color:var(--fg);}
@@ -266,12 +276,38 @@ setup();
       <a href="https://github.com/palmshed">Get data from /repos/palmshed →</a>
     </span>
   </span> ·
-  <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
+  <a href="https://github.com/bniladridas/cursor">GitHub</a>
+  <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span> ·
   <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
   <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
   <a href="github-app.html">brand-cursor[bot]</a> ·
   Apache 2.0
 </footer>
+
+<script>
+const ciEl = document.getElementById('ci-status');
+async function updateCI() {
+  try {
+    const r = await fetch('https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=1&branch=main');
+    if (!r.ok) throw new Error(String(r.status));
+    const d = await r.json();
+    const run = d.workflow_runs && d.workflow_runs[0];
+    if (!run) { ciEl.className = 'ci ci-unknown'; ciEl.textContent = '\u25CF'; return; }
+    ciEl.className = 'ci ci-' + (run.status === 'completed'
+      ? (run.conclusion === 'success' ? 'ok' : 'fail')
+      : 'run');
+    ciEl.textContent = run.status === 'completed'
+      ? (run.conclusion === 'success' ? '\u2713' : '\u2717')
+      : '\u25CF';
+  } catch(e) {
+    ciEl.className = 'ci ci-unknown';
+    ciEl.textContent = '\u25CF';
+    ciEl.title = 'CI error: ' + e.message;
+  }
+}
+updateCI();
+setInterval(updateCI, 60000);
+</script>
 
 </body>
 </html>
