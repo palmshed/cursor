@@ -425,7 +425,7 @@ async function updateCI() {
     ciEl.title = 'live failed, trying fallback: ' + e.message;
   }
   try {
-    const r = await fetch('https://raw.githubusercontent.com/bniladridas/cursor/main/.github/ci-status.json');
+    const r = await fetch('https://raw.githubusercontent.com/bniladridas/cursor/ci-cache/.github/ci-status.json');
     if (!r.ok) throw new Error(String(r.status));
     const d = await r.json();
     qualityRuns = d.workflow_runs || [];

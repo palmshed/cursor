@@ -7,7 +7,7 @@
 | `pages.yml` | Push (HTML only) | Deploy site to GitHub Pages |
 | `release.yml` | Tag `v*` | Build binaries, release, formula update, npm publish |
 | `formula-sha.yml` | Manual | Update Homebrew formula SHA |
-| `ci-status.yml` | Push, cron */5 | Cache workflow runs JSON for site fallback |
+| `ci-status.yml` | Cron */5 | Cache workflow runs JSON on `ci-cache` branch for site fallback |
 | `security.yml` | Push, PR | Trivy security scan |
 | `version-bump.yml` | Tag `v*` | Bump version |
 | `pr-body.yml` | PR | Clean PR body formatting |
@@ -28,4 +28,4 @@
 
 ## Notes
 
-- `ci-status.yml` commits use `[skip ci]` to avoid cascading Pages/CI/security runs on JSON-only updates.
+- `ci-status.yml` pushes to `ci-cache` branch (not main), zero main history noise
