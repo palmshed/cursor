@@ -82,6 +82,8 @@ pre{
 
 pre .bold{font-weight:700;}
 pre .dim{color:var(--dim);}
+pre .input{outline:none;caret-color:var(--fg);}
+pre .input:empty:before{content:attr(data-placeholder);color:var(--dim);pointer-events:none;}
 
 footer{
   margin-top:64px;
@@ -168,33 +170,66 @@ brew install palmshed/cursor/cursor</pre>
 
 <pre id="example"><span class="bold">▌ CURSOR</span>
 <span class="dim">offline · qwen2.5-coder:1.5b</span>
-
-&gt; hello
-<span id="example-line"></span></pre>
+<span id="example-log">&gt; <span id="example-input" contenteditable="plaintext-only" class="input"></span></span></pre>
 
 <script>
-const el = document.getElementById('example-line');
 const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-const resp = '\n<span class="dim">cursor</span>\n\nHello! How can I assist you today?';
-let fi = 0, phase = 'resp';
-let t = 0;
-const phaseLen = [6000, 3000];
+const input = document.getElementById('example-input');
+const log = document.getElementById('example-log');
+let spinInterval = null;
+let fi = 0;
 
-setInterval(() => {
-  fi = (fi + 1) % frames.length;
-  t += 80;
-  if (phase === 'spin' && t >= phaseLen[0]) {
-    phase = 'resp';
-    el.innerHTML = resp;
-    t = 0;
-  } else if (phase === 'resp' && t >= phaseLen[1]) {
-    phase = 'spin';
-    t = 0;
-  } else if (phase === 'spin') {
-    el.innerHTML = '\n' + frames[fi];
+function freezeInput() {
+  const text = this.textContent;
+  const txt = document.createTextNode(text);
+  this.parentNode.replaceChild(txt, this);
+  return text;
+}
+
+function startSpinner() {
+  fi = 0;
+  log.innerHTML += '\n' + frames[fi];
+  spinInterval = setInterval(() => {
+    fi = (fi + 1) % frames.length;
+    log.innerHTML = log.innerHTML.slice(0, -1) + frames[fi];
+  }, 80);
+}
+
+function stopSpinner() {
+  clearInterval(spinInterval);
+  spinInterval = null;
+  log.innerHTML = log.innerHTML.slice(0, -1);
+}
+
+function showResponse() {
+  log.innerHTML += '\n<span class="dim">cursor</span>\n\nHello! How can I assist you today?';
+}
+
+function newPrompt() {
+  log.innerHTML += '\n&gt; ';
+  log.innerHTML += '<span id="example-input" contenteditable="plaintext-only" class="input"></span>';
+  const el = document.getElementById('example-input');
+  el.addEventListener('keydown', onEnter);
+  el.focus();
+}
+
+function onEnter(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const text = this.textContent.trim();
+    if (!text) return;
+    freezeInput.call(this);
+    startSpinner();
+    setTimeout(() => {
+      stopSpinner();
+      showResponse();
+      setTimeout(newPrompt, 800);
+    }, 2000);
   }
-}, 80);
-el.innerHTML = resp; // start showing the response immediately
+}
+
+input.addEventListener('keydown', onEnter);
+input.focus();
 </script>
 
 <footer>
