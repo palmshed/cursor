@@ -171,16 +171,17 @@ offline · qwen2.5-coder:1.5b
 <script>
 const el = document.getElementById('example-line');
 const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-let fi = 0, phase = 'spin';
-const phaseLen = [2500, 5000]; // spin duration, response duration
+const resp = '\ncursor\n\nHello! How can I assist you today?';
+let fi = 0, phase = 'resp';
 let t = 0;
+const phaseLen = [6000, 3000];
 
 setInterval(() => {
   fi = (fi + 1) % frames.length;
   t += 80;
   if (phase === 'spin' && t >= phaseLen[0]) {
     phase = 'resp';
-    el.textContent = '\nHello! How can I assist you today?';
+    el.textContent = resp;
     t = 0;
   } else if (phase === 'resp' && t >= phaseLen[1]) {
     phase = 'spin';
@@ -189,7 +190,7 @@ setInterval(() => {
     el.textContent = '\n' + frames[fi];
   }
 }, 80);
-el.textContent = '\n' + frames[0];
+el.textContent = resp; // start showing the response immediately
 </script>
 
 <footer>
