@@ -53,10 +53,15 @@ header{
   margin-bottom:48px;
   position:relative;
 }
-#layout-toggle{position:fixed;top:12px;right:12px;cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1;padding:4px 8px;opacity:.5;transition:transform .3s ease,opacity .15s;z-index:100;display:inline-block;}
+#layout-toggle{position:fixed;top:12px;right:12px;cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1;padding:4px 8px;opacity:.5;transition:transform .3s ease,opacity .15s;z-index:100;display:inline-block;will-change:transform,opacity;}
 #layout-toggle:hover{opacity:1;}
 body:not(.landscape) #layout-toggle{transform:rotate(90deg);}
 body.landscape #layout-toggle{transform:rotate(0deg);}
+.bottom-glow{position:fixed;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(119,119,119,.15), transparent);opacity:0;pointer-events:none;z-index:98;transition:opacity .6s ease;will-change:opacity;}
+.bottom-glow.show{opacity:1;}
+.layout-hint{position:fixed;top:12px;right:40px;color:var(--dim);font-size:11px;line-height:1;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);opacity:0;transition:opacity .5s ease;pointer-events:none;white-space:nowrap;z-index:100;will-change:opacity;}
+.layout-hint.show{opacity:.8;}
+.layout-hint::after{content:'';position:absolute;top:50%;left:100%;transform:translateY(-50%);width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:4px solid var(--border);}
 
 .logo{
   font-weight:700;
@@ -390,7 +395,9 @@ setup();
   </div>
 </footer>
 </div>
+<div class="bottom-glow" id="bottom-glow"></div>
 <span id="layout-toggle" title="Toggle layout">▭</span>
+<div class="layout-hint" id="layout-hint">toggle portrait / landscape</div>
 <script>
 const ciEl = document.getElementById('ci-status');
 async function updateCI() {
@@ -430,6 +437,21 @@ lt.addEventListener('click', function(){
   try{localStorage.setItem('layout', document.body.classList.contains('landscape') ? 'landscape' : 'portrait');}catch(e){}
 });
 try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');}}catch(e){}
+try{
+  if(!localStorage.getItem('hint-dismissed')){
+    var h = document.getElementById('layout-hint');
+    if(h){h.classList.add('show');setTimeout(function(){h.classList.remove('show');},3000);}
+    localStorage.setItem('hint-dismissed','1');
+  }
+}catch(e){}
+var g = document.getElementById('bottom-glow');
+function checkBottom(){
+  if(document.documentElement.scrollHeight <= window.innerHeight) return;
+  var b = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+  if(b < 80){g.classList.add('show');}else{g.classList.remove('show');}
+}
+window.addEventListener('scroll',checkBottom,{passive:true});
+checkBottom();
 </script>
 </body>
 </html>
