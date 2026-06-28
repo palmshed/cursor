@@ -20,5 +20,5 @@ jobs:
           git config user.name 'palmshed-cursor[bot]'
           git config user.email '294867837+palmshed-cursor[bot]@users.noreply.github.com'
           git diff --quiet .github/ci-status.json && echo "no changes" || (
-            git add .github/ci-status.json && git commit -m 'update ci-status.json' && git push
+            git add .github/ci-status.json && git commit -m 'update ci-status.json [skip ci]' && git push
           )
