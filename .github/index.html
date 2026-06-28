@@ -166,14 +166,30 @@ brew install palmshed/cursor/cursor</pre>
 offline · qwen2.5-coder:1.5b
 
 &gt; hello
-<span id="spin"></span></pre>
+<span id="example-line"></span></pre>
 
 <script>
-const spin = document.getElementById('spin');
+const el = document.getElementById('example-line');
 const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-let i = 0;
-spin.textContent = frames[0];
-setInterval(() => { i = (i + 1) % frames.length; spin.textContent = frames[i]; }, 80);
+let fi = 0, phase = 'spin';
+const phaseLen = [2500, 5000]; // spin duration, response duration
+let t = 0;
+
+setInterval(() => {
+  fi = (fi + 1) % frames.length;
+  t += 80;
+  if (phase === 'spin' && t >= phaseLen[0]) {
+    phase = 'resp';
+    el.textContent = '\nHello! How can I assist you today?';
+    t = 0;
+  } else if (phase === 'resp' && t >= phaseLen[1]) {
+    phase = 'spin';
+    t = 0;
+  } else if (phase === 'spin') {
+    el.textContent = '\n' + frames[fi];
+  }
+}, 80);
+el.textContent = '\n' + frames[0];
 </script>
 
 <footer>
