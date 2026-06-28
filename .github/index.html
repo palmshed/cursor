@@ -162,14 +162,19 @@ brew install palmshed/cursor/cursor</pre>
 
 <h2>Example</h2>
 
-<pre>▌ CURSOR
+<pre id="example">▌ CURSOR
 offline · qwen2.5-coder:1.5b
 
 &gt; hello
+<span id="spin"></span></pre>
 
-cursor
-
-Hello! How can I assist you today?</pre>
+<script>
+const spin = document.getElementById('spin');
+const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+let i = 0;
+spin.textContent = frames[0];
+setInterval(() => { i = (i + 1) % frames.length; spin.textContent = frames[i]; }, 80);
+</script>
 
 <footer>
   <span class="slider">
