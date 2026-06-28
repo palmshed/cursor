@@ -47,6 +47,33 @@ input,select,textarea{
   border-radius:0;
 }
 
+.select-wrap{
+  position:relative;
+}
+.select-wrap select{
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  width:100%;
+  padding-right:36px;
+  cursor:pointer;
+}
+.select-wrap::after{
+  content:'';
+  position:absolute;
+  right:12px;
+  top:50%;
+  transform:translateY(-50%);
+  width:0;
+  height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:6px solid var(--dim);
+  pointer-events:none;
+}
+
+select option{background:var(--bg);color:var(--fg);}
+
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--dim);}
 
 textarea{min-height:120px;resize:vertical;}
@@ -108,10 +135,12 @@ footer > div:first-child{display:flex;justify-content:space-between;}
   <input type="text" id="username" name="username" required>
 
   <label for="role">Role</label>
+  <div class="select-wrap">
   <select id="role" name="role">
     <option value="member">Member</option>
     <option value="admin">Admin</option>
   </select>
+  </div>
 
   <label for="reason">Reason for joining</label>
   <textarea id="reason" name="reason" required></textarea>
