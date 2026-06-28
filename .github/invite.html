@@ -130,8 +130,10 @@ footer > div:first-child{min-height:2em;}
 .slider-text a{color:var(--dim);text-decoration:none;}
 .slider:hover .slider-icon{transform:translateY(-100%);}
 .slider:hover .slider-text{transform:translateY(-100%);}
-#layout-toggle{position:fixed;top:12px;right:12px;cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1;padding:4px 8px;opacity:.5;transition:opacity .15s;z-index:100;}
+#layout-toggle{position:fixed;top:12px;right:12px;cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1;padding:4px 8px;opacity:.5;transition:transform .3s ease,opacity .15s;z-index:100;display:inline-block;}
 #layout-toggle:hover{opacity:1;}
+body:not(.landscape) #layout-toggle{transform:rotate(90deg);}
+body.landscape #layout-toggle{transform:rotate(0deg);}
 </style>
 </head>
 <body>
@@ -210,10 +212,9 @@ document.getElementById('invite-form').addEventListener('submit', function(e){
 var lt = document.getElementById('layout-toggle');
 if(lt){lt.addEventListener('click', function(){
   document.body.classList.toggle('landscape');
-  lt.textContent = document.body.classList.contains('landscape') ? '◻' : '▭';
   try{localStorage.setItem('layout', document.body.classList.contains('landscape') ? 'landscape' : 'portrait');}catch(e){}
 });}
-try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');if(lt)lt.textContent='◻';}}catch(e){}
+try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');}}catch(e){}
 </script>
 </body>
 </html>
