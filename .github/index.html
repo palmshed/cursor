@@ -40,7 +40,22 @@ a:hover{
 
 header{
   margin-bottom:48px;
+  position:relative;
 }
+#layout-toggle{
+  position:absolute;
+  top:0;
+  right:0;
+  cursor:pointer;
+  color:var(--dim);
+  font-size:13px;
+  user-select:none;
+  line-height:1;
+  padding:3px 6px;
+  opacity:.5;
+  transition:opacity .15s;
+}
+#layout-toggle:hover{opacity:1;}
 
 .logo{
   font-weight:700;
@@ -213,14 +228,6 @@ footer > div:first-child{display:flex;justify-content:space-between;}
   background:var(--border);
 }
 
-.layout-toggle{
-  cursor:pointer;
-  color:var(--dim);
-  margin:0 6px;
-  font-size:13px;
-  user-select:none;
-}
-.layout-toggle:hover{opacity:.8;}
 body.landscape{max-width:960px;}
 
 .dropdown-trigger{
@@ -238,6 +245,7 @@ body.landscape{max-width:960px;}
 <header>
   <div class="logo">▌ CURSOR</div>
   <div class="meta">AI coding agent</div>
+  <span id="layout-toggle" title="Toggle layout">▭</span>
 </header>
 
 <p>
@@ -377,7 +385,6 @@ setup();
     <a href="about.html">About</a> ·
     <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span>
     quality * ·
-    <span class="layout-toggle" id="layout-toggle" title="Toggle layout">▭</span> ·
     🇺🇦 stand with Ukraine
   </div>
 </footer>
@@ -423,6 +430,5 @@ lt.addEventListener('click', function(){
 });
 try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');lt.textContent='◻';}}catch(e){}
 </script>
-
 </body>
 </html>
