@@ -1,3 +1,6 @@
+---
+---
+
 # Final Verification: Directory-Aware Find Shared Engine
 
 **Date:** 2026-06-26

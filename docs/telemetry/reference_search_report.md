@@ -1,3 +1,6 @@
+---
+---
+
 # Reference Search: Implementation Report
 
 **Date:** 2026-06-26  

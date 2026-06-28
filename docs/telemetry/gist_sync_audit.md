@@ -1,3 +1,6 @@
+---
+---
+
 # Gist Synchronization Audit Report
 
 **Date:** 2026-06-26  

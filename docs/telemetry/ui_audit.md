@@ -1,3 +1,6 @@
+---
+---
+
 # UI Audit: Backend Capability → User Visibility
 
 **Date:** 2026-06-25

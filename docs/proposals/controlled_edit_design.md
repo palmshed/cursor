@@ -1,3 +1,6 @@
+---
+---
+
 # [PROPOSAL: DESIGN ONLY - NOT YET IMPLEMENTED]
 
 # Controlled Edit Mode v1: Design Document

@@ -1,3 +1,6 @@
+---
+---
+
 # Known CI Test Failures
 
 These 8 `cursor-tester` scenarios fail consistently in CI.

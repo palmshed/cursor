@@ -1,3 +1,6 @@
+---
+---
+
 # Architecture Query Failure Report
 
 **Date:** 2026-06-26  

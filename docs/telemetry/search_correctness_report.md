@@ -1,3 +1,6 @@
+---
+---
+
 # Search Correctness Report
 
 **Generated:** 2026-06-26  

@@ -1,3 +1,6 @@
+---
+---
+
 # Query Journey Audit: 50 Developer Tasks
 
 **Date:** 2026-06-28  

@@ -1,3 +1,6 @@
+---
+---
+
 # Implementation Audit: Session Notes vs. Actual Code
 
 **Date:** 2026-06-25

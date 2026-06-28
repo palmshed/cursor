@@ -1,3 +1,6 @@
+---
+---
+
 # Directory-Aware Find: Implementation Report
 
 **Date:** 2026-06-26

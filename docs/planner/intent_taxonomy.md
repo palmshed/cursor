@@ -1,3 +1,6 @@
+---
+---
+
 # Intent Taxonomy
 
 Derived from 114 prompts in the corpus (see `prompt_corpus.csv`).

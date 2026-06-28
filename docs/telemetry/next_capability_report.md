@@ -1,3 +1,6 @@
+---
+---
+
 # Telemetry & Capability-Gap Report: Reference & Symbol Search
 
 **Date:** 2026-06-26  

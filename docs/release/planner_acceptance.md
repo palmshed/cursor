@@ -1,3 +1,6 @@
+---
+---
+
 # Planner Acceptance Report
 
 > Release gate for the V2 planner architecture.

@@ -1,3 +1,6 @@
+---
+---
+
 # Level 2 UX Review: Terminal Experience
 
 **Date:** 2026-06-28  

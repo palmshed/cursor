@@ -1,3 +1,6 @@
+---
+---
+
 # Release Checklist
 
 This checklist gates every release of `cursor-agent`.
