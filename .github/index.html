@@ -82,7 +82,9 @@ pre{
 
 pre .bold{font-weight:700;}
 pre .dim{color:var(--dim);}
-pre .input{outline:none;caret-color:var(--fg);}
+pre .input{outline:none;}
+pre .cursor-block{display:inline-block;width:.6em;height:1em;background:var(--fg);vertical-align:text-bottom;animation:cursor-blink 1s step-end infinite;}
+@keyframes cursor-blink{50%{opacity:0;}}
 
 .hint{font-size:.85rem;color:var(--dim);margin-bottom:8px;}
 .hint kbd{border:1px solid var(--border);border-radius:3px;padding:1px 5px;font:inherit;color:var(--fg);}
@@ -174,20 +176,24 @@ brew install palmshed/cursor/cursor</pre>
 
 <pre id="example"><span class="bold">▌ CURSOR</span>
 <span class="dim">offline · qwen2.5-coder:1.5b</span>
-<span id="example-log">&gt; <span id="example-input" contenteditable="plaintext-only" class="input"></span></span></pre>
+<span id="example-log">&gt; <span id="example-input" class="input" tabindex="0"><span id="example-cursor" class="cursor-block"></span></span></span></pre>
 
 <script>
 const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-const input = document.getElementById('example-input');
 const log = document.getElementById('example-log');
 let spinInterval = null;
 let fi = 0;
+let buf = '';
+
+function render() {
+  const ci = document.getElementById('example-input');
+  if (ci) ci.innerHTML = buf + '<span class="cursor-block"></span>';
+}
 
 function freezeInput() {
-  const text = this.textContent;
-  const txt = document.createTextNode(text);
-  this.parentNode.replaceChild(txt, this);
-  return text;
+  const ci = document.getElementById('example-input');
+  ci.parentNode.replaceChild(document.createTextNode(buf), ci);
+  return buf;
 }
 
 function startSpinner() {
@@ -211,29 +217,42 @@ function showResponse() {
 
 function newPrompt() {
   log.innerHTML += '\n&gt; ';
-  log.innerHTML += '<span id="example-input" contenteditable="plaintext-only" class="input"></span>';
+  log.innerHTML += '<span id="example-input" class="input" tabindex="0"><span class="cursor-block"></span></span>';
+  buf = '';
   const el = document.getElementById('example-input');
-  el.addEventListener('keydown', onEnter);
+  el.addEventListener('keydown', onKey);
   el.focus();
 }
 
-function onEnter(e) {
+function onKey(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
-    const text = this.textContent.trim();
+    const text = buf.trim();
     if (!text) return;
-    freezeInput.call(this);
+    freezeInput();
     startSpinner();
     setTimeout(() => {
       stopSpinner();
       showResponse();
       setTimeout(newPrompt, 800);
     }, 2000);
+    return;
   }
+  if (e.key === 'Backspace') {
+    buf = buf.slice(0, -1);
+  } else if (e.key.length === 1) {
+    buf += e.key;
+  }
+  render();
 }
 
-input.addEventListener('keydown', onEnter);
-input.focus();
+function setup() {
+  const el = document.getElementById('example-input');
+  el.addEventListener('keydown', onKey);
+  el.focus();
+}
+
+setup();
 </script>
 
 <footer>
