@@ -401,6 +401,7 @@ setup();
   </div>
 </footer>
 
+<span id="layout-toggle" title="Toggle layout">▭</span>
 <script>
 const ciEl = document.getElementById('ci-status');
 async function updateCI() {
@@ -442,7 +443,6 @@ lt.addEventListener('click', function(){
 });
 try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');lt.textContent='◻';}}catch(e){}
 </script>
-<span id="layout-toggle" title="Toggle layout">▭</span>
 </div>
 </body>
 </html>

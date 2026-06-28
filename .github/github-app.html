@@ -230,6 +230,7 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
   </div>
 </footer>
 
+<span id="layout-toggle" title="Toggle layout">▭</span>
 <script>
 const ciEl = document.getElementById('ci-status');
 async function updateCI() {
@@ -271,7 +272,6 @@ if(lt){lt.addEventListener('click', function(){
 });}
 try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');if(lt)lt.textContent='◻';}}catch(e){}
 </script>
-<span id="layout-toggle" title="Toggle layout">▭</span>
 </div>
 </body>
 </html>
