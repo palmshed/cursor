@@ -25,3 +25,7 @@
 | `DOCKER_PASSWORD` | ci.yml |
 | `CURSOR_BOT_CLIENT_ID` | formula-sha.yml, pr-body.yml, issue-response.yml, stale.yml |
 | `CURSOR_BOT_PRIVATE_KEY` | formula-sha.yml, pr-body.yml, issue-response.yml, stale.yml |
+
+## Notes
+
+- `ci-status.yml` commits use `[skip ci]` to avoid cascading Pages/CI/security runs on JSON-only updates.
