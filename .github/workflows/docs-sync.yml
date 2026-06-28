@@ -20,9 +20,13 @@ jobs:
           token: ${{ secrets.DOCS_SYNC_TOKEN }}
           path: dest
       - run: |
+          cp -r source/docs dest/docs.tmp
+          cp dest/docs/_config.yml dest/docs.tmp/ 2>/dev/null || true
+          cp -r dest/docs/_layouts dest/docs.tmp/ 2>/dev/null || true
+          cp -r dest/docs/assets dest/docs.tmp/ 2>/dev/null || true
           rm -rf dest/docs
-          cp -r source/docs dest/
-          rm -f dest/sync.md
+          mv dest/docs.tmp dest/docs
+          rm -f dest/docs/sync.md
       - run: |
           cd dest
           git config user.name 'brand-cursor[bot]'
