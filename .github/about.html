@@ -21,7 +21,7 @@
 }
 
 body{
-  max-width:680px;
+  max-width:960px;
   margin:0 auto;
   padding:48px 24px 96px;
   background:var(--bg);
@@ -29,15 +29,24 @@ body{
   font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
   animation:fade-in .5s ease both;
 }
+.page{
+  transform-origin:top;
+  transition:transform .3s ease;
+  will-change:transform;
+}
+body:not(.landscape) .page{
+  transform:scale(0.7083);
+}
+body.landscape .page{
+  transform:none;
+}
 
 @keyframes fade-in{from{opacity:0;}}
 
 a{color:inherit;text-decoration:none;}
 a:hover{opacity:.8;}
 
-header{margin-bottom:48px;position:relative;}
-#layout-toggle{position:absolute;top:0;right:0;cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1;padding:3px 6px;opacity:.5;transition:opacity .15s;}
-#layout-toggle:hover{opacity:1;}
+header{margin-bottom:48px;}
 
 .logo{font-weight:700;letter-spacing:.02em;}
 
@@ -138,17 +147,19 @@ footer > div:first-child{display:flex;justify-content:space-between;}
 .dropdown.open .dropdown-menu{display:block;}
 .dropdown-menu a{display:block;padding:4px 16px;color:var(--dim);text-decoration:none;font-size:13px;margin:0;}
 .dropdown-menu a:hover{color:var(--fg);background:var(--border);}
-body.landscape{max-width:960px;}
+
 .dropdown-trigger{color:var(--dim);margin:0 6px;}
 .dropdown-trigger:hover{opacity:.8;}
+#layout-toggle{position:fixed;top:12px;right:12px;cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1;padding:4px 8px;opacity:.5;transition:opacity .15s;z-index:100;}
+#layout-toggle:hover{opacity:1;}
 </style>
 </head>
 <body>
 
+<div class="page">
 <header>
   <div class="logo">▌ CURSOR</div>
   <div class="meta">AI coding agent</div>
-  <span id="layout-toggle" title="Toggle layout">▭</span>
 </header>
 
 <h2>Legal &amp; Credits</h2>
@@ -284,6 +295,7 @@ if(lt){lt.addEventListener('click', function(){
 });}
 try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');if(lt)lt.textContent='◻';}}catch(e){}
 </script>
-
+<span id="layout-toggle" title="Toggle layout">▭</span>
+</div>
 </body>
 </html>
