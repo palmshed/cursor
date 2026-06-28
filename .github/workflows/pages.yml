@@ -27,7 +27,7 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  brand-cursor:
+  palmshed-cursor:
     needs: [deploy]
     runs-on: ubuntu-latest
     environment:
