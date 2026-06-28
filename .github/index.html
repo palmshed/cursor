@@ -447,7 +447,7 @@ function updateDot() {
   ciEl.textContent = run.status === 'completed'
     ? (run.conclusion === 'success' ? '\u2713' : '\u2717')
     : '\u25CF';
-  ciEl.title = (run.status === 'completed' ? run.conclusion : 'running') + ' — ' + run.event + ' / ' + run.name;
+  ciEl.title = (run.status === 'completed' ? run.conclusion : 'running') + ' \u2013 ' + run.event + ' / ' + run.name;
 }
 
 function statusChar(run) {

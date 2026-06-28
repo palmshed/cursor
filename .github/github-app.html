@@ -214,9 +214,9 @@ GitHub App that automates Cursor release, CI, docs, and repository maintenance w
 <h2>Responsibilities</h2>
 
 <p>Release publishing, Homebrew formula updates, npm publishing.</p>
-<p>CI status caching — fallback for site quality popup.</p>
+<p>CI status caching – fallback for site quality popup.</p>
 <p>Docs sync, Pages deployment, invite auto-response.</p>
-<p>Repository maintenance — stale management, auto-labeling, PR body cleanup.</p>
+<p>Repository maintenance – stale management, auto-labeling, PR body cleanup.</p>
 
 <footer>
   <div>
@@ -294,7 +294,7 @@ function updateDot() {
   ciEl.textContent = run.status === 'completed'
     ? (run.conclusion === 'success' ? '\u2713' : '\u2717')
     : '\u25CF';
-  ciEl.title = (run.status === 'completed' ? run.conclusion : 'running') + ' — ' + run.event + ' / ' + run.name;
+  ciEl.title = (run.status === 'completed' ? run.conclusion : 'running') + ' \u2013 ' + run.event + ' / ' + run.name;
 }
 
 function statusChar(run) {
