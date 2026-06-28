@@ -86,7 +86,7 @@ pre .input{outline:none;}
 pre .cursor-block{display:inline-block;width:.6em;height:1em;background:var(--fg);vertical-align:text-bottom;animation:cursor-blink 1s step-end infinite;}
 @keyframes cursor-blink{50%{opacity:0;}}
 
-.hint{font-size:.85rem;color:var(--dim);margin-bottom:8px;}
+.hint{font-size:.85rem;color:var(--dim);margin:0 0 8px;}
 .hint kbd{border:1px solid var(--border);border-radius:3px;padding:1px 5px;font:inherit;color:var(--fg);}
 
 footer{
@@ -176,7 +176,8 @@ brew install palmshed/cursor/cursor</pre>
 
 <pre id="example"><span class="bold">▌ CURSOR</span>
 <span class="dim">offline · qwen2.5-coder:1.5b</span>
-<span id="example-log">&gt; <span id="example-input" class="input" tabindex="0"><span id="example-cursor" class="cursor-block"></span></span></span></pre>
+
+<span id="example-log">&gt; <span id="example-input" class="input" tabindex="0"><span class="cursor-block"></span></span></span></pre>
 
 <script>
 const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
@@ -208,7 +209,7 @@ function startSpinner() {
 function stopSpinner() {
   clearInterval(spinInterval);
   spinInterval = null;
-  log.innerHTML = log.innerHTML.slice(0, -1);
+  log.innerHTML = log.innerHTML.slice(0, -2);
 }
 
 function showResponse() {
