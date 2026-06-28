@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cursor Automation</title>
-<link rel="icon" href="packaging/brand-cursor.png">
+<link rel="icon" href="https://raw.githubusercontent.com/palmshed/vortai/main/frontend/public/favicon.ico">
 
 <style>
 :root{
@@ -34,6 +34,7 @@ body{
 
 a{
   color:inherit;
+  text-decoration:none;
 }
 
 a:hover{
@@ -63,6 +64,7 @@ p{
   margin:12px 0;
   color:#cfcfcf;
 }
+p a{color:var(--dim);}
 
 table{
   width:100%;
@@ -90,6 +92,7 @@ footer{
 
 footer a{margin:0 6px;}
 footer > div + div{margin-top:.5em;}
+footer > div:first-child{display:flex;justify-content:space-between;}
 
 footer a{color:var(--dim);}
 
@@ -97,7 +100,6 @@ footer a{color:var(--dim);}
   display:inline-flex;
   flex-direction:column;
   cursor:pointer;
-  z-index:1;
   overflow:hidden;
   vertical-align:middle;
   height:1.2em;
@@ -106,7 +108,7 @@ footer a{color:var(--dim);}
 
 .slider-icon, .slider-text{
   flex-shrink:0;
-  transition:transform .25s ease;
+  transition:transform .25s ease .1s;
 }
 
 .slider-text{
@@ -188,14 +190,14 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
         Palmshed
       </span>
       <span class="slider-text">
-        <a href="https://github.com/palmshed">Get data from /repos/palmshed →</a>
+        <a href="https://github.com/palmshed">Get data from /repos/palmshed</a>
       </span>
     </span>
     <span class="dropdown" id="invite-dd">
       <span class="dropdown-trigger">invite</span>
       <span class="dropdown-menu">
-        <a href="https://github.com/palmshed">join as admin</a>
-        <a href="https://github.com/palmshed">join as member</a>
+        <a href="invite.html">join as admin</a>
+        <a href="invite.html">join as member</a>
       </span>
     </span>
   </div>
@@ -207,7 +209,7 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
     <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
     <a href="about.html">About</a> ·
     <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span>
-    quality ★ ·
+    quality * ·
     🇺🇦 stand with Ukraine
   </div>
 </footer>

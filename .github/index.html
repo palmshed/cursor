@@ -31,6 +31,7 @@ body{
 
 a{
   color:inherit;
+  text-decoration:none;
 }
 
 a:hover{
@@ -72,6 +73,7 @@ p{
   margin:12px 0;
   color:#cfcfcf;
 }
+p a{color:var(--dim);}
 
 pre{
   margin:0 0 16px;
@@ -110,6 +112,7 @@ footer{
 
 footer a{margin:0 6px;}
 footer > div + div{margin-top:.5em;}
+footer > div:first-child{display:flex;justify-content:space-between;}
 
 .slider{
   display:inline-flex;
@@ -123,7 +126,7 @@ footer > div + div{margin-top:.5em;}
 
 .slider-icon, .slider-text{
   flex-shrink:0;
-  transition:transform .25s ease;
+  transition:transform .25s ease .1s;
 }
 
 .slider-text{
@@ -317,14 +320,14 @@ setup();
         Palmshed
       </span>
       <span class="slider-text">
-        <a href="https://github.com/palmshed">Get data from /repos/palmshed →</a>
+        <a href="https://github.com/palmshed">Get data from /repos/palmshed</a>
       </span>
     </span>
     <span class="dropdown" id="invite-dd">
       <span class="dropdown-trigger">invite</span>
       <span class="dropdown-menu">
-        <a href="https://github.com/palmshed">join as admin</a>
-        <a href="https://github.com/palmshed">join as member</a>
+        <a href="invite.html">join as admin</a>
+        <a href="invite.html">join as member</a>
       </span>
     </span>
   </div>
@@ -336,7 +339,7 @@ setup();
     <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
     <a href="about.html">About</a> ·
     <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span>
-    quality ★ ·
+    quality * ·
     🇺🇦 stand with Ukraine
   </div>
 </footer>

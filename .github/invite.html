@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invite – Cursor</title>
+<link rel="icon" href="https://raw.githubusercontent.com/palmshed/vortai/main/frontend/public/favicon.ico">
+
+<style>
+:root{--bg:#0d0d0d;--fg:#e6e6e6;--dim:#777;--border:#1f1f1f;}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body{
+  max-width:680px;
+  margin:0 auto;
+  padding:48px 24px 96px;
+  background:var(--bg);
+  color:var(--fg);
+  font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  animation:fade-in .5s ease both;
+}
+
+@keyframes fade-in{from{opacity:0;}}
+
+a{color:inherit;text-decoration:none;}
+a:hover{opacity:.8;}
+
+header{margin-bottom:48px;}
+.logo{font-weight:700;letter-spacing:.02em;}
+.meta{color:var(--dim);margin-top:4px;}
+
+p{color:#cfcfcf;margin:12px 0;}
+p a{color:var(--dim);}
+
+form{display:flex;flex-direction:column;gap:16px;margin-top:24px;}
+
+label{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;}
+
+input,select,textarea{
+  background:var(--bg);
+  border:1px solid var(--border);
+  color:var(--fg);
+  padding:10px 12px;
+  font:inherit;
+  font-size:.9rem;
+  border-radius:0;
+}
+
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--dim);}
+
+textarea{min-height:120px;resize:vertical;}
+
+button{
+  background:var(--fg);
+  color:var(--bg);
+  border:none;
+  padding:12px;
+  font:inherit;
+  font-weight:600;
+  cursor:pointer;
+  margin-top:8px;
+}
+
+button:hover{opacity:.8;}
+
+footer{
+  margin-top:64px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+  color:var(--dim);
+  font-size:.85rem;
+  line-height:2;
+}
+footer a{color:var(--dim);margin:0 6px;}
+footer > div + div{margin-top:.5em;}
+footer > div:first-child{display:flex;justify-content:space-between;}
+
+.slider{
+  display:inline-flex;
+  flex-direction:column;
+  cursor:pointer;
+  overflow:hidden;
+  vertical-align:middle;
+  height:1.2em;
+  line-height:1.2em;
+}
+.slider-icon,.slider-text{flex-shrink:0;transition:transform .25s ease .1s;}
+.slider-text{white-space:nowrap;font-size:13px;}
+.slider-text a{color:var(--dim);text-decoration:none;}
+.slider:hover .slider-icon{transform:translateY(-100%);}
+.slider:hover .slider-text{transform:translateY(-100%);}
+
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">▌ CURSOR</div>
+  <div class="meta">invite request</div>
+</header>
+
+<p>Fill out the form below. Requests are filed as issues in <a href="https://github.com/palmshed/cursor-docs">palmshed/cursor-docs</a> for review.</p>
+
+<form id="invite-form">
+  <label for="username">GitHub username</label>
+  <input type="text" id="username" name="username" required>
+
+  <label for="role">Role</label>
+  <select id="role" name="role">
+    <option value="member">Member</option>
+    <option value="admin">Admin</option>
+  </select>
+
+  <label for="reason">Reason for joining</label>
+  <textarea id="reason" name="reason" required></textarea>
+
+  <button type="submit">Submit request</button>
+</form>
+
+<footer>
+  <div>
+    <span class="slider">
+      <span class="slider-icon">
+        <img src="https://raw.githubusercontent.com/palmshed/vortai/main/frontend/public/favicon.ico" style="width:14px;height:14px;vertical-align:middle;margin-right:4px" alt="">
+        Palmshed
+      </span>
+      <span class="slider-text">
+        <a href="https://github.com/palmshed">Get data from /repos/palmshed</a>
+      </span>
+    </span>
+  </div>
+  <div>
+    Apache 2.0 ·
+    <a href="index.html">Cursor</a> ·
+    <a href="github-app.html">brand-cursor[bot]</a> ·
+    <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
+    <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
+    <a href="about.html">About</a> ·
+    🇺🇦 stand with Ukraine
+  </div>
+</footer>
+
+<script>
+document.getElementById('invite-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  var username = document.getElementById('username').value.trim();
+  var role = document.getElementById('role').value;
+  var reason = document.getElementById('reason').value.trim();
+  if (!username || !reason) return;
+
+  var body = '## Invite request\n\n'
+    + '**Username:** @' + username + '\n'
+    + '**Role:** ' + role + '\n'
+    + '**Reason:** ' + reason + '\n';
+
+  var url = 'https://github.com/palmshed/cursor-docs/issues/new'
+    + '?title=' + encodeURIComponent('Invite: ' + username)
+    + '&body=' + encodeURIComponent(body)
+    + '&labels=invite';
+
+  window.open(url, '_blank');
+});
+</script>
+
+</body>
+</html>
