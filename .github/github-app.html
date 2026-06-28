@@ -179,11 +179,11 @@ body.landscape #layout-toggle{transform:rotate(0deg);}
 <div class="page">
 <header>
   <div class="logo">▌ PALMSHED-CURSOR[bot]</div>
-  <div class="meta">Automation for Cursor</div>
+  <div class="meta">Repository automation for Cursor</div>
 </header>
 
 <p>
-GitHub App used to automate Cursor release and maintenance workflows. The bot handles release publishing, Homebrew formula updates, npm publishing, and repository maintenance.
+GitHub App that automates Cursor release, CI, docs, and repository maintenance workflows.
 </p>
 
 <h2>Permissions</h2>
@@ -191,15 +191,19 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
 <table>
 <tr>
   <td>Contents</td>
-  <td>Release automation</td>
+  <td>Release automation, CI status caching, ci-cache branch</td>
 </tr>
 <tr>
   <td>Pull Requests</td>
-  <td>Version updates</td>
+  <td>Version updates, PR body formatting</td>
 </tr>
 <tr>
   <td>Checks</td>
   <td>CI verification</td>
+</tr>
+<tr>
+  <td>Issues</td>
+  <td>Invite auto-response, issue triage</td>
 </tr>
 <tr>
   <td>Metadata</td>
@@ -209,10 +213,12 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
 
 <h2>Responsibilities</h2>
 
-<p>Release publishing.</p>
-<p>Homebrew formula updates.</p>
-<p>npm publishing.</p>
-<p>Repository maintenance workflows.</p>
+<p>Release publishing, Homebrew formula updates, npm publishing.</p>
+<p>CI status tracking — caches workflow runs to <code>ci-cache</code> branch for site fallback.</p>
+<p>Docs sync — keeps documentation site in sync with source changes.</p>
+<p>GitHub Pages deployment.</p>
+<p>Auto-responds to invite issues with <code>invite</code> label.</p>
+<p>Repository maintenance — stale issue/PR management, auto-labeling, PR body cleanup.</p>
 
 <footer>
   <div>
