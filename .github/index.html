@@ -88,28 +88,45 @@ footer{
 }
 
 .slider{
-  display:inline-flex;
-  align-items:center;
+  position:relative;
+  display:inline-block;
   cursor:pointer;
   overflow:hidden;
+  vertical-align:middle;
+  height:1.2em;
+  line-height:1.2em;
+}
+
+.slider-icon{
+  display:inline-block;
+  transition:transform .25s ease, opacity .25s ease;
 }
 
 .slider-text{
-  max-width:0;
-  overflow:hidden;
+  display:inline-block;
+  position:absolute;
+  left:0;
+  top:0;
+  transform:translateY(100%);
+  transition:transform .25s ease, opacity .25s ease;
+  opacity:0;
   white-space:nowrap;
-  transition:max-width .35s ease;
-  vertical-align:middle;
+  font-size:13px;
+}
+
+.slider:hover .slider-icon{
+  transform:translateY(-100%);
+  opacity:0;
 }
 
 .slider:hover .slider-text{
-  max-width:300px;
+  transform:translateY(0);
+  opacity:1;
 }
 
 .slider-text a{
   color:var(--fg);
   text-decoration:none;
-  margin-left:4px;
 }
 </style>
 </head>
@@ -161,7 +178,7 @@ Hello! How can I assist you today?</pre>
       Palmshed
     </span>
     <span class="slider-text">
-      <a href="https://github.com/palmshed">· Get data from /repos/palmshed →</a>
+      <a href="https://github.com/palmshed">Get data from /repos/palmshed →</a>
     </span>
   </span> ·
   <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
