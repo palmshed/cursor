@@ -7,6 +7,9 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    environment:
+      name: docs
+      url: https://github.com/palmshed/cursor-docs
     steps:
       - uses: actions/checkout@v4
         with:
