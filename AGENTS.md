@@ -444,3 +444,49 @@ Communication
 Autonomy
 
 Never reverse this order.
+
+---
+
+# Architecture Freeze
+
+The planner architecture is stable by default, not immutable.
+
+**Preference order:**
+
+1. Improve implementation (bugs, UX, determinism).
+2. Collect telemetry.
+3. Adjust behavior within current layers.
+4. Introduce new architecture only when production evidence demonstrates a recurring limitation not solvable within the current design.
+
+# Architecture Change Litmus Test
+
+Before introducing a new architectural abstraction, answer:
+
+1. **Can this be implemented within the existing architecture?**
+   * If yes, keep it as an implementation change.
+2. If no, **what production evidence demonstrates the limitation?**
+3. **Why is the current architecture insufficient?**
+4. **What measurable outcome should improve?**
+5. **What evidence would tell us the new abstraction was unnecessary?**
+
+# Architecture Promotion Rules
+
+Do not add new abstractions without production evidence.
+
+| Candidate change | Promote only if |
+|---|---|
+| `planner_metrics.h` | Metrics included by 3+ independent modules |
+| `unique_ptr<PlannerShadowMetrics>` | ExecutionResult becomes the lifetime owner |
+| Split PlannerLoop | Loop complexity consistently slows development |
+| New planner abstraction | Production telemetry identifies a recurring limitation not solvable within current layers |
+
+# Rollout Rhythm
+
+Every architectural change follows this sequence:
+
+1. Build the capability.
+2. Run in shadow mode alongside legacy.
+3. Collect production telemetry.
+4. Compare with legacy path.
+5. Promote only if it demonstrates value.
+6. Remove old implementation.
