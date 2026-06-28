@@ -27,7 +27,10 @@ body{
   background:var(--bg);
   color:var(--fg);
   font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  animation:fade-in .5s ease both;
 }
+
+@keyframes fade-in{from{opacity:0;}}
 
 a{
   color:inherit;
@@ -81,7 +84,58 @@ footer{
   padding-top:24px;
   border-top:1px solid var(--border);
   color:var(--dim);
+  font-size:.85rem;
 }
+
+footer a{color:var(--dim);}
+
+.slider{
+  position:relative;
+  display:inline-block;
+  cursor:pointer;
+  z-index:1;
+  overflow:hidden;
+  vertical-align:middle;
+  height:1.2em;
+  line-height:1.2em;
+}
+
+.slider-icon{
+  display:inline-block;
+  transition:transform .25s ease, opacity .25s ease;
+}
+
+.slider-text{
+  display:inline-block;
+  position:absolute;
+  left:0;
+  top:0;
+  transform:translateY(100%);
+  transition:transform .25s ease, opacity .25s ease;
+  opacity:0;
+  white-space:nowrap;
+  font-size:13px;
+}
+
+.slider:hover .slider-icon{
+  transform:translateY(-100%);
+  opacity:0;
+}
+
+.slider:hover .slider-text{
+  transform:translateY(0);
+  opacity:1;
+}
+
+.slider-text a{color:var(--dim);text-decoration:none;}
+
+.ci{font-size:13px;vertical-align:middle;margin-left:4px;transition:color .3s;}
+.ci-ok{color:#3fb950;}
+.ci-fail{color:#f85149;}
+.ci-run{color:#d29922;animation:ci-spin 1s step-end infinite;}
+.ci-unknown{color:var(--dim);}
+
+@keyframes ci-spin{50%{opacity:.3;}}
 </style>
 </head>
 <body>
@@ -124,9 +178,47 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
 <p>Repository maintenance workflows.</p>
 
 <footer>
+  <span class="slider">
+    <span class="slider-icon">
+      <img src="https://raw.githubusercontent.com/palmshed/vortai/main/frontend/public/favicon.ico" style="width:14px;height:14px;vertical-align:middle;margin-right:4px" alt="">
+      Palmshed
+    </span>
+    <span class="slider-text">
+      <a href="https://github.com/palmshed">Get data from /repos/palmshed →</a>
+    </span>
+  </span> ·
   <a href="index.html">Cursor</a> ·
   <a href="https://github.com/bniladridas/cursor">GitHub</a>
+  <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span> ·
+  <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
+  <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
+  Apache 2.0
 </footer>
+
+<script>
+const ciEl = document.getElementById('ci-status');
+async function updateCI() {
+  try {
+    const r = await fetch('https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=1&branch=main');
+    if (!r.ok) throw new Error(String(r.status));
+    const d = await r.json();
+    const run = d.workflow_runs && d.workflow_runs[0];
+    if (!run) { ciEl.className = 'ci ci-unknown'; ciEl.textContent = '\u25CF'; return; }
+    ciEl.className = 'ci ci-' + (run.status === 'completed'
+      ? (run.conclusion === 'success' ? 'ok' : 'fail')
+      : 'run');
+    ciEl.textContent = run.status === 'completed'
+      ? (run.conclusion === 'success' ? '\u2713' : '\u2717')
+      : '\u25CF';
+  } catch(e) {
+    ciEl.className = 'ci ci-unknown';
+    ciEl.textContent = '\u25CF';
+    ciEl.title = 'CI error: ' + e.message;
+  }
+}
+updateCI();
+setInterval(updateCI, 60000);
+</script>
 
 </body>
 </html>
