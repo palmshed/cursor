@@ -77,7 +77,11 @@ pre{
   overflow:auto;
   white-space:pre;
   font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;
+  color:var(--fg);
 }
+
+pre .bold{font-weight:700;}
+pre .dim{color:var(--dim);}
 
 footer{
   margin-top:64px;
@@ -162,8 +166,8 @@ brew install palmshed/cursor/cursor</pre>
 
 <h2>Example</h2>
 
-<pre id="example">▌ CURSOR
-offline · qwen2.5-coder:1.5b
+<pre id="example"><span class="bold">▌ CURSOR</span>
+<span class="dim">offline · qwen2.5-coder:1.5b</span>
 
 &gt; hello
 <span id="example-line"></span></pre>
@@ -171,7 +175,7 @@ offline · qwen2.5-coder:1.5b
 <script>
 const el = document.getElementById('example-line');
 const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-const resp = '\ncursor\n\nHello! How can I assist you today?';
+const resp = '\n<span class="dim">cursor</span>\n\nHello! How can I assist you today?';
 let fi = 0, phase = 'resp';
 let t = 0;
 const phaseLen = [6000, 3000];
