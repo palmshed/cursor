@@ -185,16 +185,16 @@ setInterval(() => {
   t += 80;
   if (phase === 'spin' && t >= phaseLen[0]) {
     phase = 'resp';
-    el.textContent = resp;
+    el.innerHTML = resp;
     t = 0;
   } else if (phase === 'resp' && t >= phaseLen[1]) {
     phase = 'spin';
     t = 0;
   } else if (phase === 'spin') {
-    el.textContent = '\n' + frames[fi];
+    el.innerHTML = '\n' + frames[fi];
   }
 }, 80);
-el.textContent = resp; // start showing the response immediately
+el.innerHTML = resp; // start showing the response immediately
 </script>
 
 <footer>
