@@ -143,6 +143,9 @@ footer a{color:var(--dim);}
 .dropdown-menu a:hover{color:var(--fg);background:var(--border);}
 .dropdown-trigger{color:var(--dim);margin:0 6px;}
 .dropdown-trigger:hover{opacity:.8;}
+.layout-toggle{cursor:pointer;color:var(--dim);margin:0 6px;font-size:13px;user-select:none;}
+.layout-toggle:hover{opacity:.8;}
+body.landscape{max-width:960px;}
 </style>
 </head>
 <body>
@@ -212,6 +215,7 @@ GitHub App used to automate Cursor release and maintenance workflows. The bot ha
     <a href="about.html">About</a> ·
     <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span>
     quality * ·
+    <span class="layout-toggle" id="layout-toggle" title="Toggle layout">▭</span> ·
     🇺🇦 stand with Ukraine
   </div>
 </footer>
@@ -248,6 +252,14 @@ document.addEventListener('click', function(e){
     dd.classList.remove('open');
   }
 });
+
+var lt = document.getElementById('layout-toggle');
+if(lt){lt.addEventListener('click', function(){
+  document.body.classList.toggle('landscape');
+  lt.textContent = document.body.classList.contains('landscape') ? '◻' : '▭';
+  try{localStorage.setItem('layout', document.body.classList.contains('landscape') ? 'landscape' : 'portrait');}catch(e){}
+});}
+try{if(localStorage.getItem('layout') === 'landscape'){document.body.classList.add('landscape');if(lt)lt.textContent='◻';}}catch(e){}
 </script>
 
 </body>
