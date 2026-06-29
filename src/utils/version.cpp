@@ -71,7 +71,7 @@ std::string fetch_latest_version() {
   auto tag_pos = response.find("\"tag_name\":\"");
   if (tag_pos == std::string::npos)
     return {};
-  tag_pos += 13;
+  tag_pos += 12;
   auto tag_end = response.find("\"", tag_pos);
   return response.substr(tag_pos, tag_end - tag_pos);
 }
