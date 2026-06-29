@@ -97,8 +97,10 @@ void print_version_info() {
 
 std::string check_update() {
   std::string latest = fetch_latest_version();
-  if (latest.empty() || latest == get_version())
+  if (latest.empty() || latest == ('v' + std::string(get_version())))
     return {};
+  if (latest.size() > 1 && latest[0] == 'v')
+    latest.erase(0, 1);
   return latest;
 }
 
