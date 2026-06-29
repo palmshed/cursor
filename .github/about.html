@@ -301,7 +301,7 @@ async function updateCI(noCache) {
     ciSource = 'live';
     updateDot();
     buildPopup();
-    return;
+    return true;
   } catch(e) {
     ciEl.title = 'live failed, trying fallback: ' + e.message;
   }
@@ -321,14 +321,16 @@ async function updateCI(noCache) {
     ciEl.title = 'CI error: ' + e.message;
     ciSource = '';
   }
+  return false;
 }
 
 crEl.addEventListener('click', function() {
   if (ciBusy) return;
   ciBusy = true;
   crEl.classList.add('spin');
-  updateCI(true).finally(function(){ciBusy = false; crEl.classList.remove('spin');});
-  window.open('https://github.com/bniladridas/cursor/actions/workflows/ci-status.yml', '_blank');
+  var p = updateCI(true);
+  p.then(function(live){ciBusy = false; crEl.classList.remove('spin'); if (!live) window.open('https://github.com/bniladridas/cursor/actions/workflows/ci-status.yml', '_blank');});
+  p.catch(function(){ciBusy = false; crEl.classList.remove('spin');});
 });
 
 function updateDot() {
