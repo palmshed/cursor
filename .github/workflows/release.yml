@@ -209,6 +209,9 @@ jobs:
           gh pr merge "$pr_url" --squash --delete-branch || \
             echo "merge failed (race or conflict), PR is open for manual merge"
 
+      - name: Update VERSION file
+        run: echo "$GITHUB_REF_NAME" > VERSION
+
       - name: Update package version
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -229,7 +232,9 @@ jobs:
           branch: release/${{ github.ref_name }}
           title: "chore: bump package version for ${{ github.ref_name }}"
           body: "Bumps package.json version for ${{ github.ref_name }}."
-          add-paths: package.json
+          add-paths: |
+            package.json
+            VERSION
           commit-message: "chore: bump package version to ${{ github.ref_name }}"
           author: palmshed-cursor[bot] <294867837+palmshed-cursor[bot]@users.noreply.github.com>
           committer: palmshed-cursor[bot] <294867837+palmshed-cursor[bot]@users.noreply.github.com>

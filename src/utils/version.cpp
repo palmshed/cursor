@@ -63,17 +63,44 @@ std::string fetch_latest_version() {
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
 
   CURLcode res = curl_easy_perform(curl);
+
+  std::string tag;
+  if (res == CURLE_OK) {
+    auto tag_pos = response.find("\"tag_name\":\"");
+    if (tag_pos != std::string::npos) {
+      tag_pos += 12;
+      auto tag_end = response.find("\"", tag_pos);
+      tag = response.substr(tag_pos, tag_end - tag_pos);
+    }
+  }
+
+  curl_easy_cleanup(curl);
+
+  if (!tag.empty())
+    return tag;
+
+  // fallback: read VERSION file from raw.githubusercontent.com
+  curl = curl_easy_init();
+  if (!curl)
+    return {};
+  response.clear();
+  curl_easy_setopt(curl, CURLOPT_URL,
+                   "https://raw.githubusercontent.com/bniladridas/cursor/"
+                   "main/VERSION");
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, "cursor-agent");
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+  res = curl_easy_perform(curl);
   curl_easy_cleanup(curl);
 
   if (res != CURLE_OK)
     return {};
-
-  auto tag_pos = response.find("\"tag_name\":\"");
-  if (tag_pos == std::string::npos)
-    return {};
-  tag_pos += 12;
-  auto tag_end = response.find("\"", tag_pos);
-  return response.substr(tag_pos, tag_end - tag_pos);
+  tag = response;
+  if (!tag.empty() && tag.back() == '\n')
+    tag.pop_back();
+  return tag;
 }
 
 } // namespace
