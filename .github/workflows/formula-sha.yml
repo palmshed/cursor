@@ -1,4 +1,4 @@
-name: formula sha
+name: brew
 
 on:
   workflow_dispatch:

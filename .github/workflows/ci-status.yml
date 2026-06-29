@@ -1,4 +1,4 @@
-name: CI Status
+name: status
 on:
   schedule:
     - cron: '*/5 * * * *'
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            'https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=10' \
+            'https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=50' \
             > .github/ci-status.json
           git config user.name 'palmshed-cursor[bot]'
           git config user.email '294867837+palmshed-cursor[bot]@users.noreply.github.com'

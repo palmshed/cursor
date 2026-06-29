@@ -1,4 +1,4 @@
-name: pr body
+name: prbody
 
 on:
   pull_request_target:

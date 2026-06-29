@@ -231,3 +231,5 @@ jobs:
           body: "Bumps package.json version for ${{ github.ref_name }}."
           add-paths: package.json
           commit-message: "chore: bump package version to ${{ github.ref_name }}"
+          author: palmshed-cursor[bot] <294867837+palmshed-cursor[bot]@users.noreply.github.com>
+          committer: palmshed-cursor[bot] <294867837+palmshed-cursor[bot]@users.noreply.github.com>

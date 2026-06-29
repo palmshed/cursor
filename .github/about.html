@@ -96,6 +96,9 @@ pre{
   .ci-run{color:#d29922;animation:ci-spin 1s step-end infinite;}
   @keyframes ci-spin{50%{opacity:.3;}}
   .ci-unknown{color:var(--dim);}
+  .ci-refresh{display:inline-block;vertical-align:middle;margin-left:4px;font-size:13px;cursor:pointer;opacity:.5;transition:opacity .3s,transform .3s;user-select:none;}
+  .ci-refresh:hover{opacity:1;}
+  .ci-refresh.spin{animation:ci-spin .6s linear 2;}
   #quality-label{cursor:pointer;border-bottom:1px dotted;}
   .quality-wrap{position:relative;display:inline-block;}
   #quality-popup{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;line-height:1.8;white-space:nowrap;z-index:99;margin-bottom:6px;}
@@ -264,7 +267,7 @@ Learn about your model's token pricing on the provider's website. Cursor never a
     <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
     <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
     <a href="index.html">Cursor</a> ·
-    <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span>
+    <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span><span id="ci-refresh" class="ci-refresh" title="Refresh + trigger run">↻</span>
     <span class="quality-wrap" id="quality-wrap"><span id="quality-label">quality *</span><div id="quality-popup"></div></span> ·
     🇺🇦 stand with Ukraine
   </div>
@@ -279,16 +282,23 @@ Learn about your model's token pricing on the provider's website. Cursor never a
 <div class="layout-hint" id="layout-hint">toggle portrait / landscape</div>
 <script>
 const ciEl = document.getElementById('ci-status');
+const crEl = document.getElementById('ci-refresh');
 const qwEl = document.getElementById('quality-wrap');
 const qpEl = document.getElementById('quality-popup');
 var qualityRuns = [];
+var ciSource = '';
+var ciBusy = false;
 
-async function updateCI() {
+async function updateCI(noCache) {
+  ciEl.className = 'ci ci-unknown';
+  ciEl.textContent = '\u25CF';
+  ciEl.title = 'loading\u2026';
   try {
-    const r = await fetch('https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=10');
+    const r = await fetch('https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=50');
     if (!r.ok) throw new Error(String(r.status));
     const d = await r.json();
     qualityRuns = d.workflow_runs || [];
+    ciSource = 'live';
     updateDot();
     buildPopup();
     return;
@@ -296,18 +306,30 @@ async function updateCI() {
     ciEl.title = 'live failed, trying fallback: ' + e.message;
   }
   try {
-    const r = await fetch('https://raw.githubusercontent.com/bniladridas/cursor/ci-cache/.github/ci-status.json');
+    var url = 'https://raw.githubusercontent.com/bniladridas/cursor/ci-cache/.github/ci-status.json';
+    if (noCache) url += '?t=' + Date.now();
+    const r = await fetch(url);
     if (!r.ok) throw new Error(String(r.status));
     const d = await r.json();
     qualityRuns = d.workflow_runs || [];
+    ciSource = 'cached';
     updateDot();
     buildPopup();
   } catch(e) {
     ciEl.className = 'ci ci-unknown';
     ciEl.textContent = '\u25CF';
     ciEl.title = 'CI error: ' + e.message;
+    ciSource = '';
   }
 }
+
+crEl.addEventListener('click', function() {
+  if (ciBusy) return;
+  ciBusy = true;
+  crEl.classList.add('spin');
+  updateCI(true).finally(function(){ciBusy = false; crEl.classList.remove('spin');});
+  window.open('https://github.com/bniladridas/cursor/actions/workflows/ci-status.yml', '_blank');
+});
 
 function updateDot() {
   var run = qualityRuns[0];
@@ -318,7 +340,7 @@ function updateDot() {
   ciEl.textContent = run.status === 'completed'
     ? (run.conclusion === 'success' ? '\u2713' : '\u2717')
     : '\u25CF';
-  ciEl.title = (run.status === 'completed' ? run.conclusion : 'running') + ' \u2013 ' + run.event + ' / ' + run.name;
+  ciEl.title = (run.status === 'completed' ? run.conclusion : 'running') + ' \u2013 ' + run.event + ' / ' + run.name + ' (' + ciSource + ')';
 }
 
 function statusChar(run) {
@@ -332,7 +354,7 @@ function statusClass(run) {
 
 function buildPopup() {
   var html = '<div class="popup-title">workflow runs</div>';
-  qualityRuns.forEach(function(run) {
+  qualityRuns.slice(0,10).forEach(function(run) {
     html += '<div class="popup-row"><span class="ci ' + statusClass(run) + '">' + statusChar(run) + '</span>';
     html += '<a href="' + run.html_url + '" target="_blank">' + run.name + '</a>';
     html += '<span style="color:var(--dim);font-size:10px;">' + run.event + '</span></div>';
