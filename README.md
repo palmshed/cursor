@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/palmshed/cursor/main/.github/assets/thumbnail.png" alt="cursor" width="100%">
+</p>
+
 # Cursor
 
 Cursor is a terminal-native AI coding agent.
