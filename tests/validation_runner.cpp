@@ -128,8 +128,8 @@ int main(int, char **) {
     "check the ci build status",
     "did the last workflow pass",
     // GitHub Investigation
-    "check run https://github.com/bniladridas/cursor/actions/runs/28139237680",
-    "investigate job https://github.com/bniladridas/cursor/actions/runs/28139237680/job/83332734648"
+    "check run https://github.com/palmshed/cursor/actions/runs/28139237680",
+    "investigate job https://github.com/palmshed/cursor/actions/runs/28139237680/job/83332734648"
   };
 
   std::cout << "Cursor Validation Protocol\n";

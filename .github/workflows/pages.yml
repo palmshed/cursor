@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: bot
-      url: https://github.com/bniladridas/cursor/blob/main/.github/github-app.html
+      url: https://github.com/palmshed/cursor/blob/main/.github/github-app.html
     steps:
       - uses: actions/checkout@v4
       - run: echo "Deployment complete for bot environment."

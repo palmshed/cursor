@@ -20,7 +20,7 @@ if (!archive) {
   process.exit(1);
 }
 
-const url = `https://github.com/bniladridas/cursor/releases/download/v${version}/${archive}`;
+const url = `https://github.com/palmshed/cursor/releases/download/v${version}/${archive}`;
 
 fs.mkdirSync(binaryDir, { recursive: true });
 

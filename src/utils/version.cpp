@@ -54,7 +54,7 @@ std::string fetch_latest_version() {
 
   std::string response;
   curl_easy_setopt(curl, CURLOPT_URL,
-                   "https://api.github.com/repos/bniladridas/cursor/releases/"
+                   "https://api.github.com/repos/palmshed/cursor/releases/"
                    "latest");
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "cursor-agent");
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
@@ -85,7 +85,7 @@ std::string fetch_latest_version() {
     return {};
   response.clear();
   curl_easy_setopt(curl, CURLOPT_URL,
-                   "https://raw.githubusercontent.com/bniladridas/cursor/"
+                   "https://raw.githubusercontent.com/palmshed/cursor/"
                    "main/VERSION");
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "cursor-agent");
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_to_string);
@@ -134,7 +134,7 @@ std::string check_update() {
 bool download_and_install(const std::string &version) {
   auto [archive, binary_name] = get_release_asset_names(version);
   std::string url =
-      "https://github.com/bniladridas/cursor/releases/download/v" + version +
+      "https://github.com/palmshed/cursor/releases/download/v" + version +
       "/" + archive;
 
   std::string tmp = "/tmp/cursor-update-" + version;

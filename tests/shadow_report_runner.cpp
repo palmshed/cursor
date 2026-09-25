@@ -169,8 +169,8 @@ static std::vector<std::string> build_query_list() {
     "review codebase",
     "review recent changes",
     // CI Details
-    "check run https://github.com/bniladridas/cursor/actions/runs/28139237680",
-    "investigate job https://github.com/bniladridas/cursor/actions/runs/28139237680/job/83332734648"
+    "check run https://github.com/palmshed/cursor/actions/runs/28139237680",
+    "investigate job https://github.com/palmshed/cursor/actions/runs/28139237680/job/83332734648"
   };
 
   for (auto &q : extra) {

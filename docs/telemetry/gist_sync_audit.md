@@ -4,7 +4,7 @@
 # Gist Synchronization Audit Report
 
 **Date:** 2026-06-26  
-**Target Gist:** [6f4560edbce637a4bb3f6b310d5adae7](https://gist.github.com/bniladridas/6f4560edbce637a4bb3f6b310d5adae7)  
+**Target Gist:** [6f4560edbce637a4bb3f6b310d5adae7](https://gist.github.com/palmshed/6f4560edbce637a4bb3f6b310d5adae7)  
 **Objective:** Compare Gist contents against the local repository and formulate a synchronization plan.
 
 ---

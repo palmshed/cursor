@@ -155,7 +155,7 @@ jobs:
 
       - name: Compute source SHA
         run: |
-          curl -sL "https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz" -o /tmp/source.tar.gz
+          curl -sL "https://github.com/palmshed/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz" -o /tmp/source.tar.gz
           echo "SOURCE_SHA=$(sha256sum /tmp/source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
 
       - name: Compute bottle SHA
@@ -184,9 +184,9 @@ jobs:
           TAPDIR=$(mktemp -d)
           git clone https://github.com/palmshed/homebrew-cursor "$TAPDIR"
           cd "$TAPDIR"
-          sed -i "s|url \".*\"|url \"https://github.com/bniladridas/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
+          sed -i "s|url \".*\"|url \"https://github.com/palmshed/cursor/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz\"|" Formula/cursor.rb
           sed -i "s|sha256 \".*\"|sha256 \"${SOURCE_SHA}\"|" Formula/cursor.rb
-          sed -i "s|root_url \".*\"|root_url \"https://github.com/bniladridas/cursor/releases/download/${GITHUB_REF_NAME}\"|" Formula/cursor.rb
+          sed -i "s|root_url \".*\"|root_url \"https://github.com/palmshed/cursor/releases/download/${GITHUB_REF_NAME}\"|" Formula/cursor.rb
           if [ -n "${BOTTLE_SHA}" ]; then
             sed -i "s|sha256 arm64_sequoia: \".*\"|sha256 arm64_sequoia: \"${BOTTLE_SHA}\"|" Formula/cursor.rb
           fi

@@ -37,5 +37,5 @@ brew install palmshed/cursor/cursor
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://github.com/bniladridas/cursor/raw/main/install.sh | sudo sh
+curl -fsSL https://github.com/palmshed/cursor/raw/main/install.sh | sudo sh
 ```

@@ -39,15 +39,15 @@ jobs:
           git clone https://github.com/palmshed/homebrew-cursor "$TAPDIR"
           cd "$TAPDIR"
 
-          url="https://github.com/bniladridas/cursor/archive/refs/tags/${tag}.tar.gz"
+          url="https://github.com/palmshed/cursor/archive/refs/tags/${tag}.tar.gz"
           curl -fsSL "$url" -o source.tar.gz
           sha="$(sha256sum source.tar.gz | awk '{print $1}')"
           TAG="$tag" SHA="$sha" ruby -0pi -e 'gsub(/url "https:\/\/github\.com\/bniladridas\/cursor\/archive\/refs\/tags\/v[^\"]+\.tar\.gz"/, "url \"https:\/\/github.com\/bniladridas\/cursor\/archive\/refs\/tags\/#{ENV.fetch("TAG")}.tar.gz\""); gsub(/sha256 "[0-9a-f]{64}"/, "sha256 \"#{ENV.fetch("SHA")}\"")' Formula/cursor.rb
           rm source.tar.gz
 
-          sed -i "s|root_url \".*\"|root_url \"https://github.com/bniladridas/cursor/releases/download/${tag}\"|" Formula/cursor.rb
+          sed -i "s|root_url \".*\"|root_url \"https://github.com/palmshed/cursor/releases/download/${tag}\"|" Formula/cursor.rb
 
-          bottle_url="https://github.com/bniladridas/cursor/releases/download/${tag}/cursor-${version}.arm64_sequoia.bottle.tar.gz"
+          bottle_url="https://github.com/palmshed/cursor/releases/download/${tag}/cursor-${version}.arm64_sequoia.bottle.tar.gz"
           if curl -fsSL "$bottle_url" -o bottle.tar.gz; then
             bottle_sha="$(sha256sum bottle.tar.gz | awk '{print $1}')"
             BOTTLE_SHA="$bottle_sha" ruby -0pi -e '

@@ -243,8 +243,8 @@ This bot runs workflows in bniladridas/cursor and palmshed/cursor-docs. It build
   <div>
     Apache 2.0 ·
     <a href="index.html">Cursor</a> ·
-    <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
-    <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
+    <a href="https://github.com/palmshed/cursor">GitHub</a> ·
+    <a href="https://github.com/palmshed/cursor/releases">Releases</a> ·
     <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
     <a href="about.html">About</a> ·
     <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span><span id="ci-refresh" class="ci-refresh" title="Refresh + trigger run">↻</span>
@@ -274,7 +274,7 @@ async function updateCI(noCache) {
   ciEl.textContent = '\u25CF';
   ciEl.title = 'loading\u2026';
   try {
-    const r = await fetch('https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=50');
+    const r = await fetch('https://api.github.com/repos/palmshed/cursor/actions/runs?per_page=50');
     if (!r.ok) throw new Error(String(r.status));
     const d = await r.json();
     qualityRuns = d.workflow_runs || [];
@@ -286,7 +286,7 @@ async function updateCI(noCache) {
     ciEl.title = 'live failed, trying fallback: ' + e.message;
   }
   try {
-    var url = 'https://raw.githubusercontent.com/bniladridas/cursor/ci-cache/.github/ci-status.json';
+    var url = 'https://raw.githubusercontent.com/palmshed/cursor/ci-cache/.github/ci-status.json';
     if (noCache) url += '?t=' + Date.now();
     const r = await fetch(url);
     if (!r.ok) throw new Error(String(r.status));
@@ -309,7 +309,7 @@ crEl.addEventListener('click', function() {
   ciBusy = true;
   crEl.classList.add('spin');
   var p = updateCI(true);
-  p.then(function(live){ciBusy = false; crEl.classList.remove('spin'); if (!live) window.open('https://github.com/bniladridas/cursor/actions/workflows/ci-status.yml', '_blank');});
+  p.then(function(live){ciBusy = false; crEl.classList.remove('spin'); if (!live) window.open('https://github.com/palmshed/cursor/actions/workflows/ci-status.yml', '_blank');});
   p.catch(function(){ciBusy = false; crEl.classList.remove('spin');});
 });
 

@@ -205,7 +205,7 @@ This is a space for honest conversation. Critique the code, question the decisio
 </blockquote>
 
 <p>
-Use <a href="https://github.com/bniladridas/cursor/issues">GitHub Issues</a> for bugs, feature requests, or concerns. Use <a href="https://github.com/bniladridas/cursor/discussions">Discussions</a> for open-ended conversation. No topic is off limits as long as it follows basic respect.
+Use <a href="https://github.com/palmshed/cursor/issues">GitHub Issues</a> for bugs, feature requests, or concerns. Use <a href="https://github.com/palmshed/cursor/discussions">Discussions</a> for open-ended conversation. No topic is off limits as long as it follows basic respect.
 </p>
 
 <h2>Support &amp; Consultancy</h2>
@@ -215,8 +215,8 @@ Cursor is a free tool. If you need help, have questions, or want consultancy on 
 </p>
 
 <ul>
-  <li>Open a <a href="https://github.com/bniladridas/cursor/discussions">GitHub Discussion</a> for community help.</li>
-  <li>File an <a href="https://github.com/bniladridas/cursor/issues">Issue</a> for bugs or feature requests.</li>
+  <li>Open a <a href="https://github.com/palmshed/cursor/discussions">GitHub Discussion</a> for community help.</li>
+  <li>File an <a href="https://github.com/palmshed/cursor/issues">Issue</a> for bugs or feature requests.</li>
   <li>Reach out directly for paid consultancy or integration support.</li>
 </ul>
 
@@ -263,8 +263,8 @@ Learn about your model's token pricing on the provider's website. Cursor never a
   <div>
     Apache 2.0 ·
     <a href="github-app.html">palmshed-cursor[bot]</a> ·
-    <a href="https://github.com/bniladridas/cursor">GitHub</a> ·
-    <a href="https://github.com/bniladridas/cursor/releases">Releases</a> ·
+    <a href="https://github.com/palmshed/cursor">GitHub</a> ·
+    <a href="https://github.com/palmshed/cursor/releases">Releases</a> ·
     <a href="https://palmshed.github.io/cursor-docs/">Docs</a> ·
     <a href="index.html">Cursor</a> ·
     <span id="ci-status" class="ci ci-unknown" title="Checking CI…">●</span><span id="ci-refresh" class="ci-refresh" title="Refresh + trigger run">↻</span>
@@ -294,7 +294,7 @@ async function updateCI(noCache) {
   ciEl.textContent = '\u25CF';
   ciEl.title = 'loading\u2026';
   try {
-    const r = await fetch('https://api.github.com/repos/bniladridas/cursor/actions/runs?per_page=50');
+    const r = await fetch('https://api.github.com/repos/palmshed/cursor/actions/runs?per_page=50');
     if (!r.ok) throw new Error(String(r.status));
     const d = await r.json();
     qualityRuns = d.workflow_runs || [];
@@ -306,7 +306,7 @@ async function updateCI(noCache) {
     ciEl.title = 'live failed, trying fallback: ' + e.message;
   }
   try {
-    var url = 'https://raw.githubusercontent.com/bniladridas/cursor/ci-cache/.github/ci-status.json';
+    var url = 'https://raw.githubusercontent.com/palmshed/cursor/ci-cache/.github/ci-status.json';
     if (noCache) url += '?t=' + Date.now();
     const r = await fetch(url);
     if (!r.ok) throw new Error(String(r.status));
@@ -329,7 +329,7 @@ crEl.addEventListener('click', function() {
   ciBusy = true;
   crEl.classList.add('spin');
   var p = updateCI(true);
-  p.then(function(live){ciBusy = false; crEl.classList.remove('spin'); if (!live) window.open('https://github.com/bniladridas/cursor/actions/workflows/ci-status.yml', '_blank');});
+  p.then(function(live){ciBusy = false; crEl.classList.remove('spin'); if (!live) window.open('https://github.com/palmshed/cursor/actions/workflows/ci-status.yml', '_blank');});
   p.catch(function(){ciBusy = false; crEl.classList.remove('spin');});
 });
 
