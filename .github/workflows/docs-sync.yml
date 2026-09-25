@@ -11,10 +11,10 @@ jobs:
       name: docs
       url: https://github.com/palmshed/cursor-docs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: source
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: palmshed/cursor-docs
           token: ${{ secrets.DOCS_SYNC_TOKEN }}

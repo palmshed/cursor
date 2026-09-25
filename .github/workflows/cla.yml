@@ -13,12 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'bniladridas' && github.event.pull_request.user.type != 'Bot'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: |
             .github/signed.json
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: palmshed/clabot
           path: cla-bot
